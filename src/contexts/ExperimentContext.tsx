@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { mockExperiments, devices as defaultDevices } from '@/data/mockData';
-import type { Device, Experiment, SampleData, TraceItem, VisionStatus } from '@/types/experiment';
+import { mockExperiments, devices as defaultDevices, defaultMetrics } from '@/data/mockData';
+import type { Device, Experiment, Metric, SampleData, TraceItem, VisionStatus } from '@/types/experiment';
 
 interface ExperimentContextType {
   experiments: Experiment[];
@@ -8,6 +8,7 @@ interface ExperimentContextType {
   current: Experiment;
   traceItems: TraceItem[];
   devices: Device[];
+  metrics: Metric[];
   switchExperiment: (id: string) => void;
   addExperiment: (data: { name: string; sampleType: string; target: string }) => void;
   updateExperiment: (id: string, patch: Partial<Experiment>) => void;
@@ -20,6 +21,9 @@ interface ExperimentContextType {
   addDevice: (device: Device) => void;
   updateDevice: (id: string, patch: Partial<Device>) => void;
   deleteDevice: (id: string) => void;
+  addMetric: (metric: Metric) => void;
+  updateMetric: (id: string, patch: Partial<Metric>) => void;
+  deleteMetric: (id: string) => void;
 }
 
 const ExperimentContext = createContext<ExperimentContextType | null>(null);
@@ -28,6 +32,7 @@ export const ExperimentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [experiments, setExperiments] = useState<Experiment[]>(mockExperiments);
   const [currentId, setCurrentId] = useState<string>(mockExperiments[0].id);
   const [devices, setDevices] = useState<Device[]>(defaultDevices);
+  const [metrics, setMetrics] = useState<Metric[]>(defaultMetrics);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const current = useMemo(
@@ -154,13 +159,26 @@ export const ExperimentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setDevices((prev) => prev.filter((d) => d.id !== id));
   }, []);
 
+  const addMetric = useCallback((metric: Metric) => {
+    setMetrics((prev) => [metric, ...prev]);
+  }, []);
+
+  const updateMetric = useCallback((id: string, patch: Partial<Metric>) => {
+    setMetrics((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  }, []);
+
+  const deleteMetric = useCallback((id: string) => {
+    setMetrics((prev) => prev.filter((m) => m.id !== id));
+  }, []);
+
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
   const value: ExperimentContextType = {
-    experiments, currentId, current, traceItems, devices,
+    experiments, currentId, current, traceItems, devices, metrics,
     switchExperiment, addExperiment, updateExperiment, archiveExperiment, deleteExperiment,
     runSopSequence, loadData, rerunVision, validateSample,
     addDevice, updateDevice, deleteDevice,
+    addMetric, updateMetric, deleteMetric,
   };
 
   return <ExperimentContext.Provider value={value}>{children}</ExperimentContext.Provider>;

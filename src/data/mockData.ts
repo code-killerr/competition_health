@@ -10,6 +10,7 @@ import type {
   InputFile,
   Artifact,
   EventLogItem,
+  Metric,
 } from '@/types/experiment';
 
 // 实验参考影像：真实医学/生物实验图片，避免占位图空置
@@ -344,3 +345,13 @@ export function deriveLibraryQC(exp: Experiment): { name: string; value: number 
     { name: 'ATAC 文库', value: Math.round(base * 0.2 + (exp.dataLoaded ? 1 : 0)) },
   ];
 }
+
+export const defaultMetrics: Metric[] = [
+  { id: 'M-001', name: '有核率', unit: '%', higherIsBetter: true, threshold: '>5%', description: '核悬液中完整细胞核占比' },
+  { id: 'M-002', name: '总细胞核', unit: '', higherIsBetter: true, threshold: '≤200,000', description: '单次提核总细胞核数量' },
+  { id: 'M-003', name: '结团率', unit: '%', higherIsBetter: false, threshold: '<30%', description: '细胞核结团比例，越低越优' },
+  { id: 'M-004', name: '单管投入', unit: '', higherIsBetter: true, threshold: '1,000–25,000', description: '单个油包水反应投入细胞核数' },
+  { id: 'M-005', name: '证据链数', unit: '/10', higherIsBetter: true, threshold: '≥6', description: 'AI Agent 审计追溯证据链条目数' },
+  { id: 'M-006', name: '追溯评分', unit: '', higherIsBetter: true, threshold: '≥80', description: '实验可追溯度综合评分' },
+  { id: 'M-007', name: '实验进度', unit: '%', higherIsBetter: true, threshold: '100', description: 'SOP 流程完成百分比' },
+];

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, FlaskConical, GitCompareArrows, Map, Cpu, FlaskRound, ListChecks,
+  LayoutDashboard, FlaskConical, GitCompareArrows, Ruler, Map, Cpu, FlaskRound, ListChecks,
   Database, ShieldCheck, ChevronDown, Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -11,12 +11,13 @@ const navItems = [
   { to: '/workspace/dashboard', label: '仪表盘', icon: LayoutDashboard, code: '00' },
   { to: '/workspace/experiments', label: '实验管理', icon: FlaskConical, code: '01' },
   { to: '/workspace/compare', label: '实验对比', icon: GitCompareArrows, code: '02' },
-  { to: '/workspace/overview', label: '实验总览', icon: Map, code: '03' },
-  { to: '/workspace/devices', label: '设备管理', icon: Cpu, code: '04' },
-  { to: '/workspace/sample', label: '样本建档', icon: FlaskRound, code: '05' },
-  { to: '/workspace/sop', label: 'SOP 执行', icon: ListChecks, code: '06' },
-  { to: '/workspace/data', label: '数据与质控', icon: Database, code: '07' },
-  { to: '/workspace/audit', label: '审计追溯', icon: ShieldCheck, code: '08' },
+  { to: '/workspace/metrics', label: '指标管理', icon: Ruler, code: '03' },
+  { to: '/workspace/overview', label: '实验总览', icon: Map, code: '04' },
+  { to: '/workspace/devices', label: '设备管理', icon: Cpu, code: '05' },
+  { to: '/workspace/sample', label: '样本建档', icon: FlaskRound, code: '06' },
+  { to: '/workspace/sop', label: 'SOP 执行', icon: ListChecks, code: '07' },
+  { to: '/workspace/data', label: '数据与质控', icon: Database, code: '08' },
+  { to: '/workspace/audit', label: '审计追溯', icon: ShieldCheck, code: '09' },
 ];
 
 const statusTone: Record<string, string> = {

@@ -142,3 +142,12 @@ export interface SampleData {
   aggregation: number;
   perReaction: number;
 }
+
+export interface Metric {
+  id: string;
+  name: string;
+  unit: string;
+  higherIsBetter: boolean;
+  threshold: string;
+  description: string;
+}

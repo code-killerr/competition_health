@@ -1,14 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { X, ArrowLeft, Download, Layers } from 'lucide-react';
+import { X, ArrowLeft, Download, Layers, Check } from 'lucide-react';
 import WorkspaceLayout from '@/components/layouts/WorkspaceLayout';
 import Panel from '@/components/common/Panel';
 import StatusBadge from '@/components/common/StatusBadge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useExperiment } from '@/contexts/ExperimentContext';
 import { traceScore, deriveLibraryQC } from '@/data/mockData';
-import type { Experiment } from '@/types/experiment';
+import type { Experiment, Metric } from '@/types/experiment';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -27,15 +28,44 @@ interface MetricDef {
   format: (v: number) => string;
 }
 
-const metrics: MetricDef[] = [
-  { key: 'rate', label: '有核率', unit: '%', higherIsBetter: true, getValue: (e) => e.sample.rate, format: (v) => `${v}%` },
-  { key: 'nuclei', label: '总细胞核', unit: '', higherIsBetter: true, getValue: (e) => e.sample.nuclei, format: (v) => v.toLocaleString() },
-  { key: 'aggregation', label: '结团率', unit: '%', higherIsBetter: false, getValue: (e) => e.sample.aggregation, format: (v) => `${v}%` },
-  { key: 'perReaction', label: '单管投入', unit: '', higherIsBetter: true, getValue: (e) => e.sample.perReaction, format: (v) => v.toLocaleString() },
-  { key: 'evidence', label: '证据链数', unit: '/10', higherIsBetter: true, getValue: (e) => e.evidenceCount, format: (v) => `${v}/10` },
-  { key: 'trace', label: '追溯评分', unit: '', higherIsBetter: true, getValue: (e) => traceScore(e), format: (v) => `${v}` },
-  { key: 'progress', label: '实验进度', unit: '%', higherIsBetter: true, getValue: (e) => e.progress, format: (v) => `${v}%` },
-];
+// 将指标库中的指标映射为带取值逻辑的对比维度
+function buildMetricDefs(metrics: Metric[]): MetricDef[] {
+  const base: MetricDef[] = [
+    { key: 'rate', label: '有核率', unit: '%', higherIsBetter: true, getValue: (e) => e.sample.rate, format: (v) => `${v}%` },
+    { key: 'nuclei', label: '总细胞核', unit: '', higherIsBetter: true, getValue: (e) => e.sample.nuclei, format: (v) => v.toLocaleString() },
+    { key: 'aggregation', label: '结团率', unit: '%', higherIsBetter: false, getValue: (e) => e.sample.aggregation, format: (v) => `${v}%` },
+    { key: 'perReaction', label: '单管投入', unit: '', higherIsBetter: true, getValue: (e) => e.sample.perReaction, format: (v) => v.toLocaleString() },
+    { key: 'evidence', label: '证据链数', unit: '/10', higherIsBetter: true, getValue: (e) => e.evidenceCount, format: (v) => `${v}/10` },
+    { key: 'trace', label: '追溯评分', unit: '', higherIsBetter: true, getValue: (e) => traceScore(e), format: (v) => `${v}` },
+    { key: 'progress', label: '实验进度', unit: '%', higherIsBetter: true, getValue: (e) => e.progress, format: (v) => `${v}%` },
+  ];
+  // 自定义指标（非内置的）映射到对应的取值逻辑
+  const builtinKeys = new Set(base.map((b) => b.key));
+  const builtinByName = new Map([
+    ['有核率', base[0]], ['总细胞核', base[1]], ['结团率', base[2]],
+    ['单管投入', base[3]], ['证据链数', base[4]], ['追溯评分', base[5]], ['实验进度', base[6]],
+  ]);
+  const custom: MetricDef[] = [];
+  for (const m of metrics) {
+    if (builtinByName.has(m.name)) {
+      const def = builtinByName.get(m.name)!;
+      builtinKeys.add(m.id);
+      // 同名内置指标：以指标库的优化方向为准
+      def.higherIsBetter = m.higherIsBetter;
+      continue;
+    }
+    // 纯自定义指标：用实验进度作为占位取值，便于演示对比
+    custom.push({
+      key: m.id,
+      label: m.name,
+      unit: m.unit,
+      higherIsBetter: m.higherIsBetter,
+      getValue: (e) => e.progress,
+      format: (v) => (m.unit === '%' ? `${v}%` : `${v}`),
+    });
+  }
+  return [...base, ...custom];
+}
 
 const libraryNames = ['cDNA 文库', '表达文库', '空间标签文库', 'ATAC 文库'];
 
@@ -116,10 +146,31 @@ const RadarChart: React.FC<{ experiments: Experiment[] }> = ({ experiments }) =>
 const ComparePage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { experiments } = useExperiment();
+  const { experiments, metrics: metricLibrary } = useExperiment();
 
   const ids = useMemo(() => (searchParams.get('ids') || '').split(',').filter(Boolean), [searchParams]);
   const selected = useMemo(() => ids.map((id) => experiments.find((e) => e.id === id)).filter(Boolean) as Experiment[], [ids, experiments]);
+
+  const allMetricDefs = useMemo(() => buildMetricDefs(metricLibrary), [metricLibrary]);
+  const [activeMetricKeys, setActiveMetricKeys] = useState<string[]>([]);
+
+  // 默认勾选全部指标
+  const effectiveKeys = useMemo(() => {
+    const allKeys = allMetricDefs.map((m) => m.key);
+    if (activeMetricKeys.length === 0) return allKeys;
+    return activeMetricKeys;
+  }, [activeMetricKeys, allMetricDefs]);
+
+  const activeMetrics = useMemo(() => allMetricDefs.filter((m) => effectiveKeys.includes(m.key)), [allMetricDefs, effectiveKeys]);
+
+  const toggleMetric = (key: string) => {
+    setActiveMetricKeys((prev) => {
+      const base = prev.length === 0 ? allMetricDefs.map((m) => m.key) : prev;
+      const next = base.includes(key) ? base.filter((k) => k !== key) : [...base, key];
+      if (next.length === 0) { toast.warning('至少选择一个指标'); return base; }
+      return next;
+    });
+  };
 
   const removeId = (id: string) => {
     const next = ids.filter((x) => x !== id);
@@ -229,6 +280,35 @@ const ComparePage: React.FC = () => {
           ))}
         </div>
 
+        {/* 指标筛选区 */}
+        <div className="mb-4 rounded-lg border border-border bg-secondary/30 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-medium text-foreground">对比指标筛选 <span className="font-mono-data text-muted-foreground">({activeMetrics.length}/{allMetricDefs.length})</span></span>
+            <Button size="sm" variant="ghost" onClick={() => setActiveMetricKeys([])} className="h-6 px-2 text-[10px] text-muted-foreground hover:bg-secondary hover:text-foreground">
+              全选
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {allMetricDefs.map((m) => {
+              const checked = effectiveKeys.includes(m.key);
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => toggleMetric(m.key)}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors',
+                    checked ? 'border-primary bg-primary/15 text-primary' : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {checked ? <Check className="h-3 w-3" /> : <span className="h-3 w-3 rounded-full border border-current opacity-50" />}
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* 对比表格 */}
         <Panel label="QC Comparison Table" title="指标对比表" tag={<span className="text-xs text-muted-foreground">最优 <span className="text-primary">●</span> · 最差 <span className="text-destructive">●</span></span>}>
           <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border bg-card">
@@ -247,7 +327,7 @@ const ComparePage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {metrics.map((metric, mi) => (
+                {activeMetrics.map((metric, mi) => (
                   <motion.tr key={metric.key} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: mi * 0.04 }} className="border-b border-border/60 text-xs last:border-0">
                     <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                       {metric.label}
@@ -266,7 +346,7 @@ const ComparePage: React.FC = () => {
                 ))}
                 {/* 文库浓度分组 */}
                 {libraryNames.map((libName, li) => (
-                  <motion.tr key={libName} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: (metrics.length + li) * 0.04 }} className="border-b border-border/60 text-xs last:border-0">
+                  <motion.tr key={libName} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: (activeMetrics.length + li) * 0.04 }} className="border-b border-border/60 text-xs last:border-0">
                     <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{libName}浓度</td>
                     {selected.map((exp) => {
                       const lib = deriveLibraryQC(exp)[li];
@@ -298,7 +378,7 @@ const ComparePage: React.FC = () => {
 
           <Panel label="Grouped Bars" title="关键指标分组柱状图" tag={<StatusBadge tone="neutral">同指标内归一化</StatusBadge>}>
             <div className="space-y-5">
-              {metrics.filter((m) => ['rate', 'aggregation', 'trace', 'progress'].includes(m.key)).map((metric) => {
+              {activeMetrics.filter((m) => ['rate', 'aggregation', 'trace', 'progress'].includes(m.key)).map((metric) => {
                 const values = selected.map((e) => metric.getValue(e));
                 const max = Math.max(...values, 1);
                 return (
