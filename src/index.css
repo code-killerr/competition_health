@@ -1,0 +1,193 @@
+/* stylelint-disable */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --radius: 0.625rem;
+    /* 深色科技感生物实验室：深蓝黑基底 + 青绿主色 + 蓝色点缀 */
+    --background: 220 33% 7%;
+    --foreground: 200 20% 92%;
+    --card: 220 30% 10%;
+    --card-foreground: 200 20% 92%;
+    --popover: 220 30% 10%;
+    --popover-foreground: 200 20% 92%;
+    --primary: 168 100% 42%;
+    --primary-foreground: 220 33% 7%;
+    --secondary: 220 25% 15%;
+    --secondary-foreground: 200 20% 92%;
+    --muted: 220 22% 14%;
+    --muted-foreground: 215 16% 55%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 220 33% 7%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 20% 18%;
+    --input: 220 20% 18%;
+    --ring: 168 100% 42%;
+    --success: 152 60% 45%;
+    --warning: 38 92% 55%;
+    --info: 217 91% 60%;
+    --chart-1: 168 100% 42%;
+    --chart-2: 217 91% 60%;
+    --chart-3: 38 92% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 222 35% 6%;
+    --sidebar-foreground: 200 18% 78%;
+    --sidebar-primary: 168 100% 42%;
+    --sidebar-primary-foreground: 220 33% 7%;
+    --sidebar-accent: 220 25% 13%;
+    --sidebar-accent-foreground: 200 20% 92%;
+    --sidebar-border: 220 20% 15%;
+    --sidebar-ring: 168 100% 42%;
+    --gradient-primary: linear-gradient(135deg, hsl(168 100% 42%), hsl(217 91% 60%));
+    --gradient-card: linear-gradient(160deg, hsl(220 30% 11%), hsl(220 30% 8%));
+    --gradient-background: linear-gradient(180deg, hsl(220 33% 7%), hsl(222 35% 5%));
+    --shadow-card: 0 1px 0 0 hsl(220 20% 18% / 0.6), 0 8px 24px -8px hsl(220 60% 4% / 0.8);
+    --shadow-hover: 0 0 0 1px hsl(168 100% 42% / 0.3), 0 12px 32px -8px hsl(168 100% 42% / 0.15);
+  }
+
+  .dark {
+    --radius: 0.625rem;
+    --background: 220 33% 7%;
+    --foreground: 200 20% 92%;
+    --card: 220 30% 10%;
+    --card-foreground: 200 20% 92%;
+    --popover: 220 30% 10%;
+    --popover-foreground: 200 20% 92%;
+    --primary: 168 100% 42%;
+    --primary-foreground: 220 33% 7%;
+    --secondary: 220 25% 15%;
+    --secondary-foreground: 200 20% 92%;
+    --muted: 220 22% 14%;
+    --muted-foreground: 215 16% 55%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 220 33% 7%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 20% 18%;
+    --input: 220 20% 18%;
+    --ring: 168 100% 42%;
+    --success: 152 60% 45%;
+    --warning: 38 92% 55%;
+    --info: 217 91% 60%;
+    --chart-1: 168 100% 42%;
+    --chart-2: 217 91% 60%;
+    --chart-3: 38 92% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 222 35% 6%;
+    --sidebar-foreground: 200 18% 78%;
+    --sidebar-primary: 168 100% 42%;
+    --sidebar-primary-foreground: 220 33% 7%;
+    --sidebar-accent: 220 25% 13%;
+    --sidebar-accent-foreground: 200 20% 92%;
+    --sidebar-border: 220 20% 15%;
+    --sidebar-ring: 168 100% 42%;
+    --gradient-primary: linear-gradient(135deg, hsl(168 100% 42%), hsl(217 91% 60%));
+    --gradient-card: linear-gradient(160deg, hsl(220 30% 11%), hsl(220 30% 8%));
+    --gradient-background: linear-gradient(180deg, hsl(220 33% 7%), hsl(222 35% 5%));
+    --shadow-card: 0 1px 0 0 hsl(220 20% 18% / 0.6), 0 8px 24px -8px hsl(220 60% 4% / 0.8);
+    --shadow-hover: 0 0 0 1px hsl(168 100% 42% / 0.3), 0 12px 32px -8px hsl(168 100% 42% / 0.15);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply dark;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', 'AlibabaPuHuiTi', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* 滚动条 */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .font-mono-data {
+    font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  .gradient-text {
+    background-image: var(--gradient-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .glow-border {
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.2), 0 0 20px -4px hsl(var(--primary) / 0.15);
+  }
+
+  .panel-surface {
+    background: linear-gradient(160deg, hsl(220 30% 11%), hsl(220 30% 8%));
+    border: 1px solid hsl(var(--border));
+  }
+
+  .grid-bg {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.25) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.25) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  .live-dot {
+    @apply inline-block h-1.5 w-1.5 rounded-full bg-primary;
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.2);
+    animation: live-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes orbit-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes orbit-spin-rev {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+
+@keyframes float-soft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes spot-in {
+  from { opacity: 0; transform: scale(0.4); }
+  to { opacity: 1; transform: scale(1); }
+}
