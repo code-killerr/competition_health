@@ -1,13 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Plus, Search, Eye, ArrowLeftRight, Archive, Trash2, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Eye, ArrowLeftRight, Archive, Trash2, Clock, ChevronLeft, ChevronRight, GitCompareArrows, X } from 'lucide-react';
 import WorkspaceLayout from '@/components/layouts/WorkspaceLayout';
 import Panel from '@/components/common/Panel';
 import StatusBadge from '@/components/common/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -35,6 +36,7 @@ const ExperimentsPage: React.FC = () => {
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<ExperimentStatus | 'ALL'>('ALL');
   const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState('');
@@ -105,11 +107,54 @@ const ExperimentsPage: React.FC = () => {
             </div>
           </div>
 
+          {/* 批量对比栏 */}
+          {selectedIds.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+              <GitCompareArrows className="h-4 w-4 shrink-0 text-primary" />
+              <span className="text-xs text-foreground">已选 <strong className="text-primary">{selectedIds.length}</strong> 个实验</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {selectedIds.map((id) => {
+                  const exp = experiments.find((e) => e.id === id);
+                  return (
+                    <span key={id} className="flex items-center gap-1 rounded border border-border bg-secondary/50 px-1.5 py-0.5 text-[10px] text-foreground">
+                      <span className="max-w-20 truncate">{exp?.name ?? id}</span>
+                      <button type="button" onClick={() => setSelectedIds((p) => p.filter((x) => x !== id))} className="text-muted-foreground hover:text-destructive">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])} className="h-7 px-2 text-muted-foreground hover:bg-secondary hover:text-foreground">取消选择</Button>
+                <Button size="sm" disabled={selectedIds.length < 2} onClick={() => navigate(`/workspace/compare?ids=${selectedIds.join(',')}`)} className="h-7 bg-primary text-primary-foreground hover:bg-primary/90">
+                  <GitCompareArrows className="mr-1 h-3.5 w-3.5" />对比实验
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* 表格 */}
           <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border bg-card">
             <table className="w-full min-w-max text-left">
               <thead>
                 <tr className="border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <th className="whitespace-nowrap px-4 py-2.5">
+                    <Checkbox
+                      checked={paged.length > 0 && paged.every((e) => selectedIds.includes(e.id))}
+                      onCheckedChange={(checked) => {
+                        setSelectedIds((prev) => {
+                          const pageIds = paged.map((e) => e.id);
+                          if (checked) {
+                            const merged = Array.from(new Set([...prev, ...pageIds])).slice(0, 4);
+                            if (merged.length > 4) { toast.warning('最多选择 4 个实验进行对比'); return prev; }
+                            return merged;
+                          }
+                          return prev.filter((id) => !pageIds.includes(id));
+                        });
+                      }}
+                    />
+                  </th>
                   <th className="whitespace-nowrap px-4 py-2.5 font-medium">实验 ID</th>
                   <th className="whitespace-nowrap px-4 py-2.5 font-medium">实验名称</th>
                   <th className="whitespace-nowrap px-4 py-2.5 font-medium">状态</th>
@@ -128,6 +173,20 @@ const ExperimentsPage: React.FC = () => {
                     transition={{ delay: i * 0.03 }}
                     className={`border-b border-border/60 text-xs last:border-0 hover:bg-secondary/40 ${exp.id === currentId ? 'bg-primary/5' : ''}`}
                   >
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <Checkbox
+                        checked={selectedIds.includes(exp.id)}
+                        onCheckedChange={(checked) => {
+                          setSelectedIds((prev) => {
+                            if (checked) {
+                              if (prev.length >= 4) { toast.warning('最多选择 4 个实验进行对比'); return prev; }
+                              return [...prev, exp.id];
+                            }
+                            return prev.filter((id) => id !== exp.id);
+                          });
+                        }}
+                      />
+                    </td>
                     <td className="whitespace-nowrap px-4 py-3 font-mono-data text-muted-foreground">{exp.id}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-foreground">{exp.name}</td>
                     <td className="whitespace-nowrap px-4 py-3"><StatusBadge tone={statusTone[exp.status]}>{exp.status}</StatusBadge></td>
@@ -166,7 +225,7 @@ const ExperimentsPage: React.FC = () => {
                   </motion.tr>
                 ))}
                 {paged.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">没有匹配的实验</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">没有匹配的实验</td></tr>
                 )}
               </tbody>
             </table>

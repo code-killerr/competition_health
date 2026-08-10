@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, FlaskConical, Map, Cpu, FlaskRound, ListChecks,
+  LayoutDashboard, FlaskConical, GitCompareArrows, Map, Cpu, FlaskRound, ListChecks,
   Database, ShieldCheck, ChevronDown, Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -10,12 +10,13 @@ import { useExperiment } from '@/contexts/ExperimentContext';
 const navItems = [
   { to: '/workspace/dashboard', label: '仪表盘', icon: LayoutDashboard, code: '00' },
   { to: '/workspace/experiments', label: '实验管理', icon: FlaskConical, code: '01' },
-  { to: '/workspace/overview', label: '实验总览', icon: Map, code: '02' },
-  { to: '/workspace/devices', label: '设备管理', icon: Cpu, code: '03' },
-  { to: '/workspace/sample', label: '样本建档', icon: FlaskRound, code: '04' },
-  { to: '/workspace/sop', label: 'SOP 执行', icon: ListChecks, code: '05' },
-  { to: '/workspace/data', label: '数据与质控', icon: Database, code: '06' },
-  { to: '/workspace/audit', label: '审计追溯', icon: ShieldCheck, code: '07' },
+  { to: '/workspace/compare', label: '实验对比', icon: GitCompareArrows, code: '02' },
+  { to: '/workspace/overview', label: '实验总览', icon: Map, code: '03' },
+  { to: '/workspace/devices', label: '设备管理', icon: Cpu, code: '04' },
+  { to: '/workspace/sample', label: '样本建档', icon: FlaskRound, code: '05' },
+  { to: '/workspace/sop', label: 'SOP 执行', icon: ListChecks, code: '06' },
+  { to: '/workspace/data', label: '数据与质控', icon: Database, code: '07' },
+  { to: '/workspace/audit', label: '审计追溯', icon: ShieldCheck, code: '08' },
 ];
 
 const statusTone: Record<string, string> = {
@@ -80,7 +81,6 @@ const SidebarNav: React.FC = () => {
             <li key={item.to}>
               <NavLink
                 to={item.to}
-                onClick={() => { if (item.to === '/workspace/experiments' || item.to === '/workspace/devices' || item.to === '/workspace/dashboard') return; }}
                 className={({ isActive }) =>
                   cn(
                     'flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm transition-colors',

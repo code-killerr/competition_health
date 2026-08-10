@@ -322,3 +322,17 @@ export function deriveTraceItems(exp: Experiment): TraceItem[] {
     status: i < doneCount ? 'done' : i === doneCount ? 'active' : 'pending',
   }));
 }
+
+export function traceScore(exp: Experiment): number {
+  return Math.min(99, 80 + exp.evidenceCount + (exp.dataLoaded ? 5 : 0) + (exp.sopCompleted ? 8 : 0));
+}
+
+export function deriveLibraryQC(exp: Experiment): { name: string; value: number }[] {
+  const base = exp.sample.rate;
+  return [
+    { name: 'cDNA 文库', value: Math.round(base * 0.28 + (exp.dataLoaded ? 2 : 0) + 1) },
+    { name: '表达文库', value: Math.round(base * 0.32 + (exp.dataLoaded ? 3 : 0)) },
+    { name: '空间标签文库', value: Math.round(base * 0.24 + (exp.dataLoaded ? 2 : 0)) },
+    { name: 'ATAC 文库', value: Math.round(base * 0.2 + (exp.dataLoaded ? 1 : 0)) },
+  ];
+}
