@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="SeekSpace 空间 ATAC 转录组实验控制台演示">
+  <title>SeekSpace · 空间 ATAC 转录组实验控制台</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="SeekSpace 实验控制台首页">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span>
+          <strong>SeekSpace</strong>
+          <small>Spatial ATAC · Transcriptome</small>
+        </span>
+      </a>
+      <div class="topbar-actions">
+        <span class="environment-chip"><span class="live-dot"></span>演示环境 · Dry-run</span>
+        <span class="research-chip">仅供科研用途</span>
+        <button id="runDemo" class="button button-primary button-compact" type="button">运行完整 Demo</button>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero-section">
+        <div class="hero-copy">
+          <p class="eyebrow">SEEKSPACE WORKFLOW CONTROL · SOP v20260717</p>
+          <h1>让每一张空间芯片<br><em>可注册、可质控、可追溯</em></h1>
+          <p class="hero-lead">面向寻因科技单细胞空间 ATAC 转录组实验的演示控制台。把设备能力、样本门槛、9 步建库流程与空间数据分析串成一条可审计证据链。</p>
+          <div class="hero-actions">
+            <button id="startDemo" class="button button-primary" type="button">开始一次演示实验 <span>→</span></button>
+            <button id="jumpData" class="button button-ghost" type="button">查看数据链路</button>
+          </div>
+          <div class="hero-note"><span class="note-mark">i</span><span>文档门槛驱动 · 设备注册先于 SOP 执行 · 数据结果默认带来源标签</span></div>
+        </div>
+        <div class="hero-visual" aria-label="空间芯片、细胞核和测序数据的概念示意图">
+          <div class="visual-glow"></div>
+          <div class="chip-orbit orbit-one"></div>
+          <div class="chip-orbit orbit-two"></div>
+          <div class="space-chip-art">
+            <div class="chip-label"><span>SS-CHIP-0201</span><strong>2 × 5.5 × 15 mm</strong></div>
+            <div class="chip-zones"><span></span><span></span></div>
+            <div class="chip-footer"><span>SPATIAL BARCODE</span><span>32 bp</span></div>
+          </div>
+          <div class="nuclei-orbit">
+            <span class="nucleus n1"></span><span class="nucleus n2"></span><span class="nucleus n3"></span><span class="nucleus n4"></span><span class="nucleus n5"></span>
+          </div>
+          <div class="hero-data-card data-card-a"><small>NUCLEI QC</small><strong>82%</strong><span>有核率 · PASS</span></div>
+          <div class="hero-data-card data-card-b"><small>SPATIAL LIBRARY</small><strong>272 bp</strong><span>主峰 · PASS</span></div>
+          <div class="hero-data-card data-card-c"><small>TRACE ID</small><strong>SS-08A7</strong><span>可追溯证据链</span></div>
+        </div>
+      </section>
+
+      <section class="signal-strip" aria-label="文档关键约束">
+        <div class="signal-item"><span class="signal-number">01</span><div><strong>空间芯片</strong><small>2 个标记区域 · 5.5 × 15 mm</small></div></div>
+        <div class="signal-item"><span class="signal-number">02</span><div><strong>核悬液</strong><small>1,000–25,000 / 管 · 结团率 &lt; 30%</small></div></div>
+        <div class="signal-item"><span class="signal-number">03</span><div><strong>油包水</strong><small>单个反应细胞核 ≤ 25,000</small></div></div>
+        <div class="signal-item"><span class="signal-number">04</span><div><strong>分析输入</strong><small>Expression · Spatial · HDMI · TIFF</small></div></div>
+      </section>
+
+      <section class="workspace" id="workspace">
+        <aside class="side-rail">
+          <div class="rail-label">RUN CONTROL</div>
+          <div class="run-selector">
+            <span class="run-icon">SS</span>
+            <div><small>当前实验</small><strong id="runId">SS-20260810-01</strong></div>
+            <span class="run-state" id="runState">READY</span>
+          </div>
+          <nav class="main-nav" aria-label="实验模块">
+            <button class="nav-item active" type="button" data-view="overview"><span class="nav-index">01</span><span><strong>实验总览</strong><small>Run overview</small></span><b>›</b></button>
+            <button class="nav-item" type="button" data-view="devices"><span class="nav-index">02</span><span><strong>设备注册</strong><small>Device registry</small></span><b>›</b></button>
+            <button class="nav-item" type="button" data-view="sample"><span class="nav-index">03</span><span><strong>样本建档</strong><small>Sample intake</small></span><b>›</b></button>
+            <button class="nav-item" type="button" data-view="sop"><span class="nav-index">04</span><span><strong>SOP 执行</strong><small>Protocol runner</small></span><b>›</b></button>
+            <button class="nav-item" type="button" data-view="data"><span class="nav-index">05</span><span><strong>数据与质控</strong><small>Data &amp; QC</small></span><b>›</b></button>
+            <button class="nav-item" type="button" data-view="audit"><span class="nav-index">06</span><span><strong>审计追溯</strong><small>Audit trail</small></span><b>›</b></button>
+          </nav>
+          <div class="rail-footer">
+            <div class="rail-foot-head"><span>本次证据链</span><strong id="evidenceCount">08</strong></div>
+            <div class="evidence-progress"><span id="evidenceProgress"></span></div>
+            <small>每个关键动作均绑定 SOP 版本、设备 ID 或数据文件。</small>
+          </div>
+        </aside>
+
+        <section class="workspace-content">
+          <div class="view active" data-view-panel="overview">
+            <div class="view-header">
+              <div><p class="section-kicker">RUN OVERVIEW / 01</p><h2>一次实验的控制面</h2><p class="section-subtitle">先确认设备与样本，再放行 SOP，最后把文库和空间图像交给数据引擎。</p></div>
+              <div class="header-status"><span class="status-dot"></span><span id="headerStatus">等待启动</span><small id="headerTime">2026-08-10 · 14:32</small></div>
+            </div>
+
+            <div class="overview-grid">
+              <article class="panel run-map-panel">
+                <div class="panel-header"><div><span class="panel-label">CONTROL MAP</span><h3>实验路径</h3></div><span class="doc-tag">SeekSpace SOP</span></div>
+                <div class="run-map" id="runMap"></div>
+                <div class="map-legend"><span><i class="legend-dot complete"></i>已完成</span><span><i class="legend-dot active"></i>当前步骤</span><span><i class="legend-dot pending"></i>待执行</span></div>
+              </article>
+              <article class="panel trace-panel">
+                <div class="panel-header"><div><span class="panel-label">AGENT TRACE</span><h3>可审计智能编排</h3></div><span class="ai-chip">AGENTIC</span></div>
+                <div class="trace-list" id="traceList"></div>
+                <div class="grounding-note"><span>↳</span><div><strong>Grounded by document</strong><small>每个判断都回指说明书门槛或实验数据文件，不直接信任模型自由生成。</small></div></div>
+              </article>
+            </div>
+
+            <div class="overview-lower">
+              <article class="panel gate-panel">
+                <div class="panel-header"><div><span class="panel-label">RELEASE GATES</span><h3>放行条件</h3></div><span id="gateSummary" class="pass-text">4 / 4 PASS</span></div>
+                <div class="gate-list" id="gateList"></div>
+              </article>
+              <article class="panel data-contract-panel">
+                <div class="panel-header"><div><span class="panel-label">DATA CONTRACT</span><h3>数据契约</h3></div><span class="doc-tag">附录 2–3</span></div>
+                <div class="contract-flow"><div><span class="contract-icon">01</span><strong>FASTQ + 图像</strong><small>Expression · Spatial · HDMI · TIFF</small></div><b>→</b><div><span class="contract-icon">02</span><strong>SeekSpace Tools</strong><small>Barcode / 分割 / 定位 / 聚类</small></div><b>→</b><div><span class="contract-icon">03</span><strong>可复用结果</strong><small>matrix · zarr · html · image</small></div></div>
+              </article>
+            </div>
+          </div>
+
+          <div class="view" data-view-panel="devices">
+            <div class="view-header"><div><p class="section-kicker">DEVICE REGISTRY / 02</p><h2>先注册设备，再生成可执行 SOP</h2><p class="section-subtitle">设备不是黑盒：记录能力、接口、校准状态和当前实验授权范围。</p></div><span class="source-note">来源：SeekSpace 使用说明书 1.10–1.12</span></div>
+            <div class="device-summary-row"><div class="metric-card"><small>已登记设备</small><strong id="registeredCount">09</strong><span>覆盖实验关键节点</span></div><div class="metric-card"><small>可放行设备</small><strong id="readyCount">09</strong><span class="pass-text">全部就绪</span></div><div class="metric-card"><small>协议策略</small><strong>Dry-run</strong><span>真实设备调用需审批</span></div><div class="metric-card"><small>适配范围</small><strong>6 类</strong><span>切片 · 成像 · 反应 · 质检</span></div></div>
+            <div class="device-layout">
+              <article class="panel registry-panel"><div class="panel-header"><div><span class="panel-label">REGISTERED DEVICES</span><h3>设备清单</h3></div><button id="toggleRegister" class="text-button" type="button">＋ 注册新设备</button></div><div class="device-grid" id="deviceGrid"></div></article>
+              <article class="panel register-form-panel" id="registerFormPanel"><div class="panel-header"><div><span class="panel-label">NEW DEVICE</span><h3>设备注册</h3></div><span class="pending-text">待提交</span></div><form id="deviceForm"><label>设备名称<input id="deviceName" required placeholder="例如：荧光显微镜 DMi8"></label><label>设备类型<select id="deviceType"><option>空间芯片夹</option><option>SeekOne 数字液滴仪</option><option>冷冻切片机</option><option>荧光显微镜</option><option>细胞计数设备</option><option>高速冷冻离心机</option><option>PCR 仪</option><option>核酸片段分析仪</option><option>Qubit / 定量设备</option></select></label><label>设备 ID<input id="deviceSerial" required placeholder="例如：LAB-OPT-03"></label><label>接口策略<select id="deviceProtocol"><option>原生程序 · 受控调用</option><option>只读状态采集</option><option>Dry-run adapter</option></select></label><button class="button button-dark" type="submit">加入注册表 <span>→</span></button><p class="form-hint">注册后会生成设备能力卡，并绑定到当前实验审计链。</p></form></article>
+            </div>
+            <article class="panel capability-panel"><div class="panel-header"><div><span class="panel-label">CAPABILITY MODEL</span><h3>设备能力模型</h3></div><span class="doc-tag">DeviceCapability</span></div><div class="capability-grid"><div><span>动作</span><strong>capture · incubate · centrifuge</strong></div><div><span>参数</span><strong>温度 · 时间 · 速度 · 位置</strong></div><div><span>前置条件</span><strong>校准 · 芯片装载 · 盖板闭合</strong></div><div><span>禁止操作</span><strong>未审批真实设备调用</strong></div></div></article>
+          </div>
+
+          <div class="view" data-view-panel="sample">
+            <div class="view-header"><div><p class="section-kicker">SAMPLE INTAKE / 03</p><h2>样本建档与核悬液放行</h2><p class="section-subtitle">把样本来源、切片条件和核悬液 QC 在进入 Step 2 前锁定。</p></div><span class="source-note">来源：SeekSpace 1.13 · Step 1-8</span></div>
+            <div class="sample-top-grid"><article class="panel sample-card"><div class="sample-identity"><div class="sample-avatar">T1</div><div><span class="panel-label">SAMPLE RECORD</span><h3 id="sampleName">Tissue_A</h3><p id="sampleIdText">SP-20260810-01 · OCT 包埋新鲜冷冻组织</p></div><span class="pass-pill">已建档</span></div><div class="sample-fields"><div><span>组织类型</span><strong>实体组织</strong></div><div><span>保存条件</span><strong>-80°C · 干冰运输</strong></div><div><span>切片厚度</span><strong><span id="sectionThickness">14</span> μm</strong></div><div><span>组织尺寸</span><strong>4.2 × 6.8 mm</strong></div><div><span>RNA 预检</span><strong>RIN 8.2 <i class="inline-pass">≥ 7</i></strong></div><div><span>芯片标记区</span><strong>Zone A · 2 tests</strong></div></div></article><article class="panel sample-check-panel"><div class="panel-header"><div><span class="panel-label">NUCLEI GATE</span><h3>核悬液质检</h3></div><span id="sampleGateBadge" class="pass-text">PASS</span></div><div class="nuclei-gauge"><div class="gauge-ring"><strong id="nucleiRate">82</strong><span>有核率 %</span></div><div><strong id="nucleiCount">182,000</strong><small>标记区总细胞核 · 上限 200,000</small><div class="gauge-bar"><span style="width: 91%"></span></div></div></div><div class="sample-metrics"><div><span>单管投入</span><strong id="perReaction">23,500</strong><small>上限 25,000</small></div><div><span>结团率</span><strong id="aggregation">16%</strong><small>门槛 &lt; 30%</small></div><div><span>冰上等待</span><strong>18 min</strong><small>建议 30 min 内</small></div></div></article></div>
+            <div class="sample-bottom-grid"><article class="panel checklist-panel"><div class="panel-header"><div><span class="panel-label">INTAKE CHECKLIST</span><h3>入场检查</h3></div><button id="validateSample" class="text-button" type="button">重新评估</button></div><div class="checklist" id="sampleChecklist"></div></article><article class="panel sample-edit-panel"><div class="panel-header"><div><span class="panel-label">QC INPUT</span><h3>调整样本</h3></div><span class="doc-tag">可配置</span></div><div class="slider-row"><label>总细胞核 <output id="nucleiOutput">182,000</output><input id="nucleiSlider" type="range" min="10000" max="240000" step="1000" value="182000"></label><label>有核率 <output id="rateOutput">82%</output><input id="rateSlider" type="range" min="1" max="100" value="82"></label><label>结团率 <output id="aggregationOutput">16%</output><input id="aggregationSlider" type="range" min="0" max="60" value="16"></label></div><p class="form-hint">滑动后点击“重新评估”，查看 QC 不通过时的拦截逻辑。</p></article></div>
+          </div>
+
+          <div class="view" data-view-panel="sop">
+            <div class="view-header"><div><p class="section-kicker">PROTOCOL RUNNER / 04</p><h2>SeekSpace SOP 执行编排</h2><p class="section-subtitle">按说明书拆成可暂停、可检查、可追踪的阶段；高风险动作默认只做 dry-run。</p></div><div class="sop-controls"><span class="dryrun-label"><span class="live-dot"></span>Dry-run only</span><button id="runSop" class="button button-dark button-compact" type="button">运行 SOP</button></div></div>
+            <div class="sop-layout"><article class="panel sop-timeline-panel"><div class="panel-header"><div><span class="panel-label">PROTOCOL STEPS</span><h3>9 步实验主线</h3></div><span id="sopProgressText">0 / 7</span></div><div class="sop-timeline" id="sopTimeline"></div></article><article class="panel sop-detail-panel"><div class="panel-header"><div><span class="panel-label">CURRENT STEP</span><h3 id="sopDetailTitle">等待启动</h3></div><span id="sopDetailState" class="pending-text">PENDING</span></div><div class="detail-hero"><span id="sopDetailCode">Step 0</span><strong id="sopDetailDuration">—</strong><small>文档规定的阶段时长 / 上机时长</small></div><div class="detail-section"><span>放行规则</span><p id="sopDetailGate">选择左侧任意步骤查看对应的设备、样本和数据约束。</p></div><div class="detail-section"><span>证据动作</span><ul id="sopDetailEvidence"></ul></div><div class="detail-reference" id="sopDetailReference">Reference: SeekSpace 使用说明书</div></article></div>
+            <div class="vision-evidence-grid">
+              <article class="panel process-evidence-panel">
+                <div class="panel-header"><div><span class="panel-label">VISUAL EVIDENCE / STAGE-CONFIGURED</span><h3 id="evidenceStageName">当前步骤影像证据</h3></div><span id="evidenceStageCount" class="doc-tag">STEP 01 / 07</span></div>
+                <div class="evidence-viewer-grid process-only">
+                  <figure class="evidence-image-card"><div class="evidence-image-head"><span>PROCESS IMAGE · SOP ONLY</span><small id="evidenceProcessSource">PDF source</small></div><div class="evidence-image-frame"><img id="evidenceProcessImage" src="./assets/pdf/pdf_seekone_dd_instrument.jpg" alt="当前 SOP 步骤过程影像"></div><figcaption><strong id="evidenceProcessLabel">设备与芯片注册</strong><small id="evidenceProcessCaption">这里只展示步骤配图，不叠加结果识别框。</small></figcaption></figure>
+                </div>
+                <div class="evidence-summary"><span class="evidence-config-badge">STEP <b id="evidenceStepCode">01</b></span><div><strong id="evidenceGateLabel">过程影像已绑定步骤</strong><small id="evidenceGateRule">设备 ID、芯片夹与程序入口匹配。</small></div><span id="evidenceGateStatus" class="doc-tag">LINKED</span></div>
+                <div id="evidenceThumbs" class="evidence-thumbs"></div>
+                <p class="process-caption">选择 SOP 步骤后只切换对应过程配图；结果图片、识别标记和放行结论位于下方独立的 Agent 结果确认区。</p>
+              </article>
+              <article class="panel vision-gate-panel">
+                <div class="panel-header"><div><span class="panel-label">MULTIMODAL VISION GATE</span><h3>视觉大模型结果校验</h3></div><span id="visionStatus" class="pass-text">PASS</span></div>
+                <div class="result-review-layout">
+                  <figure class="evidence-image-card result-review-card"><div class="evidence-image-head"><span>RESULT IMAGE · AGENT INPUT</span><small id="evidenceResultSource">PDF source</small></div><div class="evidence-image-frame result-frame"><img id="evidenceResultImage" src="./assets/pdf/pdf_seekone_dd_run_screen.jpg" alt="当前 SOP 步骤结果影像"><div id="evidenceResultMarkers" class="evidence-markers"></div></div><figcaption><strong id="evidenceResultLabel">设备状态识别</strong><small id="evidenceResultCaption">这里只标记结果对象和规则校验区域。</small></figcaption></figure>
+                  <div class="vision-analysis-stack">
+                    <div class="vision-model-banner"><span class="vision-model-icon">AI</span><div><strong id="visionConfigTitle">多模态视觉模型 · 当前步骤配置</strong><small id="visionConfigRule">图像识别 → 对象 / 异常 / 置信度 → SOP 规则门</small></div><span id="visionConfidence" class="vision-confidence">93%</span></div>
+                    <div class="vision-chain"><span>结果图像</span><b>→</b><span>视觉识别</span><b>→</b><span>PDF 门槛</span><b>→</b><strong>Agent 确认</strong></div>
+                    <div class="agent-basis-panel"><div class="agent-basis-head"><span>AGENT CONFIRMATION BASIS</span><small id="agentBasisLabel">本步骤结果参照依据</small></div><div id="agentReferenceList" class="agent-reference-list"></div></div>
+                    <div id="visionChecks" class="vision-checks"></div>
+                    <div class="vision-footer"><small>步骤配图只说明操作过程；Agent 只使用结果图、结构化识别结果、数值 QC 和 PDF 门槛做最终确认。</small><button id="rerunVision" class="text-button" type="button">重新分析结果 →</button></div>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div class="view" data-view-panel="data">
+            <div class="view-header"><div><p class="section-kicker">DATA &amp; QC / 05</p><h2>从文库质控到空间结果</h2><p class="section-subtitle">数据按说明书的数据契约组织；每个 QC 卡都能回到具体的测序或分析输入。</p></div><div class="data-controls"><span id="dataMode" class="source-note">文档字段映射</span><button id="loadData" class="button button-dark button-compact" type="button">加载数据</button></div></div>
+            <div class="data-status-banner" id="dataStatusBanner"><span class="status-icon">↗</span><div><strong id="dataStatusTitle">数据尚未载入</strong><small id="dataStatusText">加载后将展示 FASTQ / 图像输入、四类文库 QC 和空间定位预览。</small></div><span class="data-status-right" id="dataStatusRight">WAITING</span></div>
+            <div class="data-grid-top"><article class="panel input-panel"><div class="panel-header"><div><span class="panel-label">INPUT MANIFEST</span><h3>分析输入</h3></div><span class="doc-tag">SeekSpace Tools</span></div><div class="file-list" id="fileList"></div></article><article class="panel sequencing-panel"><div class="panel-header"><div><span class="panel-label">SEQUENCING PLAN</span><h3>测序策略</h3></div><span class="pass-text">DOC-MAPPED</span></div><div class="seq-row"><span>Expression</span><strong>≥ 120 G</strong><small>PE · R1 63 bp · R2 150 bp</small></div><div class="seq-row"><span>Spatial</span><strong>≥ 30 G</strong><small>PE · R1 63 bp · R2 32 bp</small></div><div class="seq-index"><span>N5</span><b>8 bp</b><span>N7</span><b>8 bp</b><small>双端 Index · 避免重复</small></div></article></div>
+            <article class="panel library-panel"><div class="panel-header"><div><span class="panel-label">LIBRARY QC</span><h3>四类文库质量门</h3></div><span class="source-note">阈值来自说明书 Step 7–9</span></div><div class="library-grid" id="libraryGrid"></div></article>
+            <div class="data-visual-grid"><article class="panel spatial-panel"><div class="panel-header"><div><span class="panel-label">SPATIAL PREVIEW</span><h3>空间定位预览</h3></div><span class="doc-tag">DAPI / HE overlay</span></div><div class="spatial-preview"><div class="spatial-map" id="spatialMap"></div><div class="spatial-overlay"><span class="cluster-key key-a"></span><strong>Cluster A · 37%</strong><span class="cluster-key key-b"></span><strong>Cluster B · 24%</strong><span class="cluster-key key-c"></span><strong>Cluster C · 18%</strong></div></div><div class="preview-caption"><span>空间标签定位</span><span>5.5 × 15 mm</span></div></article><article class="panel expression-panel"><div class="panel-header"><div><span class="panel-label">EXPRESSION ARTIFACT</span><h3>表达信号预览</h3></div><span class="pass-text">COMPUTED</span></div><div class="bar-chart" id="expressionChart"></div><div class="chart-foot"><span>表达矩阵：matrix / zarr</span><span>细胞识别：barcode calling</span></div></article></div>
+            <div class="validation-evidence-grid">
+              <article class="panel result-evidence-panel">
+                <div class="panel-header"><div><span class="panel-label">RESULT EVIDENCE / PDF SOURCE</span><h3>结果识别输入</h3></div><span class="doc-tag">原图页码绑定</span></div>
+                <div class="result-figure-grid">
+                  <figure class="result-figure"><img src="./assets/pdf/pdf_seekspace_dapi_result.jpg" alt="SeekSpace 说明书中的 DAPI 组织图像"><figcaption><strong>DAPI / 组织图像</strong><small>识别：组织边界、标记区覆盖、成像完整性 · SeekSpace p.31</small></figcaption></figure>
+                  <figure class="result-figure"><img src="./assets/pdf/pdf_seekone_library_qc.png" alt="SeekOne DD 说明书中的文库峰图"><figcaption><strong>文库峰图</strong><small>识别：主峰位置、峰型异常、长度范围 · SeekOne DD p.20</small></figcaption></figure>
+                </div>
+              </article>
+              <article class="panel validation-flow-panel">
+                <div class="panel-header"><div><span class="panel-label">IDENTIFY → VALIDATE → RELEASE</span><h3>结果识别与校验流程</h3></div><span class="pass-text">4 / 4 PASS</span></div>
+                <div class="validation-flow"><div class="validation-flow-step"><b>01</b><strong>读入原图</strong><small>DAPI / 峰图 / 输入文件</small></div><i>→</i><div class="validation-flow-step"><b>02</b><strong>视觉识别</strong><small>对象、边界、峰型、异常</small></div><i>→</i><div class="validation-flow-step"><b>03</b><strong>规则校验</strong><small>SOP 阈值与数据契约</small></div><i>→</i><div class="validation-flow-step release"><b>04</b><strong>放行结论</strong><small>PASS / HOLD + 证据回链</small></div></div>
+                <div class="validation-gates"><div><span>组织边界</span><b>PASS</b></div><div><span>空间标记区</span><b>PASS</b></div><div><span>文库主峰</span><b>PASS</b></div><div><span>输入完整性</span><b>PASS</b></div></div>
+                <p class="validation-note">视觉模型给出结构化识别结果，规则引擎负责最终放行；任一关键对象缺失、置信度不足或阈值不合格，结果自动转为 HOLD。</p>
+              </article>
+            </div>
+          </div>
+
+          <div class="view" data-view-panel="audit">
+            <div class="view-header"><div><p class="section-kicker">AUDIT TRAIL / 06</p><h2>证据链与实验报告</h2><p class="section-subtitle">把设备注册、SOP 动作、QC 判断和数据产物合成一个可复核的实验包。</p></div><button id="exportReport" class="button button-dark button-compact" type="button">导出实验报告</button></div>
+            <div class="audit-top-grid"><article class="panel audit-score-panel"><div class="audit-score"><div class="score-ring"><strong id="auditScore">96</strong><span>TRACE SCORE</span></div><div><span class="panel-label">RUN HEALTH</span><h3>当前实验可追溯度</h3><p>设备、样本、SOP 和数据文件均已绑定，真实设备执行仍需人工审批。</p></div></div><div class="score-breakdown"><div><span>设备绑定</span><strong>100%</strong></div><div><span>样本门槛</span><strong>100%</strong></div><div><span>数据来源</span><strong>92%</strong></div></div></article><article class="panel artifact-panel"><div class="panel-header"><div><span class="panel-label">ARTIFACT MANIFEST</span><h3>输出产物</h3></div><span class="doc-tag">可下载</span></div><div class="artifact-list" id="artifactList"></div></article></div>
+            <article class="panel event-panel"><div class="panel-header"><div><span class="panel-label">EVENT LOG</span><h3>事件日志</h3></div><span class="source-note">append-only · local demo</span></div><div class="event-table" id="eventTable"></div></article>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="footer"><span>SeekSpace Workflow Control · Demo UI</span><span>设计依据：SeekSpace 使用说明书 · SeekOne® DD 使用说明书 · AtlasAI 多 Agent 可审计范式</span><span>科研用途 · 不构成临床诊断</span></footer>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js"></script>
+</body>
+</html>
