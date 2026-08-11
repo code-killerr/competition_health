@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Topbar from './Topbar';
 import SidebarNav from './SidebarNav';
+import Breadcrumb from './Breadcrumb';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 const WorkspaceLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -15,7 +16,10 @@ const WorkspaceLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
             <SidebarNav />
           </div>
         </aside>
-        <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>
+        <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
+          <Breadcrumb />
+          <main className="flex-1">{children}</main>
+        </div>
       </div>
 
       {/* 移动端侧边栏 */}

@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Settings, User } from 'lucide-react';
-import { toast } from 'sonner';
+import { Menu, Settings, User, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import SettingsDialog from '@/components/SettingsDialog';
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -13,6 +13,7 @@ interface TopbarProps {
 
 const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
   const navigate = useNavigate();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur md:px-6">
@@ -31,28 +32,35 @@ const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
       </button>
 
       <div className="ml-auto flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => toast.info('系统设置功能开发中')} className="text-muted-foreground hover:bg-secondary hover:text-foreground">
+        <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)} className="text-muted-foreground hover:bg-secondary hover:text-foreground">
           <Settings className="h-4 w-4" />
         </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="gap-2 px-2 text-foreground hover:bg-secondary">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-primary">
-                <User className="h-4 w-4" />
-              </span>
-              <span className="hidden text-sm sm:inline">研究员</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel>账户</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>个人设置</DropdownMenuItem>
-            <DropdownMenuItem>系统偏好</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-muted-foreground">关于 SeekSpace</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center">
+          <Button variant="ghost" onClick={() => navigate('/workspace/profile')} className="gap-2 rounded-r-none px-2 text-foreground hover:bg-secondary">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-primary">
+              <User className="h-4 w-4" />
+            </span>
+            <span className="hidden text-sm sm:inline">研究员</span>
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-l-none px-1 text-muted-foreground hover:bg-secondary hover:text-foreground">
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>账户</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/workspace/profile')}>个人中心</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSettingsOpen(true)}>系统偏好</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-muted-foreground" onClick={() => navigate('/workspace/profile')}>关于 SeekSpace</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </header>
   );
 };
