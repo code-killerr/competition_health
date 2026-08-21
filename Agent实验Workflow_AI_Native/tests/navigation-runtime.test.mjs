@@ -26,4 +26,15 @@ const runtimeIndex = html.indexOf('projectRuntimeStates[id]=createProjectRuntime
 const selectIndex = html.indexOf("selectProject(id,'planning')", runtimeIndex);
 assert.ok(definitionIndex < runtimeIndex && runtimeIndex < selectIndex, '创建顺序必须是定义、运行态、进入项目');
 
+assert.match(html, /function navigateTo\(name\)/, '动态项目页按钮必须使用统一导航入口');
+assert.match(html, /function selectProject\(id,page\).*?loadProjectState\(id\).*?state\.currentProject=id;.*?state\.parallelExperiment=id/s, '切换项目后必须明确恢复目标项目上下文');
+assert.match(html, /closest\('\[data-project-action\]'\)/, '项目进入按钮必须使用全局委托，不能依赖单次渲染绑定');
+assert.match(html, /workspacePages\.includes\(name\)\)\{saveProjectState\(\)/, '离开项目返回工作台前必须保存当前运行态');
+assert.doesNotMatch(html, /querySelectorAll\('\[data-goto\]'\)\.forEach\(btn=>btn\.addEventListener/, '动态 data-goto 按钮不能只依赖初始化时的静态绑定');
+assert.match(html, /name:'鼠脑空间转录组实验'/, '鼠脑项目名称在项目定义中必须与项目列表一致');
+assert.match(html, /\.workspace-table\{table-layout:fixed\}/, '项目总览表格必须使用固定布局保证列对齐');
+
+assert.match(html, /function finalizeObjectiveProjectPlanning\(\).*?state\.knowledgeReady=true;state\.workflowReady=true/s, '新建非鼠脑项目完成信息确认后必须进入可生成计划状态');
+assert.match(html, /finalizeObjectiveProjectPlanning\(\);closePlanningImport\(\)/, '资料导入完成后必须回填当前草稿项目状态');
+
 console.log('导航与动态项目检查通过');
