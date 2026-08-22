@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多数字员工驱动的自动化实验系统 · 全流程演示</title>
+<style>
+:root{
+  --bg:#f3f5f7; --panel:#ffffff; --ink:#16232e; --ink-2:#51616f; --ink-3:#8a99a6;
+  --line:#e4e9ee; --line-2:#eef2f5;
+  --primary:hsl(174 62% 30%); --primary-hi:hsl(174 62% 38%); --primary-soft:hsl(174 55% 94%); --primary-ring:hsl(174 62% 30% / .18);
+  --blue:hsl(221 70% 48%); --blue-soft:hsl(221 80% 95%);
+  --amber:hsl(32 92% 40%); --amber-soft:hsl(40 96% 92%);
+  --red:hsl(0 70% 44%); --red-soft:hsl(0 78% 95%);
+  --green:hsl(146 60% 30%); --green-soft:hsl(146 55% 93%);
+  --violet:hsl(262 60% 52%); --violet-soft:hsl(262 70% 95%);
+  --shadow:0 1px 2px rgba(22,35,46,.05),0 8px 24px -12px rgba(22,35,46,.12);
+  --r:12px; --r-sm:8px; --trans:all .18s cubic-bezier(.4,0,.2,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6}
+button{font-family:inherit;cursor:pointer;border:none;background:none;font-size:13px}
+input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;background:#fff;outline:none;transition:var(--trans);width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--primary-hi);box-shadow:0 0 0 3px var(--primary-ring)}
+
+.topbar{display:flex;align-items:center;gap:14px;padding:0 24px;height:58px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px}
+.logo .mark{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--primary),var(--primary-hi));display:grid;place-items:center;color:#fff}
+.logo small{display:block;font-weight:400;font-size:11px;color:var(--ink-3)}
+.user-chip{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2)}
+.avatar-u{width:30px;height:30px;border-radius:99px;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;font-weight:700;font-size:12px}
+
+/* 步进导航 */
+.stepper{display:flex;align-items:center;justify-content:center;gap:0;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--line)}
+.stp{display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 10px;border-radius:var(--r-sm);transition:var(--trans)}
+.stp:hover{background:var(--line-2)}
+.stp.locked{opacity:.42;cursor:not-allowed}
+.stp .n{width:26px;height:26px;border-radius:99px;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--line-2);color:var(--ink-3);flex-shrink:0}
+.stp.cur .n{background:var(--primary);color:#fff}
+.stp.done .n{background:var(--green-soft);color:var(--green)}
+.stp .t{font-size:12px;font-weight:600;color:var(--ink-2)}
+.stp.cur .t{color:var(--primary)}
+.stp .ph{font-size:10px;color:var(--ink-3)}
+.stp-line{width:34px;height:2px;background:var(--line);flex-shrink:0}
+.stp-line.done{background:var(--green)}
+
+.main{max-width:1500px;margin:0 auto;padding:16px 24px}
+.stage{display:none}
+.stage.active{display:block;animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.stage-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.stage-head h2{font-size:17px}
+.stage-head .sub{font-size:12px;color:var(--ink-3)}
+.agent-strip{margin-left:auto;display:flex;gap:6px}
+.agent-strip span{font-size:11px;background:var(--violet-soft);color:var(--violet);border-radius:99px;padding:3px 10px;font-weight:600}
+.cols{display:grid;gap:16px;align-items:start}
+.c2{grid-template-columns:1fr 1fr}
+.c-12{grid-template-columns:1.2fr .8fr}
+.c-21{grid-template-columns:.8fr 1.2fr}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.panel-head{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--line);font-weight:700;font-size:14px}
+.panel-head .hint{font-size:11px;color:var(--ink-3);font-weight:400;margin-left:auto}
+.panel-b{padding:16px}
+
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:var(--r-sm);padding:9px 18px;font-weight:600;transition:var(--trans);font-size:13px}
+.btn-p{background:var(--primary);color:#fff}
+.btn-p:hover{background:var(--primary-hi);transform:translateY(-1px)}
+.btn-g{border:1px solid var(--line);color:var(--ink-2)}
+.btn-g:hover{border-color:var(--ink-3)}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none!important}
+.btn-row{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+
+/* 通用组件 */
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;font-size:12px}
+.kv div{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line-2);padding:3px 0}
+.kv span{color:var(--ink-3)}
+.prefill-tag{font-size:9px;background:var(--green-soft);color:var(--green);border-radius:4px;padding:1px 5px;font-weight:700;margin-left:4px}
+.badge{font-size:10px;font-weight:700;border-radius:4px;padding:2px 6px}
+.b-amber{background:var(--amber-soft);color:var(--amber)}
+.b-green{background:var(--green-soft);color:var(--green)}
+.b-blue{background:var(--blue-soft);color:var(--blue)}
+.b-red{background:var(--red-soft);color:var(--red)}
+.b-violet{background:var(--violet-soft);color:var(--violet)}
+.qk{border:1.5px solid var(--line);border-radius:var(--r-sm);padding:8px 14px;font-weight:600;transition:var(--trans);background:#fff}
+.qk:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-soft)}
+.qk.rec{border-color:var(--primary);color:var(--primary);background:var(--primary-soft)}
+.qk.rec::after{content:' · 推荐';font-size:11px}
+.qk.danger:hover{border-color:var(--red);color:var(--red);background:var(--red-soft)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.card.done{opacity:.6}
+.card.done .card-f{display:none}
+.card.done .card-h::after{content:'✔ 已完成';margin-left:auto;color:var(--green);font-size:11px}
+.card-h{padding:10px 14px;font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line-2)}
+.c-amber .card-h{background:var(--amber-soft);color:var(--amber)}
+.c-red .card-h{background:var(--red-soft);color:var(--red)}
+.c-blue .card-h{background:var(--blue-soft);color:var(--blue)}
+.c-green .card-h{background:var(--green-soft);color:var(--green)}
+.c-violet .card-h{background:var(--violet-soft);color:var(--violet)}
+.card-b{padding:13px 14px;font-size:12px}
+.card-f{padding:10px 14px;border-top:1px solid var(--line-2);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin-bottom:5px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.form-grid .full{grid-column:1/-1}
+
+/* 阶段1：上传 */
+.dropzone{border:2px dashed var(--line);border-radius:var(--r);padding:26px;text-align:center;cursor:pointer;transition:var(--trans);font-size:13px;color:var(--ink-2)}
+.dropzone:hover{border-color:var(--primary);background:var(--primary-soft)}
+.dropzone .big{font-size:30px;margin-bottom:6px}
+.file-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 12px;font-size:12px;margin-top:10px}
+.file-row .bar{flex:1;height:6px;background:var(--line-2);border-radius:99px;overflow:hidden}
+.file-row .bar i{display:block;height:100%;background:var(--primary);border-radius:99px;transition:width .4s ease}
+.prog-line{margin-top:12px}
+.prog-line .bar{height:8px;background:var(--line-2);border-radius:99px;overflow:hidden}
+.prog-line .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--primary),var(--primary-hi));border-radius:99px;transition:width .5s ease}
+.prog-line .lb{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-3);margin-top:4px}
+.dt-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.dt-tbl th{text-align:left;color:var(--ink-3);padding:6px 8px;border-bottom:1px solid var(--line);font-weight:600}
+.dt-tbl td{padding:6px 8px;border-bottom:1px solid var(--line-2)}
+
+/* 阶段3：监控 */
+.step-row{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-2);align-items:center}
+.step-ico{width:28px;height:28px;border-radius:99px;display:grid;place-items:center;font-size:12px;flex-shrink:0}
+.s-done{background:var(--green-soft);color:var(--green)}
+.s-run{background:var(--blue-soft);color:var(--blue);animation:pulse 1.3s infinite}
+.s-wait{background:var(--amber-soft);color:var(--amber)}
+.s-queue{background:var(--line-2);color:var(--ink-3)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.step-info{flex:1}
+.step-info .nm{font-weight:600;font-size:12px}
+.step-info .sub{font-size:10px;color:var(--ink-3)}
+.kind-tag{font-size:9px;border-radius:4px;padding:1px 5px;font-weight:700;margin-left:5px}
+.k-machine{background:var(--blue-soft);color:var(--blue)}
+.k-L3{background:var(--amber-soft);color:var(--amber)}
+.k-agent{background:var(--primary-soft);color:var(--primary)}
+.k-human{background:var(--red-soft);color:var(--red)}
+.todo{padding:11px 14px;border-bottom:1px solid var(--line-2);cursor:pointer;transition:var(--trans);border-left:3px solid transparent}
+.todo:hover{background:var(--line-2)}
+.todo.active{background:var(--primary-soft);border-left-color:var(--primary)}
+.todo .tt{font-weight:600;font-size:12px;display:flex;gap:6px;align-items:center}
+.todo .td{font-size:11px;color:var(--ink-3);margin-top:2px}
+.feed{max-height:330px;overflow-y:auto}
+.feed-item{display:flex;gap:8px;padding:6px 16px;font-size:11px;border-bottom:1px solid var(--line-2)}
+.feed-item .t{color:var(--ink-3);flex-shrink:0;font-variant-numeric:tabular-nums}
+.feed-item.agent .m{color:var(--primary)}
+.feed-item.warn .m{color:var(--amber)}
+.feed-item.err .m{color:var(--red)}
+.ref-row{display:flex;gap:8px;margin:8px 0}
+.ref-item{flex:1;border:1px solid var(--line);border-radius:6px;padding:6px;text-align:center;font-size:10px;color:var(--ink-2)}
+.ref-item svg{width:100%;height:52px;display:block}
+.timer-big{font-size:22px;font-weight:700;color:var(--blue);font-variant-numeric:tabular-nums}
+.lane{display:flex;align-items:center;gap:8px;margin-top:8px}
+.lane .lname{width:118px;font-size:11px;color:var(--ink-2);text-align:right;flex-shrink:0}
+.lane .track{flex:1;height:20px;background:var(--line-2);border-radius:4px;position:relative;overflow:hidden}
+.blk{position:absolute;top:2px;bottom:2px;border-radius:3px;font-size:9px;color:#fff;display:flex;align-items:center;padding:0 5px;white-space:nowrap;overflow:hidden}
+
+/* 完成横幅 */
+.done-banner{background:linear-gradient(135deg,var(--primary),var(--primary-hi));color:#fff;border-radius:var(--r);padding:22px 26px;margin-top:16px}
+.done-banner h3{font-size:16px;margin-bottom:8px}
+.done-banner .nums{display:flex;gap:26px;margin-top:12px;flex-wrap:wrap}
+.done-banner .num b{font-size:22px;display:block}
+.done-banner .num span{font-size:11px;opacity:.85}
+.concept-box{background:linear-gradient(120deg,var(--primary-soft),var(--blue-soft));border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;margin-bottom:16px;display:flex;gap:12px;align-items:center}
+.concept-box .ico{font-size:22px;flex-shrink:0}
+.concept-box b{color:var(--primary)}
+.concept-box p{font-size:12px;color:var(--ink-2)}
+.loop{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+.loop .lp{background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:6px 12px;font-size:11px;font-weight:600;color:var(--ink-2)}
+.loop .lp.hl{background:var(--primary);border-color:var(--primary);color:#fff}
+.loop .arr{color:var(--ink-3);font-size:12px}
+.viewtabs{display:flex;justify-content:center;gap:8px;padding:10px 24px 0}
+.vtab{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:7px 18px;font-weight:600;font-size:12px;color:var(--ink-2);transition:var(--trans)}
+.vtab:hover{border-color:var(--primary)}
+.vtab.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:14px}
+.agent-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:14px 16px;transition:var(--trans)}
+.agent-card:hover{transform:translateY(-2px);border-color:var(--primary)}
+.agent-card.cur{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-ring)}
+.agent-card .ahead{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.agent-card .aico{width:34px;height:34px;border-radius:9px;background:var(--primary-soft);display:grid;place-items:center;font-size:17px;flex-shrink:0}
+.agent-card .anm{font-weight:700;font-size:13px}
+.agent-card .arole{font-size:11px;color:var(--ink-3);line-height:1.5}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.chips span{font-size:10px;background:var(--line-2);border-radius:4px;padding:2px 7px;color:var(--ink-2)}
+.aio{font-size:11px;color:var(--ink-2);margin-top:8px;border-top:1px dashed var(--line);padding-top:8px;line-height:1.7}
+.relay{font-size:10px;color:var(--primary);margin-top:6px;font-weight:600}
+.msg{display:flex;gap:9px;margin-bottom:12px;align-items:flex-start}
+.msg.user{flex-direction:row-reverse}
+.mava{width:30px;height:30px;border-radius:99px;background:var(--primary-soft);display:grid;place-items:center;font-size:15px;flex-shrink:0}
+.mava.u{background:var(--blue-soft);color:var(--blue);font-size:12px;font-weight:700}
+.mcol{max-width:76%}
+.mnm{font-size:10px;color:var(--ink-3);margin-bottom:3px}
+.mbub{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:12px;line-height:1.6;box-shadow:var(--shadow)}
+.msg.user .mbub{background:var(--primary);border-color:var(--primary);color:#fff}
+.msg .card{max-width:420px}
+.qrow{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px 39px}
+.relay-bar{font-size:10px;color:var(--ink-3);text-align:center;margin:10px 0;background:var(--line-2);border-radius:99px;padding:4px 0}
+.chat-div{font-size:10px;color:var(--ink-3);text-align:center;margin:12px 0;letter-spacing:1px}
+.toast-wrap{position:fixed;bottom:24px;right:24px;display:grid;gap:8px;z-index:99}
+.toast{background:var(--ink);color:#fff;border-radius:var(--r-sm);padding:11px 16px;font-size:13px;animation:fadeIn .3s ease;max-width:380px}
+.toast.ok{background:var(--green)}.toast.warn{background:var(--amber)}.toast.err{background:var(--red)}
+@media(max-width:1100px){.c2,.c-12,.c-21{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo"><div class="mark">⬡</div><div>多数字员工驱动的自动化实验系统<small>9 个数字员工协作 W1–W7 · 资料提交 → 方案生成 → 实验监控 → 结果反馈 → 实验优化</small></div></div>
+  <div class="user-chip"><div class="avatar-u">王</div>王实验员</div>
+</header>
+
+<nav class="stepper" id="stepper"></nav>
+<div class="viewtabs">
+  <button class="vtab on" id="vtab-flow" onclick="switchView('flow')">🧪 全流程演示</button>
+  <button class="vtab" id="vtab-agents" onclick="switchView('agents')">🤖 数字员工团队</button>
+  <button class="vtab" id="vtab-chat" onclick="switchView('chat')">💬 Chat 交互页面</button>
+</div>
+
+<main class="main" id="viewFlow">
+
+<div class="concept-box">
+  <div class="ico">🧬</div>
+  <p><b>核心理念 · 从实验角度出发：</b>本系统由 <b>9 个数字员工</b>（知识库/确认问答/SOP 编译/实验管理/调度执行/设备接入/视觉判定/结果汇总/反馈优化）协作驱动。系统把团队的隐性上下文信息——老师傅的手感、裁决习惯、异常处理经验、视觉终点标准——随每次实验持续沉淀为可复用的知识资产（决策表/指引卡/标准图/预填基准），让下一次实验更快、更准、更不容易踩坑，持续提升实验效率与成功率。</p>
+</div>
+
+<!-- ============ 阶段 1：资料提交与确认 ============ -->
+<section class="stage active" id="stage1">
+  <div class="stage-head"><h2>① 资料提交与确认</h2><span class="sub">F1–F5 资料提交模板（需求文档 14.5）→ 完整性检查 → W1 建库 + W2 确认</span>
+    <div class="agent-strip"><span>📚 知识库 Agent</span><span>❓ 确认问答 Agent</span></div>
+  </div>
+  <div class="cols c2">
+    <div class="panel">
+      <div class="panel-head">📥 资料提交模板 F1–F5（14.5）<span class="hint">阻塞项：F1 说明书 + F2 接收标准</span></div>
+      <div class="panel-b">
+        <p style="font-size:12px;color:var(--ink-3);margin-bottom:8px">按模板逐项提交后勾选，系统跑完整性检查表（通过/缺字段/格式不符）；检查表过后可上传建库。</p>
+        <div id="matList"></div>
+        <div class="prog-line" style="margin-top:12px"><div class="bar"><i id="matBar" style="width:0%"></i></div><div class="lb"><span id="matMiss" style="color:var(--red)">阻塞项未齐：F1 产品说明书、F2 样本接收标准</span><span id="matPct">0/5</span></div></div>
+        <div class="btn-row"><button class="btn btn-p" id="btnMatSubmit" onclick="submitMaterials()">提交资料并跑完整性检查</button></div>
+        <div id="uploadArea" style="display:none">
+          <div class="dropzone" id="dz" onclick="uploadDocs()" style="margin-top:14px"><div class="big">📄</div>点击上传 F1–F4 全部资料（13 项）<br><small style="color:var(--ink-3)">演示：一键模拟上传</small></div>
+          <div id="fileList"></div>
+          <div class="prog-line" id="parseProg" style="display:none"><div class="bar"><i id="parseBar" style="width:0%"></i></div><div class="lb"><span id="parseLb">解析中…</span><span id="parsePct">0%</span></div></div>
+          <div id="kbStats" style="display:none">
+            <div class="kv" style="margin-top:12px">
+              <div><span>入库文档</span><b>13 项 · 156 页</b></div>
+              <div><span>抽取步骤</span><b>107 步（三实验）</b></div>
+              <div><span>抽取字段</span><b>621 个 · 全部带页码溯源</b></div>
+              <div><span>文档冲突</span><b style="color:var(--red)">12 处已登记</b></div>
+              <div><span>时间窗缺口</span><b style="color:var(--amber)">23 处待问答</b></div>
+              <div><span>F5 缺口（渐进提交）</span><b style="color:var(--amber)">磁珠干燥标准图缺 → 登记入缺口清单</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">❓ 确认问答与冲突裁决（W2）<span class="hint">模板 T6 / 问卷三要素</span></div>
+      <div class="panel-b" id="qaBody">
+        <p style="font-size:12px;color:var(--ink-3)">请先完成左侧文档上传，Agent 将自动生成问答问卷与冲突裁决项。</p>
+      </div>
+    </div>
+  </div>
+  <div class="btn-row"><button class="btn btn-p" id="toS2" disabled onclick="goStage(2)">确认完成，进入方案生成 →</button></div>
+</section>
+
+<!-- ============ 阶段 2：方案生成 ============ -->
+<section class="stage" id="stage2">
+  <div class="stage-head"><h2>② 方案生成</h2><span class="sub">W3 SOP 编译 + W4 建实验 · 对应第 5/12 章</span>
+    <div class="agent-strip"><span>🧩 SOP 编译 Agent</span><span>🗂 实验管理 Agent</span></div>
+  </div>
+  <div class="cols c-12">
+    <div class="panel">
+      <div class="panel-head">🧩 SOP skill 编译结果（W3）<span class="hint">版本锁定 · 决策表化</span></div>
+      <div class="panel-b">
+        <div class="kv">
+          <div><span>编译状态</span><b style="color:var(--green)">✔ 完成（1.8 s）</b></div>
+          <div><span>版本</span><b>v2.2（锁定）</b></div>
+          <div><span>步骤</span><b>39 步（空间转录组）</b></div>
+          <div><span>通用模板</span><b>7 个（5.4）</b></div>
+          <div><span>决策表</span><b>5 张（含边界归属）</b></div>
+          <div><span>设备能力绑定</span><b>DD/PCR/离心机（通讯）+ 人工回报 ×2</b></div>
+        </div>
+        <div style="margin-top:12px;font-size:12px;font-weight:600;color:var(--ink-2)">决策表示例：浓度 → 投入 ng → cycle（边界归属已裁决）</div>
+        <table class="dt-tbl" style="margin-top:6px">
+          <tr><th>Qubit 浓度</th><th>投入量</th><th>cycle</th><th>边界归属</th></tr>
+          <tr><td>&lt; 5 ng/μL</td><td>全部投入（≤5 μL）</td><td>14</td><td>—</td></tr>
+          <tr><td>5 – 20 ng/μL</td><td>25 ng</td><td>12</td><td>5 归本档 ✔</td></tr>
+          <tr><td>20 – 50 ng/μL</td><td>40 ng</td><td>10</td><td>20 归本档 ✔</td></tr>
+          <tr><td>&gt; 50 ng/μL</td><td>50 ng（稀释）</td><td>9</td><td>50 归本档 ✔</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">🗂 建立实验（W4）<span class="hint">模板 T1 · Agent 预填 + 人确认</span></div>
+      <div class="panel-b">
+        <div class="form-grid">
+          <div class="field"><label>组织类型 <span class="prefill-tag">预填</span></label><select><option selected>鼠脑 · 新鲜冷冻（OCT）</option></select></div>
+          <div class="field"><label>RIN <span class="prefill-tag">预填</span></label><input value="8.2"></div>
+          <div class="field"><label>包埋时刻 <span class="prefill-tag">预填</span></label><input value="2026-08-17 14:30"></div>
+          <div class="field"><label>芯片编号</label><input value="CS-260417-A"></div>
+          <div class="field"><label>Index/SRB 映射 <span class="prefill-tag">预填</span></label><select><option selected>SRB-07 · 防串样校验✔</option></select></div>
+          <div class="field"><label>预填来源</label><input value="知识库 + 历史 EXP-2026-0398" disabled></div>
+        </div>
+        <div class="btn-row"><button class="btn btn-p" id="btnReg" onclick="doRegister2()">核对无误，确认登记并生成实验链接</button></div>
+        <div id="regDone" style="display:none;margin-top:12px;font-size:12px">
+          <span class="badge b-green">实验已创建</span> EXP-2026-0417 · 链接 <b>seekspace.io/exp/0417</b> · 溯源基准锁定 · SOP skill v2.2 绑定
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:16px">
+    <div class="panel-head">🧠 任意实验 SOP → 机器可执行 Workflow（12.5 零代码接入）<span class="hint">同一编译引擎 · 步骤即模板、规则即数据</span></div>
+    <div class="panel-b">
+      <div class="form-grid">
+        <div class="field"><label>选择任意 SOP 文档试编译</label><select id="trialSel"><option>空间 ATAC SOP v1.0.pdf</option><option>SeekOne DD 单细胞文库构建.docx</option><option>客户自定义流程.md</option></select></div>
+        <div class="field"><label>&nbsp;</label><button class="btn btn-g" id="btnTrial" onclick="compileTrial()" style="width:100%">▶ 试编译 → 机器可执行 Workflow</button></div>
+      </div>
+      <div id="trialOut"></div>
+    </div>
+  </div>
+  <div class="btn-row"><button class="btn btn-p" id="toS3" disabled onclick="goStage(3)">开始实验，进入管理监控 →</button></div>
+</section>
+
+<!-- ============ 阶段 3：实验管理监控 ============ -->
+<section class="stage" id="stage3">
+  <div class="stage-head"><h2>③ 实验管理监控</h2><span class="sub">W5 调度执行 · Agent 接管计时/盯守/记录，人只响应推送 · 对应第 11/13 章</span>
+    <div class="agent-strip"><span>🎛 调度执行</span><span>🔌 设备接入</span><span>👁 视觉判定</span><span>👉 团队页看全部数字员工</span></div>
+  </div>
+  <div class="cols" style="grid-template-columns:.9fr 1.1fr .8fr">
+    <div class="panel">
+      <div class="panel-head">🧪 步骤监控（12）<span class="hint" id="stepProg">1/12</span></div>
+      <div id="orchLegend" style="padding:8px 16px 0;font-size:11px;color:var(--ink-2)"></div>
+      <div class="panel-b" style="padding:8px 16px"><div id="stepList"></div></div>
+    </div>
+    <div>
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-head">📋 待办推送（统一队列）<span class="hint">超时告警 &gt; 审批门 &gt; 上样提醒 &gt; 视觉判定</span></div>
+        <div id="todoList"><div style="padding:26px 16px;text-align:center;color:var(--ink-3);font-size:12px">实验启动后，Agent 将在此推送需要您的交互</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">🖐 交互处理</div>
+        <div class="panel-b" id="interactBody"><p style="font-size:12px;color:var(--ink-3)">点击待办项进行处理；全部结构化录入（模板 T3–T7）。</p></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">🤖 Agent 动态</div>
+      <div class="feed" id="feed"></div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:16px">
+    <div class="panel-head">🗓 资源调度与并行化（Agent 动态判别 · 12.7-②）<span class="hint">不预设并发：设备注册表 + 资源锁，由 Agent 排程</span></div>
+    <div class="panel-b">
+      <div class="lane"><span class="lname">DD 液体工作站</span><div class="track"><span class="blk" style="left:1%;width:33%;background:var(--primary)">EXP-0417 步1-5</span><span class="blk" style="left:38%;width:28%;background:var(--violet)">EXP-0418 步1-4（Agent 插入空闲档）</span></div></div>
+      <div class="lane"><span class="lname">PCR 仪 ×2</span><div class="track"><span class="blk" style="left:34%;width:18%;background:var(--primary)">EXP-0417 步8</span><span class="blk" style="left:66%;width:16%;background:var(--violet)">EXP-0418 步7（另一台并行）</span></div></div>
+      <div class="lane"><span class="lname">离心机 ×1</span><div class="track"><span class="blk" style="left:20%;width:10%;background:var(--primary)">EXP-0417</span><span class="blk" style="left:30%;width:10%;background:var(--amber)">EXP-0418 排队（资源锁）</span></div></div>
+      <div class="lane"><span class="lname">Bioanalyzer ×1</span><div class="track"><span class="blk" style="left:70%;width:12%;background:var(--primary)">EXP-0417 QC</span></div></div>
+      <p style="font-size:11px;color:var(--ink-3);margin-top:10px">Agent 按设备注册表与资源锁实时排程：空闲档插入新实验→并行度提升；冲突自动排队；步骤顺序在不破坏时间窗约束下动态优化（流程优化）。</p>
+    </div>
+  </div>
+  <div class="btn-row"><button class="btn btn-p" id="toS4" disabled onclick="goStage(4)">实验执行完成，进入结果收集 →</button></div>
+</section>
+
+<!-- ============ 阶段 4：结果收集反馈 ============ -->
+<section class="stage" id="stage4">
+  <div class="stage-head"><h2>④ 结果收集反馈</h2><span class="sub">W6 结果汇总与审签 · 对应第 13.2 / 模板 T8</span>
+    <div class="agent-strip"><span>📊 结果汇总 Agent</span></div>
+  </div>
+  <div class="cols c2">
+    <div class="panel">
+      <div class="panel-head">📄 实验汇总报告（Agent 自动生成）</div>
+      <div class="panel-b">
+        <div class="kv">
+          <div><span>完成步骤</span><b>12/12</b></div>
+          <div><span>总耗时</span><b>7 h 42 min</b></div>
+          <div><span>文库浓度</span><b>12.4 ng/μL</b></div>
+          <div><span>主峰</span><b>380 bp</b></div>
+          <div><span>QC 判定</span><b style="color:var(--amber)">RISK → 返工后 PASS</b></div>
+          <div><span>偏差记录</span><b>1 项（已裁决署名）</b></div>
+          <div><span>成像照片</span><b>4 张（已绑定样本）</b></div>
+          <div><span>停止点存储</span><b>-20℃ · 到期告警已设</b></div>
+          <div><span>设备痕迹</span><b>完成码/日志已归档</b></div>
+          <div><span>审计日志</span><b>待审签后闭合</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">✍ 审签确认（模板 T8）</div>
+      <div class="panel-b">
+        <p style="font-size:12px;color:var(--ink-2);margin-bottom:12px">报告已由结果汇总 Agent 自动生成（六要素 + 设备痕迹 + 时间戳 + 偏差记录），人只审签。</p>
+        <div class="form-grid">
+          <div class="field"><label>审签结论</label><select id="signResult"><option>通过</option><option>退回（需理由）</option></select></div>
+          <div class="field"><label>署名（不可抵赖）<span class="prefill-tag">登录态预填</span></label><input id="signName" value="王芳"></div>
+        </div>
+        <div class="btn-row"><button class="btn btn-p" id="btnSign" onclick="doSign4()">审签确认</button></div>
+        <div id="signDone" style="display:none;margin-top:12px"><span class="badge b-green">已审签</span> 报告 v1.0 锁定 · 审计日志闭合 · 六要素全部落库（交互即数据）</div>
+      </div>
+    </div>
+  </div>
+  <div class="btn-row"><button class="btn btn-p" id="toS5" disabled onclick="goStage(5)">进入实验优化 →</button></div>
+</section>
+
+<!-- ============ 阶段 5：实验优化 ============ -->
+<section class="stage" id="stage5">
+  <div class="stage-head"><h2>⑤ 实验优化</h2><span class="sub">W7 反馈闭环 · 对应第 14.3 / 模板 T9</span>
+    <div class="agent-strip"><span>♻️ 反馈优化 Agent</span></div>
+  </div>
+  <div class="cols c2">
+    <div class="panel">
+      <div class="panel-head">📌 偏差候选项（Agent 自动汇总）</div>
+      <div class="panel-b">
+        <div class="file-row" style="margin-top:0">☑ 破乳液判定耗时 6 min，接近超时阈值 → 建议采集标准图训练机器视觉 <span class="badge b-amber" style="margin-left:auto">候选</span></div>
+        <div class="file-row">☑ 磁珠干燥 4 min 达最佳终点（连续 3 次）→ 建议固化为推荐参数 <span class="badge b-green" style="margin-left:auto">候选</span></div>
+        <div class="form-grid" style="margin-top:14px">
+          <div class="field full"><label>经验补充 / 参数修改建议（字段+建议值+理由）</label><textarea id="fbText" rows="2" placeholder="如：破乳静置 → 建议 3 min（依据：本次水相更清亮）"></textarea></div>
+          <div class="field"><label>署名（修订流程必需）</label><input id="fbSign" value="王芳"></div>
+        </div>
+        <div class="btn-row"><button class="btn btn-p" id="btnFb" onclick="doFeedback5()">确认偏差并提交反馈</button></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">🔁 SOP skill 版本演进</div>
+      <div class="panel-b">
+        <div class="file-row" style="margin-top:0">v2.1 · 首版编译 <span class="badge b-blue" style="margin-left:auto">历史</span></div>
+        <div class="file-row">v2.2 · 12 项裁决 + 边界归属合入 <span class="badge b-green" style="margin-left:auto">本次使用</span></div>
+        <div class="file-row" id="v23">v2.3 · 待编译（等待反馈提交）<span class="badge b-amber" style="margin-left:auto">待触发</span></div>
+        <div style="border:1px dashed var(--line);border-radius:var(--r-sm);padding:10px 12px;margin-top:12px;font-size:11px;color:var(--ink-2)">
+          <b>参数修改安全链（Agent 不自改参数）：</b><br>① ≥3 次连续成功证据 → ② 提出人署名 + 审批人确认 → ③ 版本快照锁定 → ④ 进行中实验不受影响 → ⑤ 随时可回滚<br>
+          <span style="color:var(--ink-3)">Agent 只基于执行数据提出修订建议；生物学结果由 QC 门禁（T6 审批门）与人工署名把关，不由 Agent 承诺。</span>
+        </div>
+        <div id="finalBanner"></div>
+      </div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:16px">
+    <div class="panel-head">🧬 隐性上下文沉淀闭环（团队知识资产）<span class="hint">从实验角度：越用越懂你们实验室</span></div>
+    <div class="panel-b">
+      <div class="loop">
+        <span class="lp">每次执行：参数/异常/裁决/反馈</span><span class="arr">→</span>
+        <span class="lp hl">结构化沉淀：知识库 · 决策表 · 指引卡 · 标准图库</span><span class="arr">→</span>
+        <span class="lp">下次复用：预填 · 决策建议 · 提醒阈值 · 视觉对照</span><span class="arr">→</span>
+        <span class="lp hl">效率与成功率提升</span><span class="arr">→</span>
+        <span class="lp">新一轮沉淀…</span>
+      </div>
+      <div class="kv" style="margin-top:14px">
+        <div><span>隐性经验量化</span><b>5 类 → 100% 结构化（演示）</b></div>
+        <div><span>裁决结论沉淀</span><b>12 项 → 决策表（不再靠口口相传）</b></div>
+        <div><span>新人上手成本</span><b>靠“问老师傅” → 靠指引卡+预填（演示）</b></div>
+        <div><span>执行成功率</span><b style="color:var(--green)">87% → 95%（演示数据）</b></div>
+      </div>
+      <p style="font-size:11px;color:var(--ink-3);margin-top:8px">人员流动不带走知识：所有隐性上下文落库署名、版本化、可溯源（第 8/12 章），成为团队资产而非个人经验。</p>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ============ 视图二：数字员工团队 ============ -->
+<main class="main" id="viewAgents" style="display:none">
+  <div class="concept-box" style="margin-top:16px">
+    <div class="ico">🤖</div>
+    <p><b>数字员工团队：</b>9 个数字员工对应 W1–W7 全周期分工——建库、确认、编译、建实验、调度、设备、视觉、汇总、优化。每个数字员工职责单一、输入输出明确、可交接、带署名；跨职责事项一律移交（C4）而非越权处理；人只在确认/裁决/署名/反馈四类节点介入。</p>
+  </div>
+  <div class="panel" style="margin-top:14px">
+    <div class="panel-head">👥 数字员工团队（9）<span class="hint">当前正在工作的数字员工高亮（跟随全流程进度）</span></div>
+    <div class="panel-b"><div class="agent-grid" id="agentGrid"></div></div>
+  </div>
+</main>
+
+<!-- ============ 视图三：Chat 交互页面 ============ -->
+<main class="main" id="viewChat" style="display:none">
+  <div class="concept-box" style="margin-top:16px">
+    <div class="ico">💬</div>
+    <p><b>Chat 交互页面：</b>统一对话入口 + 多数字员工路由——所有待办以结构化卡片推送到对话流，快捷回复零输入，回复自动带署名；跨数字员工事项自动移交并保留上下文（模板 C1–C5）。</p>
+  </div>
+  <div class="cols" style="grid-template-columns:230px 1fr;margin-top:14px">
+    <div class="panel">
+      <div class="panel-head">👥 数字员工</div>
+      <div id="chatAgents" style="padding:6px"></div>
+    </div>
+    <div class="panel" style="display:flex;flex-direction:column;height:600px">
+      <div class="panel-head">💬 实验工作台对话流<span class="hint">EXP-2026-0417 · 多数字员工自动路由</span></div>
+      <div id="chatBox" style="flex:1;overflow-y:auto;padding:14px;background:var(--bg)"></div>
+      <div style="padding:10px 14px;border-top:1px solid var(--line);display:flex;gap:8px">
+        <input id="chatInput" placeholder="点击「播放演示」体验多数字员工对话；也可自由输入试试…" onkeydown="if(event.key==='Enter')chatSend()">
+        <button class="btn btn-p" onclick="chatSend()">发送</button>
+        <button class="btn btn-g" id="chatPlayBtn" onclick="chatPlay()">▶ 播放演示</button>
+      </div>
+    </div>
+  </div>
+</main>
+<div class="toast-wrap" id="toasts"></div>
+<script>
+/* ================= 全局工具 ================= */
+const $=id=>document.getElementById(id);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function toast(msg,cls){const t=document.createElement('div');t.className='toast '+(cls||'');t.textContent=msg;$('toasts').appendChild(t);setTimeout(()=>t.remove(),3200);}
+function now(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
+
+/* ================= 步进导航与阶段门禁 ================= */
+const STAGES=[{t:'信息上传与确认',ph:'W1+W2'},{t:'方案生成',ph:'W3+W4'},{t:'实验管理监控',ph:'W5'},{t:'结果收集反馈',ph:'W6'},{t:'实验优化',ph:'W7'}];
+let cur=1,maxUnlocked=1;
+const stageDone=[false,false,false,false,false];
+function renderStepper(){
+  $('stepper').innerHTML=STAGES.map((s,i)=>{
+    const n=i+1,cls=n===cur?'cur':(stageDone[i]?'done':(n>maxUnlocked?'locked':''));
+    return `<div class="stp ${cls}" onclick="goStage(${n})"><div class="n">${stageDone[i]?'✔':n}</div><div><div class="t">${s.t}</div><div class="ph">${s.ph}</div></div></div>${n<5?'<div class="stp-line'+(stageDone[i]?' done':'')+'"></div>':''}`;
+  }).join('');
+}
+function goStage(n){
+  if(n>maxUnlocked){toast('请先完成前置阶段（全流程有严格门禁）','warn');return;}
+  if(n===cur)return;
+  document.querySelectorAll('.stage').forEach(s=>s.classList.remove('active'));
+  $('stage'+n).classList.add('active');cur=n;renderStepper();
+  if(n===3&&!s3Inited)initStage3();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function completeStage(n){
+  stageDone[n-1]=true;maxUnlocked=Math.max(maxUnlocked,Math.min(n+1,5));renderStepper();
+}
+renderStepper();
+
+/* ================= 阶段 1：资料提交与确认 ================= */
+let qaAnswered=0;
+const MATS=[
+ {id:'F1',t:'F1 文档资料包',d:'产品说明书 · 内部 SOP · 历史实验记录 · 合规文件',must:true},
+ {id:'F2',t:'F2 样本与实验定义表',d:'组织类型清单 · 接收标准（RIN/样本量/时限）· 异常场景',must:true},
+ {id:'F3',t:'F3 设备台账与通讯盘点',d:'台账 · 通讯能力（已现场实测）· 手册 · 校准记录',must:false},
+ {id:'F4',t:'F4 人员与流程定义表',d:'人员角色 · 审批链（冲突/RISK/报废）· 署名责任人',must:false},
+ {id:'F5',t:'F5 隐性经验采集表（渐进）',d:'视觉标准图 ×2 判定项 · 关键手法描述（可后补）',must:false}];
+const matState=MATS.map(()=>false);
+$('matList').innerHTML=MATS.map((m,i)=>`<div class="file-row" style="margin-top:${i?'8':'0'}px;cursor:pointer" onclick="tglMat(${i})"><input type="checkbox" id="matCk${i}" style="width:auto"> <b>${m.t}</b>${m.must?'<span class="badge b-red">阻塞项</span>':'<span class="badge b-blue">可降级</span>'}<span style="color:var(--ink-3);font-size:11px">${m.d}</span></div>`).join('');
+function tglMat(i){matState[i]=!matState[i];$('matCk'+i).checked=matState[i];updMat();}
+function updMat(){
+  const c=matState.filter(Boolean).length;$('matPct').textContent=c+'/5';$('matBar').style.width=c*20+'%';
+  const miss=MATS.filter((m,i)=>m.must&&!matState[i]).map(m=>m.id);
+  $('matMiss').textContent=miss.length?('阻塞项未齐：'+miss.join('、')):(c<5?'非阻塞项缺失将登记降级，可提交':'✔ 检查通过：阻塞项齐备');
+  $('matMiss').style.color=miss.length?'var(--red)':(c<5?'var(--amber)':'var(--green)');
+}
+function submitMaterials(){
+  const miss=MATS.filter((m,i)=>m.must&&!matState[i]).map(m=>m.id);
+  if(miss.length){toast('完整性检查未过：阻塞项 '+miss.join('、')+' 缺失，流程停在提交阶段（14.4-3）','err');return;}
+  if(!matState[2]||!matState[3])toast('F3/F4 缺项已登记降级：通讯缺→人工回报，审批门→线下留痕','warn');
+  $('btnMatSubmit').disabled=true;$('uploadArea').style.display='block';
+  toast('完整性检查通过（13 项 · 通过 12 · 降级 1）→ 上传建库','ok');
+}
+function uploadDocs(){
+  $('dz').style.display='none';
+  const files=['F1-产品说明书.pdf','F1-内部SOP.docx','F1-历史实验记录.xlsx','F1-合规文件.pdf','F2-组织类型与接收标准.xlsx','F3-设备台账与通讯盘点.xlsx','F3-设备手册与校准.pdf','F4-人员与审批链.xlsx'];
+  $('fileList').innerHTML=files.map((f,i)=>`<div class="file-row">📄 ${f}<div class="bar"><i id="fb${i}" style="width:0%"></i></div><span id="fp${i}" style="color:var(--ink-3)">0%</span></div>`).join('');
+  files.forEach((f,i)=>{let p=0;const iv=setInterval(()=>{p=Math.min(100,p+8+i*3);$('fb'+i).style.width=p+'%';$('fp'+i).textContent=p+'%';if(p>=100){clearInterval(iv);$('fp'+i).textContent='✔ 已上传';}},120);});
+  setTimeout(startParse,1300);
+}
+function startParse(){
+  $('parseProg').style.display='block';let p=0;
+  const iv=setInterval(()=>{p=Math.min(100,p+4);$('parseBar').style.width=p+'%';$('parsePct').textContent=p+'%';
+    $('parseLb').textContent=p<35?'抽取步骤与参数…':(p<70?'抽取字段并标注页码溯源…':'登记冲突与缺口…');
+    if(p>=100){clearInterval(iv);$('parseLb').textContent='解析完成';$('kbStats').style.display='block';showQA();toast('W1 建库完成：12 项冲突 + 23 项缺口已生成问卷','ok');}},150);
+}
+function showQA(){
+  $('qaBody').innerHTML=`
+    <div class="card c-amber" id="qCard1"><div class="card-h">⚠ 文档冲突裁决 P2-11（模板 T6）</div>
+      <div class="card-b">说明书 P23：浓度 20 ng/μL 投入 <b>25 ng</b>；内部 SOP P9：投入 <b>40 ng</b>。<br>请裁决：<b>20 ng/μL 归属哪一档？</b></div>
+      <div class="card-f"><button class="qk rec" onclick="answerQA(1,'采纳 20 ng（归 5–20 档）')">采纳 20 ng</button><button class="qk" onclick="answerQA(1,'采纳 40 ng（归 20–50 档）')">采纳 40 ng</button><button class="qk danger" onclick="answerQA(1,'其它（弹出自由输入）')">其它</button></div></div>
+    <div class="card c-blue" id="qCard2" style="margin-top:12px"><div class="card-h">🕒 时间窗缺口问卷（隐性经验量化）</div>
+      <div class="card-b">说明书未写破乳后静置时长（历史均值 4–6 min）。建议固化推荐值：</div>
+      <div class="card-f"><button class="qk" onclick="answerQA(2,'3 min')">3 min</button><button class="qk rec" onclick="answerQA(2,'5 min')">5 min（推荐）</button><button class="qk" onclick="answerQA(2,'8 min')">8 min</button></div></div>
+    <div class="prog-line" style="margin-top:14px"><div class="bar"><i id="qaBar" style="width:0%"></i></div><div class="lb"><span>确认进度（含自动确认项）</span><span id="qaPct">0 / 35</span></div></div>`;
+}
+function answerQA(n,choice){
+  $('qCard'+n).classList.add('done');$('qCard'+n).querySelector('.card-b').innerHTML+='→ 已裁决：<b>'+choice+'</b>（署名：王芳 · '+now()+'，写入决策表）';
+  qaAnswered++;$('qaBar').style.width=Math.min(100,qaAnswered/2*100)+'%';$('qaPct').textContent=(qaAnswered===2?'35':'17')+' / 35';
+  if(qaAnswered>=2){$('qaPct').textContent='35 / 35 ✔';$('qaBar').style.width='100%';$('toS2').disabled=false;completeStage(1);toast('全部确认完成（快捷回复 2 次 + 自动确认 33 项）→ 解锁方案生成','ok');}
+}
+
+/* ================= 阶段 2：方案生成 ================= */
+function doRegister2(){
+  $('btnReg').disabled=true;$('regDone').style.display='block';$('toS3').disabled=false;completeStage(2);
+  toast('实验 EXP-2026-0417 创建成功，SOP skill v2.2 已绑定（快照锁定）','ok');
+}
+/* 任意 SOP 试编译：体现“任意实验 SOP → 机器可执行 Workflow” */
+const TRIALS={'空间 ATAC SOP v1.0.pdf':'52 步 · 8 模板 · 6 决策表 · 识别 3 处新缺口（自动转 W2 问答）','SeekOne DD 单细胞文库构建.docx':'44 步 · 7 模板 · 4 决策表 · 设备能力绑定完成','客户自定义流程.md':'28 步 · 5 模板 · 3 决策表 · 9 项隐性经验转 OBSERVATION_REQUIRED'};
+function compileTrial(){
+  const k=$('trialSel').value;$('btnTrial').disabled=true;
+  $('trialOut').innerHTML='<div class="file-row" style="margin-top:12px">⏳ 编译中…（步骤抽取 → 模板化 → 决策表 → 设备绑定）</div>';
+  setTimeout(()=>{
+    $('trialOut').innerHTML='<div class="file-row" style="margin-top:12px">✔ 已编译为机器可执行 Workflow：<b>'+TRIALS[k]+'</b><span class="badge b-green" style="margin-left:auto">零代码改动</span></div>'+
+    '<p style="font-size:11px;color:var(--ink-3);margin-top:8px">新实验走同一六层架构（12.2）：元模型 → 模板 → 实例 → 执行器 → 编排 → 确认，不硬编码任何实验。</p>';
+    toast('试编译成功：该 SOP 可直接建实验执行','ok');
+  },800);
+}
+
+/* ================= 阶段 3：实验管理监控 ================= */
+const STEPS=[
+ {n:'玻片/芯片预冷',k:'machine'},{n:'样本登记与 Qubit 检测',k:'machine'},{n:'组织透化 12 min',k:'machine'},
+ {n:'细胞裂解与 mRNA 捕获',k:'machine'},{n:'逆转录与模板切换 90 min',k:'machine'},{n:'玻片释放与样本收集',k:'L3'},
+ {n:'逆转录产物纯化（磁珠）',k:'agent'},{n:'cDNA 扩增（PCR）',k:'machine'},{n:'破乳液与相分离',k:'agent'},
+ {n:'磁珠纯化 ×3 + 干燥终点',k:'agent'},{n:'文库 QC（Qubit+Bioanalyzer）',k:'human'},{n:'文库定量与存储',k:'machine'}];
+const KN={machine:'<span class="kind-tag k-machine">机器内</span>',L3:'<span class="kind-tag k-L3">L3 人工</span>',agent:'<span class="kind-tag k-agent">Agent判定</span>',human:'<span class="kind-tag k-human">审批门</span>'};
+let stepState=[],s3Inited=false;
+function renderSteps(){
+  const done=stepState.filter(s=>s==='done').length;$('stepProg').textContent=done+'/12';
+  $('stepList').innerHTML=STEPS.map((s,i)=>{const st=stepState[i];
+    const ico=st==='done'?['s-done','✔']:st==='run'?['s-run','▶']:st==='wait'?['s-wait','⏸']:['s-queue','·'];
+    return `<div class="step-row"><div class="step-ico ${ico[0]}">${ico[1]}</div><div class="step-info"><div class="nm">${i+1}. ${s.n}${KN[s.k]}</div><div class="sub">${st==='done'?'已完成':st==='run'?'进行中…':st==='wait'?'等待人工交互':'排队'}</div></div></div>`;}).join('');
+}
+function feed(msg,cls){const d=document.createElement('div');d.className='feed-item '+(cls||'agent');d.innerHTML=`<span class="t">${now()}</span><span class="m">${msg}</span>`;$('feed').prepend(d);}
+function setStep(i,st){stepState[i]=st;renderSteps();}
+async function runStep(i,ms,label){setStep(i,'run');feed(label||('▶ '+STEPS[i].n+' 执行中'));await sleep(ms);setStep(i,'done');}
+function addTodo(id,title,desc){
+  if($('todoList').dataset.init!=='1'){$('todoList').innerHTML='';$('todoList').dataset.init='1';}
+  const d=document.createElement('div');d.className='todo';d.id='td-'+id;d.onclick=()=>{document.querySelectorAll('.todo').forEach(t=>t.classList.remove('active'));d.classList.add('active');$('interactBody').innerHTML=INTERACT[id];};
+  d.innerHTML=`<div class="tt">${title}<span class="badge b-amber">待处理</span></div><div class="td">${desc}</div>`;$('todoList').appendChild(d);return d;
+}
+function doneTodo(id){const td=$('td-'+id);if(td){td.querySelector('.badge').className='badge b-green';td.querySelector('.badge').textContent='已完成';}}
+const INTERACT={
+ load:`<div style="font-size:12px;font-weight:700;margin-bottom:8px">模板 T4 · 上样回报（L3 步骤）</div>
+  <p style="font-size:12px;color:var(--ink-2);margin-bottom:10px">玻片释放与样本收集需人工操作。Agent 已预冷载台并计时，完成后回报。</p>
+  <button class="btn btn-g" style="width:100%" onclick="startLoad()">▶ 开始上样（Agent 开始计时）</button>
+  <button class="btn btn-p" style="width:100%;margin-top:8px" id="btnLoadDone" disabled onclick="finishLoad()">✔ 完成回报（耗时自动记录）</button>`,
+ emul:`<div style="font-size:12px;font-weight:700;margin-bottom:8px">模板 T5 · 视觉判定（破乳液相分离）</div>
+  <p style="font-size:12px;color:var(--ink-2);margin-bottom:8px">Agent 已采集图像并与标准图比对，请确认判定：</p>
+  <div class="ref-row"><div class="ref-item"><svg viewBox="0 0 100 50"><rect width="100" height="50" fill="#eef6f5"/><ellipse cx="50" cy="30" rx="34" ry="12" fill="#bfe3df"/><ellipse cx="50" cy="16" rx="30" ry="7" fill="#f5e9c8" opacity=".8"/></svg>标准·合格</div><div class="ref-item"><svg viewBox="0 0 100 50"><rect width="100" height="50" fill="#f7efee"/><ellipse cx="50" cy="30" rx="34" ry="12" fill="#d9c3be"/><circle cx="38" cy="18" r="6" fill="#eee"/><circle cx="60" cy="14" r="4" fill="#eee"/></svg>标准·乳化残留</div><div class="ref-item"><svg viewBox="0 0 100 50"><rect width="100" height="50" fill="#eef6f5"/><ellipse cx="50" cy="31" rx="34" ry="11" fill="#b9e0da"/><ellipse cx="50" cy="17" rx="28" ry="6" fill="#f2e6c2" opacity=".85"/></svg>本次采样</div></div>
+  <div class="field"><label>判定结果（下拉枚举）</label><select id="emulSel"><option>水相清亮 · 合格</option><option>轻微乳化 · 延长静置 2 min</option><option>严重乳化 · 重新破乳</option></select></div>
+  <button class="btn btn-p" style="width:100%;margin-top:10px" onclick="finishEmul()">✔ 提交判定（照片自动绑定样本与时间戳）</button>`,
+ qc:`<div style="font-size:12px;font-weight:700;margin-bottom:8px">模板 T6 · 审批门（QC = RISK）</div>
+  <p style="font-size:12px;color:var(--ink-2);margin-bottom:8px">Bioanalyzer 主峰 310 bp 偏低（预期 380 bp），Agent 判定 <span class="badge b-red">RISK</span>，流程冻结待裁决：</p>
+  <div class="form-grid"><div class="field"><label>处置</label><select id="qcSel"><option>返工（重跑 PCR 扩增）</option><option>接受（记录偏差）</option><option>终止实验</option></select></div>
+  <div class="field"><label>署名（不可抵赖）</label><input id="qcSign" value="王芳"></div></div>
+  <button class="btn btn-p" style="width:100%;margin-top:10px" onclick="finishQc()">✔ 提交裁决</button>`,
+ fb:`<div style="font-size:12px;font-weight:700;margin-bottom:8px">模板 T7 · 手工回报（设备通讯中断兜底）</div>
+  <p style="font-size:12px;color:var(--ink-2);margin-bottom:8px">定量仪通讯中断，Agent 切换手工回报模式；请回报完成码：</p>
+  <div class="field"><label>完成码（设备屏幕显示）</label><input id="fbCode" value="RD-2608-A417"></div>
+  <button class="btn btn-p" style="width:100%;margin-top:10px" onclick="finishFb()">✔ 提交回报（写入审计日志）</button>`};
+
+async function initStage3(){
+  s3Inited=true;stepState=STEPS.map(()=> 'queue');renderSteps();
+  const kc=STEPS.reduce((a,s)=>(a[s.k]=(a[s.k]||0)+1,a),{});
+  $('orchLegend').innerHTML='统一编排：<b>'+kc.machine+'</b> 步机器内自动 · <b>'+kc.agent+'</b> 步 Agent 判定 · <b>'+kc.L3+'</b> 步人工 L3 · <b>'+kc.human+'</b> 道审批门 — 同一条 Workflow 串联执行';
+  feed('实验 EXP-2026-0417 启动 · SOP skill v2.2 快照生效');
+  for(let i=0;i<5;i++){await runStep(i,650);}
+  setStep(5,'wait');addTodo('load','🧤 上样提醒：玻片释放与样本收集','L3 人工步骤 · 预计 4 min');
+  feed('前 5 步机器内自动完成，无需交互','warn');
+}
+async function startLoad(){document.querySelector('#interactBody .btn-g').disabled=true;feed('上样开始，Agent 计时中');await sleep(1500);$('btnLoadDone').disabled=false;}
+async function finishLoad(){
+  doneTodo('load');setStep(5,'done');feed('上样完成 · 耗时 3m52s（T4 自动记录）');
+  $('interactBody').innerHTML='<p style="font-size:12px;color:var(--green)">✔ 上样回报已记录，监控继续…</p>';
+  await runStep(6,900);await runStep(7,1100);
+  setStep(8,'wait');addTodo('emul','👁 视觉判定：破乳液相分离','超时 10 min 内回复 · 预填：合格');
+}
+async function finishEmul(){
+  const v=$('emulSel').value;doneTodo('emul');setStep(8,'done');feed('破乳判定：'+v+'（T5 · 照片已绑定）');
+  $('interactBody').innerHTML='<p style="font-size:12px;color:var(--green)">✔ 判定已提交，监控继续…</p>';
+  await runStep(9,1100,'▶ 磁珠纯化 ×3 · 干燥终点由视觉判定 Agent 自动确认（4 min 达最佳）');
+  await runStep(10,1300);feed('⚠ QC 结果 RISK：主峰 310 bp 偏低，流程冻结','err');
+  addTodo('qc','🚨 审批门：文库 QC = RISK','紧急度最高 · 流程已冻结');
+}
+async function finishQc(){
+  const v=$('qcSel').value;doneTodo('qc');feed('裁决：'+v+' · 署名：'+$('qcSign').value+'（不可抵赖）');
+  $('interactBody').innerHTML='<p style="font-size:12px;color:var(--green)">✔ 裁决已提交，返工流程执行中…</p>';
+  await sleep(1200);feed('返工完成 · QC 复检 PASS · 偏差已记录待审签','warn');
+  await runStep(11,900);feed('⚠ 定量仪通讯中断 → 切换手工回报模式','err');
+  addTodo('fb','🔌 手工回报：定量仪通讯中断','兜底机制 · T7');
+}
+function finishFb(){
+  doneTodo('fb');feed('完成码 '+$('fbCode').value+' 已回报，实验执行完毕');
+  $('interactBody').innerHTML='<p style="font-size:12px;color:var(--green)">✔ 全部步骤完成（12/12）。交互统计：上样 1 + 视觉判定 1 + 审批 1 + 手工回报 1。</p>';
+  $('toS4').disabled=false;completeStage(3);toast('实验执行完成 → 解锁结果收集','ok');
+}
+
+/* ================= 阶段 4：审签 ================= */
+function doSign4(){
+  if($('signName').value.trim()===''){toast('审签必须署名','err');return;}
+  $('btnSign').disabled=true;$('signDone').style.display='block';$('toS5').disabled=false;completeStage(4);
+  toast('报告已审签锁定，审计日志闭合','ok');
+}
+
+/* ================= 阶段 5：反馈优化 ================= */
+function doFeedback5(){
+  if($('fbSign').value.trim()===''){toast('反馈需署名','err');return;}
+  $('btnFb').disabled=true;
+  $('v23').innerHTML='v2.3 · 2 项偏差 + 用户反馈已合入，编译中…<span class="badge b-green" style="margin-left:auto">✔ 已触发</span>';
+  const extra=$('fbText').value.trim();
+  setTimeout(()=>{
+    $('v23').innerHTML='v2.3 · 2 项偏差 + 用户反馈'+(extra?' + 经验补充':'')+'已合入 <span class="badge b-green" style="margin-left:auto">✔ 已锁定</span>';
+    $('finalBanner').innerHTML=`<div class="done-banner"><h3>🎉 全流程演示完成</h3>
+      <div>人只做“机器做不了的事”：确认、裁决、署名、反馈；其余全部由 Agent 接管。</div>
+      <div class="nums">
+        <div class="num"><b>2</b><span>确认快捷回复</span></div>
+        <div class="num"><b>4</b><span>执行中交互</span></div>
+        <div class="num"><b>1</b><span>审签</span></div>
+        <div class="num"><b>1</b><span>反馈提交</span></div>
+        <div class="num"><b>≈ 8 次</b><span>全程总交互</span></div>
+        <div class="num"><b>3 个</b><span>SOP 版本演进</span></div>
+        <div class="num"><b>5 类→100%</b><span>隐性经验完成沉淀</span></div>
+        <div class="num"><b>+8pp</b><span>执行成功率提升（演示）</span></div>
+      </div></div>`;
+    completeStage(5);toast('反馈已入库：偏差证据链 + 署名完整，v2.3 已锁定','ok');
+  },900);
+}
+
+/* ================= 视图切换与数字研究员团队 ================= */
+const AGENTS=[
+ {id:'kb',icon:'📚',name:'知识库 Agent',ph:'W1',role:'文档解析入库 · 步骤抽取 · 冲突登记',caps:['PDF 解析','字段抽取','页码溯源','冲突检测'],io:'入：F1–F4 资料 → 出：步骤知识库 + 12 项冲突清单'},
+ {id:'qa',icon:'❓',name:'确认问答 Agent',ph:'W2',role:'问卷生成 · 裁决收集 · 缺口跟踪',caps:['问卷编排','选项预置','裁决署名','缺口清单'],io:'入：冲突清单 → 出：已确认 Step Contract 字段'},
+ {id:'sop',icon:'🧩',name:'SOP 编译 Agent',ph:'W3',role:'SOP → 机器可执行 Workflow',caps:['步骤模板化','决策表','设备绑定','版本锁定'],io:'入：已确认知识库 → 出：SOP skill v2.2（39 步）'},
+ {id:'exp',icon:'🗂',name:'实验管理 Agent',ph:'W4',role:'建实验 · 登记预填 · 防串样校验',caps:['历史预填','index 唯一性','起始条件门禁'],io:'入：登记五要素 → 出：实验实例 + 链接'},
+ {id:'orch',icon:'🎛',name:'调度执行 Agent',ph:'W5',role:'步骤编排 · 计时盯守 · 待办推送',caps:['资源锁','并行判别','时间窗守护','超时告警'],io:'入：SOP skill + 设备状态 → 出：ExecutionRun 时间线'},
+ {id:'dev',icon:'🔌',name:'设备接入 Agent',ph:'W5',role:'设备注册 · 通讯 · 兜底手工回报',caps:['DeviceAdapter','完成码解析','通讯熔断'],io:'入：设备台账（F3）→ 出：设备状态流 / T7 回报请求'},
+ {id:'vis',icon:'👁',name:'视觉判定 Agent',ph:'W5',role:'图像采集 · 标准图比对 · 判定推送',caps:['标准图比对','照片绑定','vision 接口预留'],io:'入：采集图像 → 出：判定选项 + 推荐预填（T5）'},
+ {id:'rep',icon:'📊',name:'结果汇总 Agent',ph:'W6',role:'六要素报告 · 设备痕迹 · 审签提醒',caps:['自动报告','偏差汇总','审计闭环'],io:'入：StepExecution 全集 → 出：汇总报告 v1.0（T8）'},
+ {id:'opt',icon:'♻️',name:'反馈优化 Agent',ph:'W7',role:'偏差汇总 · 证据链 · 版本演进',caps:['≥3 证据规则','修订署名','快照锁定'],io:'入：执行数据 + 反馈 → 出：SOP skill v2.3 + 知识沉淀'}];
+const STAGE_AGENT={1:['kb','qa'],2:['sop','exp'],3:['orch','dev','vis'],4:['rep'],5:['opt']};
+function renderAgents(){
+ $('agentGrid').innerHTML=AGENTS.map(a=>{const active=(STAGE_AGENT[cur]||[]).includes(a.id);
+  return `<div class="agent-card ${active?'cur':''}"><div class="ahead"><div class="aico">${a.icon}</div><div><div class="anm">${a.name} <span class="badge b-violet">${a.ph}</span></div><div class="arole">${a.role}</div></div></div><div class="chips">${a.caps.map(c=>`<span>${c}</span>`).join('')}</div><div class="aio">${a.io}</div>${active?'<div class="relay">● 当前阶段工作中</div>':''}</div>`;}).join('');
+ $('chatAgents').innerHTML=AGENTS.map(a=>`<div id="cs-${a.id}" style="display:flex;gap:8px;align-items:center;padding:6px 8px;font-size:12px;border-radius:8px;transition:var(--trans)">${a.icon} ${a.name}<span class="badge b-blue" style="margin-left:auto">${a.ph}</span></div>`).join('');
+}
+function switchView(v){
+ $('viewFlow').style.display=v==='flow'?'block':'none';
+ $('viewAgents').style.display=v==='agents'?'block':'none';
+ $('viewChat').style.display=v==='chat'?'block':'none';
+ ['flow','agents','chat'].forEach(k=>$('vtab-'+k).classList.toggle('on',k===v));
+ document.querySelector('.stepper').style.display=v==='flow'?'flex':'none';
+ if(v==='agents')renderAgents();
+}
+
+/* ================= Chat 交互页面 ================= */
+const AVA=id=>AGENTS.find(a=>a.id===id);
+function chatMsg(who,html){
+ const box=$('chatBox');const d=document.createElement('div');
+ if(who==='user'){d.className='msg user';d.innerHTML=`<div class="mbub">${html}</div><div class="mava u">王</div>`;}
+ else{const a=AVA(who);d.className='msg';d.innerHTML=`<div class="mava">${a.icon}</div><div class="mcol"><div class="mnm">${a.name} · ${now()}</div><div class="mbub">${html}</div></div>`;}
+ box.appendChild(d);box.scrollTop=1e9;return d;}
+function chatRelay(f,t){const d=document.createElement('div');d.className='relay-bar';d.innerHTML=`${AVA(f).icon} ${AVA(f).name} ⇢ ${AVA(t).icon} ${AVA(t).name} · 上下文已移交（C4）`;$('chatBox').appendChild(d);$('chatBox').scrollTop=1e9;}
+function chatQuick(opts,onPick){const d=document.createElement('div');d.className='qrow';opts.forEach(o=>{const b=document.createElement('button');b.className='qk'+(o.rec?' rec':'');b.textContent=o.t;b.onclick=()=>{d.remove();onPick(o.t);};d.appendChild(b);});$('chatBox').appendChild(d);$('chatBox').scrollTop=1e9;}
+const CCARDS={
+ conflict:`<div class="card c-amber" style="box-shadow:none"><div class="card-h">⚠ 文档冲突裁决 P2-11（T6）</div><div class="card-b">说明书 P23：20 ng/μL 投入 <b>25 ng</b>；内部 SOP P9：投入 <b>40 ng</b>。<b>20 ng/μL 归哪一档？</b></div></div>`,
+ register:`<div class="card c-blue" style="box-shadow:none"><div class="card-h">🗂 实验登记确认（T1 · 预填）</div><div class="card-b">鼠脑新鲜冷冻（OCT）· RIN 8.2 · 包埋 08-17 14:30 · 芯片 CS-260417-A · SRB-07 防串样✔<br><small style="color:var(--ink-3)">预填来源：知识库 + 历史 EXP-0398</small></div></div>`,
+ approval:`<div class="card c-red" style="box-shadow:none"><div class="card-h">🚨 审批门：文库 QC = RISK（T6）</div><div class="card-b">主峰 310 bp 偏低（预期 380 bp），流程已冻结待裁决，超时升级 15:42。</div></div>`,
+ signoff:`<div class="card c-green" style="box-shadow:none"><div class="card-h">✍ 报告审签（T8）</div><div class="card-b">12/12 步 · 7h42min · RISK→返工→PASS · 偏差 1 项。请审阅后署名。</div></div>`};
+const CHAT=[
+ ['say','kb','王老师您好，我是知识库 Agent 📚 您提交的 13 项 F1–F4 资料完整性检查已通过 ✔'],
+ ['say','kb','解析出 107 步 / 621 字段，发现 <b>12 处文档冲突</b>需裁决，先处理最高优先级这条：'],
+ ['card','kb','conflict'],
+ ['quick',['采纳 20 ng（归 5–20 档）','采纳 40 ng（归 20–50 档）']],
+ ['relay','kb','sop'],
+ ['say','sop','裁决已并入决策表（20 ng/μL 归 5–20 档，cycle=12）。SOP skill <b>v2.2</b> 编译完成并锁定 🔒'],
+ ['relay','sop','exp'],
+ ['say','exp','实验 EXP-2026-0417 已创建，登记字段已预填，请确认：'],
+ ['card','exp','register'],
+ ['quick',['确认登记','需修改']],
+ ['div','—— 实验执行阶段 · 调度执行 Agent 接管 ——'],
+ ['say','orch','前 5 步机器内自动执行中 🏃 玻片释放步骤即将到达，届时推送上样提醒。'],
+ ['say','vis','👁 破乳液图像已采集并与标准图比对，初判<b>合格</b>，请确认（T5）：'],
+ ['quick',['水相清亮 · 合格','轻微乳化 · 延长静置 2 min']],
+ ['say','orch','⚠ QC 结果 RISK（主峰 310 bp 偏低），流程冻结并升级审批门：'],
+ ['card','orch','approval'],
+ ['quick',['返工（重跑 PCR）','接受（记录偏差）']],
+ ['relay','orch','rep'],
+ ['say','rep','实验完成，汇总报告已自动生成（六要素 + 设备痕迹），请审签：'],
+ ['card','rep','signoff'],
+ ['quick',['通过并审签','退回']],
+ ['relay','rep','opt'],
+ ['say','opt','♻️ 已汇总 2 项偏差候选并合入 v2.3（≥3 证据 + 署名）。本次执行的全部知识已沉淀入团队知识库 🧬'],
+ ['end']];
+let cp=0,chatBusy=false;
+function hlAgent(id){document.querySelectorAll('#chatAgents > div').forEach(d=>d.style.background='');const el=$('cs-'+id);if(el)el.style.background='var(--primary-soft)';}
+async function chatRun(){
+ chatBusy=true;$('chatPlayBtn').disabled=true;
+ while(cp<CHAT.length){const e=CHAT[cp];
+  if(e[0]==='say'){hlAgent(e[1]);chatMsg(e[1],e[2]);await sleep(700);}
+  else if(e[0]==='card'){chatMsg(e[1],CCARDS[e[2]]);await sleep(450);}
+  else if(e[0]==='relay'){chatRelay(e[1],e[2]);await sleep(450);}
+  else if(e[0]==='div'){const d=document.createElement('div');d.className='chat-div';d.textContent=e[1];$('chatBox').appendChild(d);$('chatBox').scrollTop=1e9;await sleep(350);}
+  else if(e[0]==='quick'){
+   chatQuick(e[1].map((t,i)=>({t,rec:i===0})),t=>{chatMsg('user',t+' <small style="opacity:.75">— 署名：王芳</small>');cp++;chatBusy=false;chatRun();});
+   return;}
+  else if(e[0]==='end'){break;}
+  cp++;}
+ chatBusy=false;$('chatPlayBtn').disabled=false;$('chatPlayBtn').textContent='✔ 演示完成 · 点击重播';
+}
+function chatPlay(){if(chatBusy)return;if($('chatPlayBtn').textContent.includes('重播')){cp=0;$('chatBox').innerHTML='';$('chatPlayBtn').textContent='▶ 播放演示';}chatRun();}
+function chatSend(){
+ const v=$('chatInput').value.trim();if(!v)return;$('chatInput').value='';chatMsg('user',v);
+ const who=/参数|优化|修订|偏差/.test(v)?'opt':/报告|审签|结果|汇总/.test(v)?'rep':/设备|通讯|回报/.test(v)?'dev':/登记|建实验|样本/.test(v)?'exp':/冲突|确认|问答/.test(v)?'qa':'orch';
+ hlAgent(who);
+ setTimeout(()=>chatMsg(who,'收到。本条消息已按内容路由到我（'+AVA(who).name+'），上下文自动挂接 EXP-2026-0417。完整多数字员工对话流请点击「播放演示」▶'),450);
+}
+
+/* 演示入口：自动展开阶段1上传 */
+setTimeout(()=>toast('欢迎演示：阶段①先按 F1–F5 模板提交资料，通过后逐阶段解锁全流程'),600);
+</script>
+</body>
+</html>
