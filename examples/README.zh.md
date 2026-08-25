@@ -12,6 +12,10 @@
 
 非交互式 agent（智能体）：接受一项任务并运行，然后以选定的机器可读或人类可读格式输出结果。详见[无头示例参考](headless-agent/README.zh.md)。
 
+## lab-agent
+
+叠加在 Headless Agent 上的实验自动化开发入口，用于测试知识库录入/召回、事实确认和 Lab Skill 发现。详见[实验自动化开发 Agent 参考](lab-agent/README.zh.md)。
+
 ## jsonrpc-agent
 
 由 Python SDK 和 JSON-RPC 驱动的无人值守编码 agent。详见 [JSON-RPC 示例参考](jsonrpc-agent/README.zh.md)。

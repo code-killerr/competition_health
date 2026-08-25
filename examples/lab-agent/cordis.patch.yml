@@ -1,0 +1,31 @@
+# 实验自动化开发 overlay：叠加在既有 headless profile 上，不修改默认 profile。
+# 数据库使用当前工作目录下的开发文件，原始资料仍由 lab_knowledge_import 按路径导入。
+- insert:
+    - id: lab-mvp
+      name: '@deepseek-ai/dsh-experimental-lab-mvp'
+
+    - id: lab-knowledge-local
+      name: '@deepseek-ai/dsh-experimental-lab-knowledge-local'
+      config:
+        path: .lab-data/knowledge.sqlite
+
+    - id: lab-device-mock
+      name: '@deepseek-ai/dsh-experimental-lab-device-mock'
+      config:
+        devices:
+          - id: dev-dispenser
+            name: development dispenser
+            capabilities:
+              - dispense
+
+    - id: tool-lab-knowledge
+      name: '@deepseek-ai/dsh-experimental-tool-lab-knowledge'
+
+    - id: lab-skill-local
+      name: '@deepseek-ai/dsh-experimental-lab-skill-local'
+
+    - id: lab-planning-local
+      name: '@deepseek-ai/dsh-experimental-lab-planning-local'
+
+    - id: tool-lab-planning
+      name: '@deepseek-ai/dsh-experimental-tool-lab-planning'

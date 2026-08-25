@@ -12,6 +12,10 @@ Optional overlays that connect supported third-party memory servers through the 
 
 A non-interactive agent that accepts one task, runs it, and emits a selected machine-readable or human-readable output format. See the [headless example reference](headless-agent/README.md).
 
+## lab-agent
+
+An opt-in laboratory automation development overlay over the Headless Agent for testing knowledge ingestion/retrieval, fact confirmation, and laboratory Skill discovery. See the [laboratory automation development Agent reference](lab-agent/README.md).
+
 ## jsonrpc-agent
 
 An unattended coding agent driven through the Python SDK and JSON-RPC. See the [JSON-RPC example reference](jsonrpc-agent/README.md).

@@ -1,0 +1,37 @@
+{
+  "name": "@deepseek-ai/dsh-experimental-lab-mvp",
+  "description": "实验自动化平台第一阶段 opt-in Service Definition bundle",
+  "version": "0.1.1-rc.2",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/experimental/lab-mvp"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
+    "./invariant": { "types": "./lib/types/invariant.d.ts", "default": "./lib/invariant.js" },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": ["lib/index.js", "lib/invariant.js", "lib/types/**/*.d.ts"],
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh-experimental-lab-knowledge": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-planning": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-skill": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-device": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-runtime": "workspace:^"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/cordis": "workspace:^"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/cordis": "workspace:^"
+  }
+}

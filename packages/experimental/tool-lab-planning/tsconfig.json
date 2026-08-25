@@ -1,0 +1,27 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src",
+    "tsBuildInfoFile": "lib/tsconfig.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../../../vendor/cosmokit" },
+    { "path": "../../../vendor/schemastery" },
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../core/agent" },
+    { "path": "../../core/agent-loop" },
+    { "path": "../../test-support/agent-loop-testkit" },
+    { "path": "../../core/tools" },
+    { "path": "../../core/scope" },
+    { "path": "../../core/session" },
+    { "path": "../../skill/skill" },
+    { "path": "../../core/system-prompt" },
+    { "path": "../../llm/llm" },
+    { "path": "../../runtime-diagnostics/invariants" },
+    { "path": "../lab-domain" },
+    { "path": "../lab-planning" },
+    { "path": "../lab-device" }
+  ]
+}
