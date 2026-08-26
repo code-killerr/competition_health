@@ -55,6 +55,23 @@ export interface RuntimeObservation {
   readonly evidence: readonly string[]
   readonly status: 'WAITING' | 'COMPLETED' | 'FAILED' | 'STOPPED'
   readonly error?: string
+  readonly replanRequested?: boolean
+}
+
+/** 一次运行反馈，供报告、Web Consumer 和后续重规划入口复用。 */
+export interface RuntimeFeedback {
+  readonly status: RunStatus
+  readonly valid: boolean
+  readonly summary: string
+  readonly issues: readonly string[]
+  readonly replanRequested: boolean
+}
+
+/** 需要 Planner 重新生成计划的结构化请求。 */
+export interface ReplanRequest {
+  readonly runId: RunId
+  readonly stepId: PlanStepId
+  readonly reason: string
 }
 
 /** 计划批准请求。 */
@@ -72,6 +89,23 @@ export interface ApprovePlanRequest {
   readonly skillSnapshots?: readonly SkillSnapshotInput[]
 }
 
+/** Runtime 权威状态的可持久化快照；缓存投影不包含在此接口中。 */
+export interface RuntimeExperimentState {
+  readonly request: ExperimentRequest
+  approvedPlan?: {
+    readonly request: ApprovePlanRequest
+    readonly executionGraph: ExecutionGraph
+  }
+  run?: RunView
+}
+
+/** 可替换的 Runtime 状态仓储；生产实现使用 SQLite，测试可使用内存实现。 */
+export interface LabRuntimeStateStore {
+  load(): Promise<readonly RuntimeExperimentState[]>
+  save(state: RuntimeExperimentState): Promise<void>
+  dispose?(): Promise<void> | void
+}
+
 /** 运行状态视图。 */
 export interface RunView {
   readonly experimentId: ExperimentId
@@ -83,6 +117,8 @@ export interface RunView {
   readonly observations: readonly RuntimeObservation[]
   readonly currentStepId?: PlanStepId
   readonly cache: ExperimentCacheProjection
+  readonly feedback: RuntimeFeedback
+  readonly replanRequest?: ReplanRequest
 }
 
 /** Runtime Provider 的最小 Service Definition。 */

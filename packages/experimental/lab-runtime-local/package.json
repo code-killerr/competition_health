@@ -26,11 +26,15 @@
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "workspace:^"
+  },
   "devDependencies": {
     "@deepseek-ai/dsh-experimental-lab-domain": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-runtime": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-device": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/schemastery": "workspace:^"
   }
 }

@@ -1,6 +1,7 @@
 /** 实验受控 Runtime 的本地进程内 Provider。 */
 
 import { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
 import { brandId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type {
   ExperimentCacheProjection,
@@ -20,14 +21,31 @@ import type {
   ExecutionStepSpec,
   ExperimentRequest,
   LabRuntimeProvider,
+  LabRuntimeStateStore,
+  ReplanRequest,
+  RuntimeExperimentState,
   RunView,
+  RuntimeFeedback,
   RuntimeObservation,
 } from '@deepseek-ai/dsh-experimental-lab-runtime'
+import { validateRuntimeEvidence } from '@deepseek-ai/dsh-experimental-lab-runtime'
+import { InMemoryRuntimeStateStore, SqliteRuntimeStateStore } from './sqlite-store.ts'
 
 /** Cordis 插件名称。 */
 export const name = 'lab-runtime-local'
 /** 依赖 Runtime 和 Lab Device Service。 */
 export const inject = ['labRuntime', 'labDevices']
+
+/** 本地 Runtime 配置；SQLite 是生产默认权威记录，测试可显式使用内存路径。 */
+export interface Config {
+  /** Runtime 权威状态 SQLite 路径。 */
+  readonly statePath?: string
+}
+
+/** Loader 使用的本地 Runtime 配置 schema。 */
+export const Config: z<Config> = z.object({
+  statePath: z.string().default('.lab-data/runtime.sqlite'),
+})
 
 type DeviceGateway = Pick<LabDeviceProvider, 'healthCheck' | 'reserve' | 'execute' | 'stop' | 'release'>
 
@@ -36,11 +54,7 @@ interface ApprovedPlan {
   readonly executionGraph: ExecutionGraph
 }
 
-interface StoredExperiment {
-  readonly request: ExperimentRequest
-  approvedPlan?: ApprovedPlan
-  run?: RunView
-}
+type StoredExperiment = RuntimeExperimentState
 
 /** 可测试的本地 Runtime Provider。 */
 export class LocalLabRuntimeProvider implements LabRuntimeProvider {
@@ -49,30 +63,42 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
   private readonly experiments = new Map<ExperimentId, StoredExperiment>()
   private runCounter = 0
   private readonly executors: ReadonlyMap<ControlledOperationKind, OperationExecutor>
+  private readonly stateStore: LabRuntimeStateStore
+  private readonly ready: Promise<void>
 
-  constructor(private readonly devices?: DeviceGateway) {
+  constructor(private readonly devices?: DeviceGateway, stateStore: LabRuntimeStateStore = new InMemoryRuntimeStateStore()) {
+    this.stateStore = stateStore
     this.executors = new Map([
       ['device', (experiment, run, step) => this.executeDeviceStep(experiment, run, step)],
       ['human', (experiment, run, step) => this.waitForConfirmation(experiment, run, step)],
       ['approval', (experiment, run, step) => this.waitForConfirmation(experiment, run, step)],
     ])
+    this.ready = this.restore()
+    this.ready.catch(() => {})
+  }
+
+  /** 等待权威状态恢复完成，供 Bundle 在暴露 Service 前建立读取一致性。 */
+  readyState(): Promise<void> {
+    return this.ready
   }
 
   /** 登记一个实验请求。
  * @param request - experiment request to store.
  */
   async createExperiment(request: ExperimentRequest): Promise<void> {
-    await Promise.resolve()
+    await this.ready
     if (request.objective.trim().length === 0) throw new Error('experiment objective must be non-blank')
     if (this.experiments.has(request.experimentId)) throw new Error('experiment "' + request.experimentId + '" already exists')
-    this.experiments.set(request.experimentId, { request })
+    const experiment = { request }
+    this.experiments.set(request.experimentId, experiment)
+    await this.persist(experiment)
   }
 
   /** 将批准计划和 Skill 快照冻结为不可变 ExecutionGraph。
  * @param request - approved plan and immutable execution inputs.
  */
   async approvePlan(request: ApprovePlanRequest): Promise<void> {
-    await Promise.resolve()
+    await this.ready
     const experiment = this.requireExperiment(request.experimentId)
     if (request.planId.trim().length === 0) throw new Error('plan id must be non-blank')
     if (request.approvedBy.trim().length === 0) throw new Error('plan approval requires an accountable reviewer')
@@ -100,6 +126,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       executionGraph,
     }
     experiment.approvedPlan = approvedPlan
+    await this.persist(experiment)
   }
 
   /** 从已批准计划创建一个锁定运行实例。
@@ -108,7 +135,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
  * @returns - newly created run view.
  */
   async startRun(experimentId: ExperimentId, planId: PlanId): Promise<RunView> {
-    await Promise.resolve()
+    await this.ready
     const experiment = this.requireExperiment(experimentId)
     const approvedPlan = experiment.approvedPlan
     if (approvedPlan?.request.planId !== planId) throw new Error('only the approved plan revision can start a run')
@@ -129,6 +156,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       approvedPlan.request.skillRevisionIds,
     )
     experiment.run = view
+    await this.persist(experiment)
     return cloneRun(view)
   }
 
@@ -137,6 +165,13 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
  * @returns - updated run view.
  */
   async executeNextStep(runId: RunId): Promise<RunView> {
+    await this.ready
+    const result = await this.executeNextStepReady(runId)
+    await this.persist(this.findByRun(runId))
+    return result
+  }
+
+  private async executeNextStepReady(runId: RunId): Promise<RunView> {
     await Promise.resolve()
     const experiment = this.findByRun(runId)
     const run = this.requireRun(experiment)
@@ -193,6 +228,19 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
     stepId?: PlanStepId,
     operationId?: OperationId,
   ): Promise<RunView> {
+    await this.ready
+    const result = await this.confirmStepReady(runId, evidence, confirmedBy, stepId, operationId)
+    await this.persist(this.findByRun(runId))
+    return result
+  }
+
+  private async confirmStepReady(
+    runId: RunId,
+    evidence: readonly string[],
+    confirmedBy: string,
+    stepId?: PlanStepId,
+    operationId?: OperationId,
+  ): Promise<RunView> {
     await Promise.resolve()
     if (evidence.length === 0) throw new Error('step confirmation requires evidence')
     if (confirmedBy.trim().length === 0) throw new Error('step confirmation requires an accountable actor')
@@ -221,16 +269,15 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
     const waitingApproval = run.observations.find(observation =>
       observation.stepId === current.stepId && observation.status === 'WAITING' && observation.valid,
     )
-    const confirmedOperationId = operationId ?? operationIdFor(requireRunId(run), current.stepId, waitingApproval === undefined ? 'manual' : 'approval')
-    const confirmedObservation: RuntimeObservation = {
-      stepId: current.stepId,
-      operationId: confirmedOperationId,
-      valid: true,
-      evidence: [...evidence],
-      status: 'COMPLETED',
-    }
-
     if (current.requiresApproval && current.operationKind === 'device' && waitingApproval !== undefined) {
+      const confirmedOperationId = operationId ?? operationIdFor(requireRunId(run), current.stepId, 'approval')
+      const confirmedObservation: RuntimeObservation = {
+        stepId: current.stepId,
+        operationId: confirmedOperationId,
+        valid: true,
+        evidence: [...evidence],
+        status: 'COMPLETED',
+      }
       const observations = run.observations.map(observation =>
         observation === waitingApproval ? confirmedObservation : observation,
       )
@@ -249,6 +296,18 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       return cloneRun(next)
     }
 
+    const confirmedOperationId = operationId ?? operationIdFor(requireRunId(run), current.stepId, 'manual')
+    const validation = validateRuntimeEvidence(current, evidence)
+    const confirmedObservation: RuntimeObservation = {
+      stepId: current.stepId,
+      operationId: confirmedOperationId,
+      valid: validation.valid,
+      evidence: [...evidence],
+      status: validation.valid ? 'COMPLETED' : 'FAILED',
+      ...validation.valid ? {} : { error: validation.issues.join('; ') },
+    }
+    if (!validation.valid) return this.finishFailedStep(experiment, run, current, confirmedObservation)
+
     const next = this.advance(
       run,
       current,
@@ -264,6 +323,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
  * @returns - stopped run view.
  */
   async stopRun(runId: RunId, requestedBy: string): Promise<RunView> {
+    await this.ready
     if (requestedBy.trim().length === 0) throw new Error('stop request requires an accountable actor')
     const experiment = this.findByRun(runId)
     const run = this.requireRun(experiment)
@@ -297,6 +357,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       run.cache.skillRevisionIds,
     )
     experiment.run = next
+    await this.persist(experiment)
     return cloneRun(next)
   }
 
@@ -314,7 +375,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
  * @returns - structured report fields and observations.
  */
   async buildReport(runId: RunId): Promise<Readonly<Record<string, unknown>>> {
-    await Promise.resolve()
+    await this.ready
     const experiment = this.findByRun(runId)
     const run = this.requireRun(experiment)
     return {
@@ -325,12 +386,27 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       executionGraph: cloneGraph(run.executionGraph),
       observations: run.observations.map(observation => cloneObservation(observation)),
       evidenceMode: run.executionGraph.steps.length === 0 ? 'MANUAL' : 'CONTROLLED',
+      feedback: cloneFeedback(run.feedback),
+      ...run.replanRequest === undefined ? {} : { replanRequest: { ...run.replanRequest } },
     }
   }
 
   /** 清理进程内状态。 */
-  dispose(): void {
+  async dispose(): Promise<void> {
     this.experiments.clear()
+    await this.stateStore.dispose?.()
+  }
+
+  private async restore(): Promise<void> {
+    for (const state of await this.stateStore.load()) {
+      this.experiments.set(state.request.experimentId, structuredClone(state))
+      const runId = state.run?.runId
+      if (runId !== undefined) this.runCounter = Math.max(this.runCounter, runNumber(runId))
+    }
+  }
+
+  private async persist(experiment: StoredExperiment): Promise<void> {
+    await this.stateStore.save(structuredClone(experiment))
   }
 
   private async waitForConfirmation(experiment: StoredExperiment, run: RunView, step: ExecutionStepSpec): Promise<RunView> {
@@ -403,6 +479,15 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
         evidence: [...receipt.evidence],
         status: 'COMPLETED',
       }
+      const validation = validateRuntimeEvidence(step, observation.evidence)
+      if (!validation.valid) {
+        return this.finishFailedStep(experiment, run, step, {
+          ...observation,
+          valid: false,
+          status: 'FAILED',
+          error: validation.issues.join('; '),
+        })
+      }
       return this.advanceAndStore(experiment, run, step, observation)
     }
     if (receipt.status === 'accepted') {
@@ -460,6 +545,9 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
     step: ExecutionStepSpec,
     observation: RuntimeObservation,
   ): RunView {
+    const failureObservation = step.failurePolicy === 'REPLAN'
+      ? { ...observation, replanRequested: true }
+      : observation
     const nextStatus = step.failurePolicy === 'STOP' ? 'STOPPED' : 'BLOCKED'
     const next = this.view(
       run.experimentId,
@@ -468,12 +556,16 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       'LOCKED',
       nextStatus,
       run.executionGraph,
-      [...run.observations.filter(item => item.stepId !== step.stepId), observation],
+      [...run.observations.filter(item => item.stepId !== step.stepId), failureObservation],
       step.stepId,
       run.cache.skillRevisionIds,
     )
-    experiment.run = next
-    return cloneRun(next)
+    const replanRequest: ReplanRequest | undefined = step.failurePolicy === 'REPLAN'
+      ? { runId: requireRunId(run), stepId: step.stepId, reason: failureObservation.error ?? 'step result did not satisfy its validation policy' }
+      : undefined
+    const stored = replanRequest === undefined ? next : { ...next, replanRequest }
+    experiment.run = stored
+    return cloneRun(stored)
   }
 
   private advanceAndStore(experiment: StoredExperiment, run: RunView, step: ExecutionStepSpec, observation: RuntimeObservation): RunView {
@@ -582,6 +674,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       observations: observations.map(observation => cloneObservation(observation)),
       ...currentStepId === undefined ? {} : { currentStepId },
       cache,
+      feedback: feedbackFor(runStatus, observations),
     }
   }
 }
@@ -609,6 +702,11 @@ function isTerminal(status: RunView['runStatus']): boolean {
 
 function operationIdFor(runId: RunId, stepId: PlanStepId, kind: 'device' | 'manual' | 'approval'): OperationId {
   return brandId<'OperationId'>('operation-' + kind + '-' + runId + '-' + stepId)
+}
+
+function runNumber(runId: RunId): number {
+  const match = /^run-(\d+)$/.exec(runId)
+  return match === null ? 0 : Number(match[1])
 }
 
 function failedObservation(step: ExecutionStepSpec, runId: RunId, error: string): RuntimeObservation {
@@ -653,6 +751,7 @@ function cloneObservation(observation: RuntimeObservation): RuntimeObservation {
     evidence: [...observation.evidence],
     status: observation.status,
     ...observation.error === undefined ? {} : { error: observation.error },
+    ...observation.replanRequested === undefined ? {} : { replanRequested: observation.replanRequested },
   }
 }
 
@@ -667,7 +766,36 @@ function cloneRun(run: RunView): RunView {
       knowledgeCitations: [...run.cache.knowledgeCitations],
       skillRevisionIds: [...run.cache.skillRevisionIds],
     },
+    feedback: cloneFeedback(run.feedback),
+    ...run.replanRequest === undefined ? {} : { replanRequest: { ...run.replanRequest } },
   }
+}
+
+function feedbackFor(status: RunView['runStatus'], observations: readonly RuntimeObservation[]): RuntimeFeedback {
+  if (status === undefined) throw new Error('runtime feedback requires a run status')
+  const issues = observations
+    .filter(observation => !observation.valid)
+    .map(observation => observation.error ?? `step ${observation.stepId} did not produce valid evidence`)
+  const summary = status === 'COMPLETED'
+    ? 'run completed with validated evidence'
+    : status === 'BLOCKED'
+      ? 'run blocked and requires review'
+      : status === 'STOPPED'
+        ? 'run stopped safely'
+        : status === 'FAILED'
+          ? 'run failed'
+          : 'run is awaiting the next controlled action'
+  return {
+    status,
+    valid: status === 'COMPLETED' && issues.length === 0,
+    summary,
+    issues,
+    replanRequested: observations.some(observation => observation.replanRequested === true),
+  }
+}
+
+function cloneFeedback(feedback: RuntimeFeedback): RuntimeFeedback {
+  return { ...feedback, issues: [...feedback.issues] }
 }
 
 function cloneParameters(parameters: Readonly<Record<string, PlanParameter>>): Readonly<Record<string, PlanParameter>> {
@@ -679,9 +807,11 @@ function errorMessage(error: unknown): string {
 }
 
 /** 将本地 Runtime Provider 挂载到 Runtime Service。 */
-export function apply(ctx: Context): void {
+export async function apply(ctx: Context, config: Config = {}): Promise<void> {
+  const stateStore = new SqliteRuntimeStateStore(config.statePath ?? '.lab-data/runtime.sqlite')
+  const provider = new LocalLabRuntimeProvider(ctx.labDevices, stateStore)
+  await provider.readyState()
   ctx.effect(() => {
-    const provider = new LocalLabRuntimeProvider(ctx.labDevices)
     return ctx.labRuntime.registerProvider(provider)
   }, 'lab-runtime-local.provider')
 }

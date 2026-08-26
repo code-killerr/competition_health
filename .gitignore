@@ -1,5 +1,8 @@
 CLAUDE.local.md
+# 本地模型与服务凭据
 .env
+.env.*
+!.env.example
 node_modules/
 lib/
 *.tsbuildinfo

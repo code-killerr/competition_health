@@ -454,6 +454,9 @@ importers:
       '@deepseek-ai/dsh-bash-sandbox':
         specifier: workspace:*
         version: link:../packages/shell/bash-sandbox
+      '@deepseek-ai/dsh-client-ui-lab-workbench':
+        specifier: workspace:*
+        version: link:../packages/client/ui-lab-workbench
       '@deepseek-ai/dsh-code-runtime-worker-thread':
         specifier: workspace:*
         version: link:../packages/code-runtime/code-runtime-worker-thread
@@ -487,9 +490,15 @@ importers:
       '@deepseek-ai/dsh-experimental-agent-team':
         specifier: workspace:*
         version: link:../packages/experimental/agent-team
+      '@deepseek-ai/dsh-experimental-lab-mvp':
+        specifier: workspace:*
+        version: link:../packages/experimental/lab-mvp
       '@deepseek-ai/dsh-experimental-tool-agent-team':
         specifier: workspace:*
         version: link:../packages/experimental/tool-agent-team
+      '@deepseek-ai/dsh-experimental-tool-lab':
+        specifier: workspace:*
+        version: link:../packages/experimental/tool-lab
       '@deepseek-ai/dsh-fs-e2b':
         specifier: workspace:*
         version: link:../packages/e2b/fs-e2b
@@ -2182,6 +2191,42 @@ importers:
       react:
         specifier: ^18.2.0
         version: 18.3.1
+
+  packages/client/ui-lab-workbench:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-client-locale':
+        specifier: workspace:^
+        version: link:../locale
+      '@deepseek-ai/dsh-client-runtime':
+        specifier: workspace:^
+        version: link:../runtime
+      '@deepseek-ai/dsh-client-ui-layout':
+        specifier: workspace:^
+        version: link:../ui-layout
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: workspace:^
+        version: link:../ui-primitives
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:^
+        version: link:../ui-slots
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@testing-library/react':
+        specifier: ^16.1.0
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
 
   packages/client/ui-layout:
     devDependencies:
@@ -4154,6 +4199,22 @@ importers:
         specifier: workspace:^
         version: link:../../subagent/subagent-spawn-in-process
 
+  packages/experimental/lab-cache:
+    dependencies:
+      '@deepseek-ai/dsh-storage-domain':
+        specifier: workspace:^
+        version: link:../../storage/storage-domain
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-experimental-lab-domain':
+        specifier: workspace:^
+        version: link:../lab-domain
+
   packages/experimental/lab-device:
     devDependencies:
       '@deepseek-ai/cordis':
@@ -4233,6 +4294,9 @@ importers:
 
   packages/experimental/lab-mvp:
     dependencies:
+      '@deepseek-ai/dsh-experimental-lab-cache':
+        specifier: workspace:^
+        version: link:../lab-cache
       '@deepseek-ai/dsh-experimental-lab-device':
         specifier: workspace:^
         version: link:../lab-device
@@ -4266,6 +4330,15 @@ importers:
       '@deepseek-ai/dsh-experimental-lab-skill-local':
         specifier: workspace:^
         version: link:../lab-skill-local
+      '@deepseek-ai/dsh-storage':
+        specifier: workspace:^
+        version: link:../../storage/storage
+      '@deepseek-ai/dsh-storage-domain':
+        specifier: workspace:^
+        version: link:../../storage/storage-domain
+      '@deepseek-ai/dsh-storage-sqlite':
+        specifier: workspace:^
+        version: link:../../storage/storage-sqlite
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -4279,6 +4352,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: workspace:^
         version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-experimental-lab-cache':
+        specifier: workspace:^
+        version: link:../lab-cache
       '@deepseek-ai/dsh-experimental-lab-device':
         specifier: workspace:^
         version: link:../lab-device
@@ -4291,9 +4367,18 @@ importers:
       '@deepseek-ai/dsh-experimental-lab-runtime':
         specifier: workspace:^
         version: link:../lab-runtime
+      '@deepseek-ai/dsh-experimental-lab-skill':
+        specifier: workspace:^
+        version: link:../lab-skill
+      '@deepseek-ai/dsh-host-webserver':
+        specifier: workspace:^
+        version: link:../../host/webserver
       '@deepseek-ai/dsh-invariants':
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../core/session
 
   packages/experimental/lab-planning:
     devDependencies:
@@ -4357,6 +4442,10 @@ importers:
         version: link:../../runtime-diagnostics/invariants
 
   packages/experimental/lab-runtime-local:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -4462,12 +4551,21 @@ importers:
 
   packages/experimental/tool-lab:
     dependencies:
+      '@deepseek-ai/dsh-experimental-lab-cache':
+        specifier: workspace:^
+        version: link:../lab-cache
       '@deepseek-ai/dsh-experimental-tool-lab-knowledge':
         specifier: workspace:^
         version: link:../tool-lab-knowledge
       '@deepseek-ai/dsh-experimental-tool-lab-planning':
         specifier: workspace:^
         version: link:../tool-lab-planning
+      '@deepseek-ai/dsh-storage-domain':
+        specifier: workspace:^
+        version: link:../../storage/storage-domain
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^

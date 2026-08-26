@@ -63,6 +63,27 @@ flowchart LR
   pkg_storage_domain["storage-domain"]
   svc_storageDomain["ctx.storageDomain<br/>Domain data facility"]
   pkg_workspace["workspace"]
+  pkg_lab_device["lab-device"]
+  svc_labDevices["ctx.labDevices<br/>Experimental laboratory device capability"]
+  pkg_lab_device_mock["lab-device-mock"]
+  pkg_lab_planning_local["lab-planning-local"]
+  pkg_lab_runtime_local["lab-runtime-local"]
+  pkg_tool_lab_planning["tool-lab-planning"]
+  pkg_lab_mvp_web["lab-mvp-web"]
+  pkg_lab_knowledge["lab-knowledge"]
+  svc_labKnowledge["ctx.labKnowledge<br/>Experimental laboratory knowledge and retrieval"]
+  pkg_lab_knowledge_local["lab-knowledge-local"]
+  pkg_tool_lab_knowledge["tool-lab-knowledge"]
+  pkg_lab_planning["lab-planning"]
+  svc_labPlanning["ctx.labPlanning<br/>Experimental laboratory planning and review"]
+  pkg_tool_lab["tool-lab"]
+  pkg_lab_skill["lab-skill"]
+  svc_labSkills["ctx.labSkills<br/>Experimental laboratory Skill lifecycle"]
+  pkg_lab_skill_local["lab-skill-local"]
+  pkg_lab_runtime["lab-runtime"]
+  svc_labRuntime["ctx.labRuntime<br/>Experimental controlled laboratory Runtime"]
+  svc_labMvpWeb["ctx.labMvpWeb<br/>Experimental laboratory Web snapshot Consumer"]
+  pkg_lab_mvp["lab-mvp"]
   svc_messageFeedback["ctx.messageFeedback<br/>Lifecycle-bound message feedback"]
   svc_workspaceRegistry["ctx.workspaceRegistry<br/>Workspace entity registry"]
   svc_sessionQuery["ctx.sessionQuery<br/>Session reads, traces, filters, and search"]
@@ -239,6 +260,17 @@ flowchart LR
   pkg_invariants --> svc_invariants
   pkg_jobs --> svc_jobs
   pkg_jobs_local --> svc_jobs
+  pkg_lab_device --> svc_labDevices
+  pkg_lab_device_mock --> svc_labDevices
+  pkg_lab_knowledge --> svc_labKnowledge
+  pkg_lab_knowledge_local --> svc_labKnowledge
+  pkg_lab_mvp_web --> svc_labMvpWeb
+  pkg_lab_planning --> svc_labPlanning
+  pkg_lab_planning_local --> svc_labPlanning
+  pkg_lab_runtime --> svc_labRuntime
+  pkg_lab_runtime_local --> svc_labRuntime
+  pkg_lab_skill --> svc_labSkills
+  pkg_lab_skill_local --> svc_labSkills
   pkg_llm --> svc_llm
   pkg_llm_deepseek --> svc_llm
   pkg_llm_pi_ai --> svc_llm
@@ -339,6 +371,22 @@ flowchart LR
   svc_jobs --> pkg_tool_jobs
   svc_jobs --> pkg_tool_subagent
   svc_jobs --> pkg_tool_terminal
+  svc_labDevices --> pkg_lab_mvp_web
+  svc_labDevices --> pkg_lab_planning_local
+  svc_labDevices --> pkg_lab_runtime_local
+  svc_labDevices --> pkg_tool_lab_planning
+  svc_labKnowledge --> pkg_lab_mvp_web
+  svc_labKnowledge --> pkg_lab_planning_local
+  svc_labKnowledge --> pkg_tool_lab_knowledge
+  svc_labMvpWeb --> pkg_lab_mvp
+  svc_labPlanning --> pkg_lab_mvp_web
+  svc_labPlanning --> pkg_tool_lab
+  svc_labPlanning --> pkg_tool_lab_planning
+  svc_labRuntime --> pkg_lab_mvp_web
+  svc_labRuntime --> pkg_tool_lab
+  svc_labSkills --> pkg_lab_runtime_local
+  svc_labSkills --> pkg_tool_lab
+  svc_labSkills --> pkg_tool_lab_planning
   svc_llm --> pkg_agent_loop
   svc_llm --> pkg_compaction_basic
   svc_lsp --> pkg_tool_lsp
@@ -440,6 +488,12 @@ flowchart LR
 | `ctx.sessionTelemetry` | `seam` | [`session-telemetry`](../packages/session/session-telemetry) | [`session-telemetry-otel`](../packages/session/session-telemetry-otel) | - | - | The seam captures, redacts, and hands session records to one backend; nothing else consumes the service — its output leaves the process. |
 | `ctx.storage` | `seam` | [`storage`](../packages/storage/storage) | [`storage-json`](../packages/storage/storage-json), [`storage-sqlite`](../packages/storage/storage-sqlite) | [`storage-domain`](../packages/storage/storage-domain) | - | Backends register side by side under names; data forms (domain first) mount on the hub and translate typed operations into opaque KV-unit primitives. |
 | `ctx.storageDomain` | `core` | [`storage-domain`](../packages/storage/storage-domain) | - | [`workspace`](../packages/workspace/workspace), [`message-feedback`](../packages/feedback/message-feedback) | - | Waits for every configured backend, then publishes the domain form as one lifecycle-bound service for typed durable state. |
+| `ctx.labDevices` | `seam` | `lab-device` | `lab-device-mock` | `lab-planning-local`, `lab-runtime-local`, `tool-lab-planning`, `lab-mvp-web` | - | The experimental device seam exposes read-only capability facts and controlled commands; the Runtime owns execution ordering and the Mock Provider supplies deterministic receipts. |
+| `ctx.labKnowledge` | `seam` | `lab-knowledge` | `lab-knowledge-local` | `lab-planning-local`, `tool-lab-knowledge`, `lab-mvp-web` | - | The Knowledge Service owns versioned documents, cited retrieval, conflicts, and confirmations; parser, SQLite, FTS5, and optional embeddings stay Provider-owned. |
+| `ctx.labPlanning` | `seam` | `lab-planning` | `lab-planning-local` | `tool-lab-planning`, `tool-lab`, `lab-mvp-web` | - | The Planning Service stores proposals and performs deterministic validation and human review; it does not start or execute runs. |
+| `ctx.labSkills` | `seam` | `lab-skill` | `lab-skill-local` | `tool-lab-planning`, `tool-lab`, `lab-runtime-local` | - | The Skill Service owns declarative revisions, resource registration, lifecycle state, and immutable run snapshots while Harness ctx.skills remains the discovery bridge. |
+| `ctx.labRuntime` | `seam` | `lab-runtime` | `lab-runtime-local` | `tool-lab`, `lab-mvp-web` | - | The Runtime locks approved plans, advances controlled operations, validates evidence, applies failure policy, and reports feedback without calling the model. |
+| `ctx.labMvpWeb` | `bundle` | `lab-mvp-web` | - | `lab-mvp` | - | The Web Consumer assembles read-only knowledge, planning, device, run, report, and feedback snapshots from the typed Services. |
 | `ctx.messageFeedback` | `core` | [`message-feedback`](../packages/feedback/message-feedback) | - | - | - | Owns local per-assistant-message feedback, lifecycle and target validation, per-item compare-and-set, and the Host unary Remote contract without entering Session history or telemetry. |
 | `ctx.workspaceRegistry` | `core` | [`workspace`](../packages/workspace/workspace) | - | `apiproxy` | - | Owns WorkspaceId-branded records over the domain facility; stable sessionIds accounts drive Host RPC and GUI projections. |
 | `ctx.sessionQuery` | `seam` | [`session-query`](../packages/session-query/session-query) | [`session-query-sqlite`](../packages/session-query/session-query-sqlite) | [`session-reference`](../packages/context/session-reference), [`tool-session-query`](../packages/session-query/tool-session-query) | - | The interface supplies exact reads, filters, and traces; its concrete backend adds full-text reconciliation, ranking, snippets, and cursor generations, while the model consumer owns workspace authority and cursor-free rendering. |

@@ -237,6 +237,27 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
     return { documentId, versionId: brandId<'KnowledgeDocumentVersionId'>(row.version_id), status: row.status, ...metadata === undefined ? {} : { metadata }, ...row.error === null ? {} : { error: row.error } }
   }
 
+  /** 列出每份资料最近一次导入的状态。 */
+  async listImportStatuses(): Promise<readonly ImportStatusResult[]> {
+    const db = await this.requireDatabase()
+    const rows = db.prepare(
+      'SELECT dv.document_id AS id, dv.id AS version_id, dv.status, dv.error, d.metadata_json ' +
+      'FROM document_versions AS dv JOIN documents AS d ON d.id = dv.document_id ' +
+      'WHERE dv.rowid IN (SELECT MAX(rowid) FROM document_versions GROUP BY document_id) ' +
+      'ORDER BY d.name ASC',
+    ).all() as unknown as Array<DocumentRow & { id: string }>
+    return rows.map((row) => {
+      const metadata = parseMetadata(row.metadata_json)
+      return {
+        documentId: brandId<'KnowledgeDocumentId'>(row.id),
+        versionId: brandId<'KnowledgeDocumentVersionId'>(row.version_id),
+        status: row.status,
+        ...metadata === undefined ? {} : { metadata },
+        ...row.error === null ? {} : { error: row.error },
+      }
+    })
+  }
+
   /** 使用 FTS5 和可选向量索引返回带来源的混合检索结果。 */
   async search(request: KnowledgeSearchRequest): Promise<readonly KnowledgeSearchResult[]> {
     const db = await this.requireDatabase()

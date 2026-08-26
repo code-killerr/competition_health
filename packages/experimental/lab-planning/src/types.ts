@@ -42,5 +42,10 @@ export interface LabPlanningProvider {
   readonly name: string
   buildContext(request: ExperimentRequest): Promise<PlanningContext>
   propose(input: PlanProposalInput): Promise<PlanProposalResult>
+  getProposal(planId: ExperimentPlan['planId']): PlanProposalResult | undefined
+  listProposals(experimentId?: ExperimentRequest['experimentId']): readonly PlanProposalResult[]
+  validatePlan(planId: ExperimentPlan['planId']): Promise<PlanProposalResult>
+  approvePlan(planId: ExperimentPlan['planId'], approvedBy: string): Promise<PlanProposalResult>
+  rejectPlan(planId: ExperimentPlan['planId'], reason: string): Promise<PlanProposalResult>
   dispose?(): Promise<void> | void
 }

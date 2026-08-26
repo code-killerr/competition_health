@@ -30,12 +30,12 @@
 ## 4. I3 Agent 规划与人工确认
 
 - [x] 4.1 实现实验请求、目标/样本/约束/预期产物和缺失信息领域对象
-- [ ] 4.2 基于现有 Agent preset/loader 和 `setup(agentCtx)` 组装阶段化 Knowledge、Planning、Approval、Device capability 工具；复用 `ctx.tools` 的 schema、scope、取消和审计语义，不新增 Agent 配置中心
-- [ ] 4.3 实现 Planner 的检索上下文组装、引用/假设/缺口输出和声明式 Skill 草拟入口（部分完成：已有检索上下文、引用/缺口和结构化草案工具；待补齐真实 Agent 意图到计划审查组合和计划持久化）
+- [x] 4.2 基于现有 Agent preset/loader 和 `setup(agentCtx)` 组装阶段化 Knowledge、Planning、Approval、Device capability 工具；复用 `ctx.tools` 的 schema、scope、取消和审计语义，不新增 Agent 配置中心（补齐计划/Skill 审核工具，并覆盖现有及后续 Agent scope）
+- [x] 4.3 实现 Planner 的检索上下文组装、引用/假设/缺口输出和声明式 Skill 草拟入口（补齐提案保存、重新校验、Web 审核读取和真实 Harness 组合测试）
 - [x] 4.4 实现确定性计划校验：依赖、单位、参数、引用、设备能力、操作绑定和 Skill 状态（补齐 DRAFT 状态门禁、必需来源引用与计划/步骤引用一致性、Skill 参数约束和稳定字段级错误；覆盖领域与规划 Provider 测试）
-- [ ] 4.5 实现计划与 Skill 的人工确认、拒绝/修改后的新修订和审批事件（部分完成：批准工具可复用既有 `tools/pre-execute`/`ctx.approval`，新增计划拒绝审计事件和替代修订字段；待补齐计划修订持久化、Skill 审批工具和完整审查状态流转）
+- [x] 4.5 实现计划与 Skill 的人工确认、拒绝/修改后的新修订和审批事件（补齐 Skill 三段式审核、计划状态更新、拒绝原因、supersedesPlanId 修订血缘和 Session 审计事件）
 - [x] 4.6 实现计划批准后的 plan revision 锁定，并证明未批准计划不能创建可运行实例（Runtime 仅接受精确的已批准 planId；启动时暴露 LOCKED 状态和冻结 ExecutionGraph，新增未批准/错误修订回归测试）
-- [ ] 4.7 增加从用户意图到计划审查的真实 Harness 组合测试和 keyless snapshot
+- [x] 4.7 增加从用户意图到计划审查的真实 Harness 组合测试和 keyless snapshot
 
 ## 5. I4 受控执行、验证与反馈
 
@@ -43,14 +43,14 @@
 - [x] 5.2 实现 device、human、approval Operation Executor Registry 及取消、幂等和结构化 Observation
 - [x] 5.3 实现 Lab Runtime 的运行、步骤推进、等待确认、安全停止、失败阻断和终态转换
 - [x] 5.4 实现设备执行路径，确保所有设备动作经过 Lab Device Service 且不接受任意模型命令
-- [ ] 5.5 实现结果验证器、证据引用、失败策略、重规划请求、报告和最终反馈
-- [ ] 5.6 实现 Session 事件、SQLite 权威记录与 `ctx.storage` 实验缓存投影的重建路径
-- [ ] 5.7 实现最小 Web Consumer：资料状态、计划/Skill 审查、步骤确认、设备状态、运行时间线和反馈
-- [ ] 5.8 通过端到端真实组合测试回放“录入 → 召回 → 规划 → 确认 → 执行 → 验证 → 反馈”闭环
+- [x] 5.5 实现结果验证器、证据引用、失败策略、重规划请求、报告和最终反馈
+- [x] 5.6 实现 Session 事件、SQLite 权威记录与 `ctx.storage` 实验缓存投影的重建路径
+- [x] 5.7 实现最小 Web Consumer：资料状态、计划/Skill 审查、步骤确认、设备状态、运行时间线和反馈
+- [x] 5.8 通过端到端真实组合测试回放“录入 → 召回 → 规划 → 确认 → 执行 → 验证 → 反馈”闭环
 
 ## 6. 首轮验收与交付
 
-- [ ] 6.1 执行受影响包的 focused tests、真实组合测试、keyless snapshot、typecheck 和 lint
-- [ ] 6.2 验证 OpenSpec change、文档链接、任务与实际包边界一致，并更新第一轮敏捷开发规划的状态
+- [x] 6.1 执行受影响包的 focused tests、真实组合测试、keyless snapshot、typecheck 和 lint（focused tests 34 项通过；typecheck 和 lint 通过）
+- [x] 6.2 验证 OpenSpec change、文档链接、任务与实际包边界一致，并更新第一轮敏捷开发规划的状态（OpenSpec、文档链接、模块图、相关双语配对检查通过；仓库全量 doc-sync 仍受既有未配对文档影响）
 - [x] 6.3 记录首轮未覆盖项：真实设备 Provider、脚本/API 安装审查、远程 RAG、跨进程恢复和生产权限
 - [x] 6.4 输出第一轮演示说明、测试数据矩阵、已知限制和下一阶段候选 backlog（已补充 `examples/lab-agent/README.md` 及中文说明）

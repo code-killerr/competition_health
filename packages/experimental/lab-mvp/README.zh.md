@@ -4,7 +4,7 @@
 
 第一阶段实验原型的 opt-in 组合包。它组合 Knowledge、Planning、Lab Skill、Device 和 Runtime Service Definition，并挂载本地 Knowledge、Planning、Skill、Mock Device、Runtime 以及只读 Web Consumer Provider。
 
-加载本组合包时可配置 knowledgePath、planning、skill 和 device。Harness 默认 profile 不变，必须显式组合本包。面向 Agent 的工具仍由 tool-lab 作为独立 opt-in Consumer 提供。
+加载本组合包时可配置 knowledgePath、storagePath、planning、skill、device 和 runtime。Knowledge 默认使用 `.lab-data/knowledge.sqlite`，Runtime 权威状态默认使用 `.lab-data/runtime.sqlite`，Harness 缓存 domain 默认使用 `.lab-data/lab-storage.sqlite`；隔离测试应显式传入 `:memory:`。Harness 默认 profile 不变，必须显式组合本包。面向 Agent 的工具仍由 tool-lab 作为独立 opt-in Consumer 提供。
 
 ## 模型体验
 

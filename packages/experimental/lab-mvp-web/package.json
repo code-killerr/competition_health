@@ -24,6 +24,10 @@
     "@deepseek-ai/dsh-experimental-lab-planning": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-device": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-runtime": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-skill": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-cache": "workspace:^",
+    "@deepseek-ai/dsh-session": "workspace:^",
+    "@deepseek-ai/dsh-host-webserver": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   },
@@ -32,6 +36,10 @@
     "@deepseek-ai/dsh-experimental-lab-planning": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-device": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-runtime": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-skill": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-cache": "workspace:^",
+    "@deepseek-ai/dsh-session": "workspace:^",
+    "@deepseek-ai/dsh-host-webserver": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   }

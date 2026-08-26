@@ -5,7 +5,7 @@ import {
   LabDuplicateProviderError,
   LabProviderUnavailableError,
 } from '@deepseek-ai/dsh-experimental-lab-domain'
-import type { ExperimentRequest } from '@deepseek-ai/dsh-experimental-lab-domain'
+import type { ExperimentPlan, ExperimentRequest } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { PlanProposalInput, PlanProposalResult, PlanningContext } from './types.ts'
 import type { LabPlanningProvider } from './types.ts'
 
@@ -55,6 +55,48 @@ export class LabPlanningService extends Service {
  */
   propose(input: PlanProposalInput): Promise<PlanProposalResult> {
     return this.requireProvider().propose(input)
+  }
+
+  /** 返回已保存的计划提案，供审核和 Web 读取使用。
+   * @param planId - plan identifier to read.
+   * @returns - stored proposal or undefined when it is not known.
+   */
+  getProposal(planId: ExperimentPlan['planId']): PlanProposalResult | undefined {
+    return this.requireProvider().getProposal(planId)
+  }
+
+  /** 返回计划审核列表，供 Web Consumer 展示修订状态。
+   * @param experimentId - optional experiment filter.
+   * @returns - stored proposal copies.
+   */
+  listProposals(experimentId?: ExperimentRequest['experimentId']): readonly PlanProposalResult[] {
+    return this.requireProvider().listProposals(experimentId)
+  }
+
+  /** 使用当前 Skill、知识和设备事实重新执行计划确定性校验。
+   * @param planId - plan identifier to validate.
+   * @returns - updated proposal with current validation result.
+   */
+  validatePlan(planId: ExperimentPlan['planId']): Promise<PlanProposalResult> {
+    return this.requireProvider().validatePlan(planId)
+  }
+
+  /** 将已通过确定性校验的计划标记为人工批准。
+   * @param planId - plan identifier to approve.
+   * @param approvedBy - reviewer identity.
+   * @returns - updated proposal.
+   */
+  approvePlan(planId: ExperimentPlan['planId'], approvedBy: string): Promise<PlanProposalResult> {
+    return this.requireProvider().approvePlan(planId, approvedBy)
+  }
+
+  /** 将计划标记为拒绝并保留拒绝原因。
+   * @param planId - plan identifier to reject.
+   * @param reason - human review reason.
+   * @returns - updated proposal.
+   */
+  rejectPlan(planId: ExperimentPlan['planId'], reason: string): Promise<PlanProposalResult> {
+    return this.requireProvider().rejectPlan(planId, reason)
   }
 
   private requireProvider(): LabPlanningProvider {

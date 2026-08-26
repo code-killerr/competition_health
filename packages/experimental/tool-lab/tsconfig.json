@@ -9,7 +9,10 @@
     { "path": "../../core/session" },
     { "path": "../../core/tools" },
     { "path": "../../runtime-diagnostics/invariants" },
+    { "path": "../../storage/storage" },
+    { "path": "../../storage/storage-domain" },
     { "path": "../lab-domain" },
+    { "path": "../lab-cache" },
     { "path": "../lab-runtime" },
     { "path": "../tool-lab-knowledge" },
     { "path": "../tool-lab-planning" }

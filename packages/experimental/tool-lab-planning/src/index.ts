@@ -12,13 +12,14 @@ import {
 } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { LabDeviceService } from '@deepseek-ai/dsh-experimental-lab-device'
 import type { LabPlanningService } from '@deepseek-ai/dsh-experimental-lab-planning'
+import type { LabSkillService } from '@deepseek-ai/dsh-experimental-lab-skill'
 import type { JsonValue } from '@deepseek-ai/dsh-session'
 import { defineTool, type InferValue, type ValueSchemaSpec } from '@deepseek-ai/dsh-tools'
 
 /** Cordis 插件名称。 */
 export const name = 'tool-lab-planning'
 /** 复用 Harness Agent、工具注册表、规划和设备 Service。 */
-export const inject = ['agents', 'tools', 'labPlanning', 'labDevices']
+export const inject = ['agents', 'tools', 'labPlanning', 'labDevices', 'labSkills']
 
 const JSON_SCHEMA = { type: 'json' } as const
 const CONTEXT_OUTPUT_SCHEMA = JSON_SCHEMA
@@ -42,7 +43,7 @@ function callingAgent(agent: Agent | undefined, toolName: string): Agent {
 }
 
 /** 注册规划阶段工具到一个精确 Agent scope。 */
-function install(agent: Agent, planning: LabPlanningService, devices: LabDeviceService): () => void {
+function install(agent: Agent, planning: LabPlanningService, devices: LabDeviceService, skills: LabSkillService): () => void {
   const disposers: Array<() => unknown> = []
   const register = (disposer: () => unknown): void => { disposers.push(disposer) }
   try {
@@ -91,10 +92,62 @@ function install(agent: Agent, planning: LabPlanningService, devices: LabDeviceS
           version: 1,
           experimentId: result.plan.experimentId,
           planId: result.plan.planId,
+          revision: result.plan.revision,
+          ...result.plan.supersedesPlanId === undefined ? {} : { supersedesPlanId: result.plan.supersedesPlanId },
           citationIds: result.plan.citations,
           skillRevisionIds: result.skillRevisions.map(revision => revision.revisionId),
         })
         return jsonValue(result)
+      },
+    })))
+
+    register(agent.ctx.tools.register(defineTool({
+      name: 'lab_skill_validate',
+      description: 'Validate one declarative Lab Skill revision before human approval. This never activates or executes the Skill.',
+      parameters: {
+        skill_revision_id: { type: 'string', required: true, description: 'Exact Skill revision id.' },
+      },
+      output: jsonOutput(JSON_SCHEMA),
+      async execute(args, exec) {
+        const caller = callingAgent(exec.agent, 'lab_skill_validate')
+        const revisionId = brandId<'SkillRevisionId'>(string(args.skill_revision_id, 'skill_revision_id'))
+        const revision = await skills.validateDraft(revisionId)
+        caller.session.append('lab/skill/validated', { version: 1, skillRevisionId: revision.revisionId, validatedBy: caller.session.id })
+        return jsonValue(revision)
+      },
+    })))
+
+    register(agent.ctx.tools.register(defineTool({
+      name: 'lab_skill_approve',
+      description: 'Record human approval for a validated Lab Skill revision. This never activates or executes the Skill.',
+      parameters: {
+        skill_revision_id: { type: 'string', required: true, description: 'Exact Skill revision id.' },
+        approved_by: { type: 'string', required: true, description: 'Accountable reviewer identity.' },
+      },
+      output: jsonOutput(JSON_SCHEMA),
+      async execute(args, exec) {
+        const caller = callingAgent(exec.agent, 'lab_skill_approve')
+        const revisionId = brandId<'SkillRevisionId'>(string(args.skill_revision_id, 'skill_revision_id'))
+        const approvedBy = string(args.approved_by, 'approved_by')
+        const revision = await skills.approveDraft(revisionId, approvedBy)
+        caller.session.append('lab/skill/approved', { version: 1, skillRevisionId: revision.revisionId, approvedBy })
+        return jsonValue(revision)
+      },
+    })))
+
+    register(agent.ctx.tools.register(defineTool({
+      name: 'lab_skill_activate',
+      description: 'Activate an approved Lab Skill revision so a plan can lock an immutable run snapshot.',
+      parameters: {
+        skill_revision_id: { type: 'string', required: true, description: 'Exact approved Skill revision id.' },
+      },
+      output: jsonOutput(JSON_SCHEMA),
+      async execute(args, exec) {
+        const caller = callingAgent(exec.agent, 'lab_skill_activate')
+        const revisionId = brandId<'SkillRevisionId'>(string(args.skill_revision_id, 'skill_revision_id'))
+        const revision = await skills.activateRevision(revisionId)
+        caller.session.append('lab/skill/activated', { version: 1, skillRevisionId: revision.revisionId, activatedBy: caller.session.id })
+        return jsonValue(revision)
       },
     })))
   } catch (error) {
@@ -111,7 +164,7 @@ export function apply(ctx: Context): void {
   const installed = new Map<Agent, () => void>()
   const maybeInstall = (agent: Agent): void => {
     if (installed.has(agent)) return
-    installed.set(agent, install(agent, ctx.labPlanning, ctx.labDevices))
+    installed.set(agent, install(agent, ctx.labPlanning, ctx.labDevices, ctx.labSkills))
   }
   for (const agent of ctx.agents.list()) maybeInstall(agent)
   ctx.on('agent/created', ({ agent }) => { maybeInstall(agent) })
@@ -161,6 +214,7 @@ function parsePlan(value: unknown): ExperimentPlan {
     planId: brandId<'PlanId'>(string(object.planId, 'plan.planId')),
     experimentId: brandId<'ExperimentId'>(string(object.experimentId, 'plan.experimentId')),
     revision: integer(object.revision, 'plan.revision'),
+    ...object.supersedesPlanId === undefined ? {} : { supersedesPlanId: brandId<'PlanId'>(string(object.supersedesPlanId, 'plan.supersedesPlanId')) },
     status: literal(object.status, 'plan.status', ['DRAFT', 'VALIDATED', 'HUMAN_APPROVED', 'LOCKED', 'REJECTED'] as const),
     objective: string(object.objective, 'plan.objective'),
     citations: array(object.citations, 'plan.citations').map((item, index) => brandId<'CitationId'>(string(item, `plan.citations[${index}]`))),

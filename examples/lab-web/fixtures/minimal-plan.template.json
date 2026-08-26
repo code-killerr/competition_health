@@ -1,0 +1,46 @@
+{
+  "plan": {
+    "planId": "plan-local-demo-1",
+    "experimentId": "experiment-1",
+    "revision": 1,
+    "status": "DRAFT",
+    "objective": "Controlled bench procedure",
+    "citations": ["REPLACE_WITH_CITATION_ID"],
+    "assumptions": [],
+    "unresolved": [],
+    "steps": [
+      {
+        "stepId": "step-record-output",
+        "title": "Record the observed bench output",
+        "dependencies": [],
+        "skillRevisionId": "skill-local-demo-r1",
+        "operationKind": "human",
+        "operationResource": "manual-record",
+        "requiresApproval": true,
+        "requiredInputs": [],
+        "parameters": {},
+        "citations": ["REPLACE_WITH_CITATION_ID"],
+        "expectedOutputs": ["observed output recorded"]
+      }
+    ]
+  },
+  "skillDrafts": [
+    {
+      "skillId": "skill-local-demo",
+      "revisionId": "skill-local-demo-r1",
+      "status": "DRAFT",
+      "name": "manual-record",
+      "purpose": "Record a human-observed output for a controlled bench procedure",
+      "applicability": ["controlled bench procedure"],
+      "inputs": [],
+      "outputs": ["observed output recorded"],
+      "parameterConstraints": {},
+      "completionConditions": ["the observer records the output"],
+      "failurePolicy": "BLOCK",
+      "citations": ["REPLACE_WITH_CITATION_ID"],
+      "operations": [
+        { "kind": "human", "resourceRef": "manual-record", "installed": true }
+      ]
+    }
+  ]
+}

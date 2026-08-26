@@ -955,6 +955,322 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'labDevices',
+    summary: '实验设备服务，保证设备命令只能通过已注册 Provider 进入。',
+    description: '实验设备服务，保证设备命令只能通过已注册 Provider 进入。',
+    methods: [
+      {
+        signature: 'registerProvider(provider: LabDeviceProvider): () => void',
+        description: '注册本进程唯一的设备 Provider。',
+        parameters: [{ name: 'provider', description: 'provider that owns device operations.' }],
+        returns: 'disposer for the registered provider.',
+      },
+      {
+        signature: 'listDevices(): readonly DeviceView[]',
+        description: '查询设备及能力，只读。',
+        parameters: [],
+        returns: 'current device views and capabilities.',
+      },
+      {
+        signature: 'healthCheck(deviceId: DeviceId): Promise<boolean>',
+        description: '检查设备健康状态。',
+        parameters: [{ name: 'deviceId', description: 'device to check.' }],
+        returns: 'whether the device is healthy.',
+      },
+      {
+        signature: 'reserve(deviceId: DeviceId, runId: RunId): Promise<void>',
+        description: '为一个运行实例申请设备租约。',
+        parameters: [{ name: 'deviceId', description: 'device to lease.' }, { name: 'runId', description: 'run that owns the lease.' }],
+        returns: 'completion after the lease is acquired.',
+      },
+      {
+        signature: 'execute(request: DeviceOperationRequest): Promise<DeviceReceipt>',
+        description: '提交已由 Runtime 校验的设备操作。',
+        parameters: [{ name: 'request', description: 'validated device operation request.' }],
+        returns: 'provider receipt for the operation.',
+      },
+      {
+        signature: 'status(deviceId: DeviceId): DeviceView | undefined',
+        description: '查询设备当前状态。',
+        parameters: [{ name: 'deviceId', description: 'device to inspect.' }],
+        returns: 'current device view, when registered.',
+      },
+      {
+        signature: 'stop(request: Pick<DeviceOperationRequest, \'deviceId\' | \'runId\' | \'operationId\'>): Promise<DeviceReceipt>',
+        description: '请求安全停止。',
+        parameters: [{ name: 'request', description: 'device operation to stop.' }],
+        returns: 'provider receipt for the stop request.',
+      },
+      {
+        signature: 'release(deviceId: DeviceId, runId: RunId): Promise<void>',
+        description: '释放运行实例持有的设备租约。',
+        parameters: [{ name: 'deviceId', description: 'device whose lease is released.' }, { name: 'runId', description: 'run that owns the lease.' }],
+        returns: 'completion after the lease is released.',
+      },
+    ],
+  },
+  {
+    key: 'labKnowledge',
+    summary: '实验知识库服务，维护一个可替换 Provider 的能力接缝。',
+    description: '实验知识库服务，维护一个可替换 Provider 的能力接缝。',
+    methods: [
+      {
+        signature: 'registerProvider(provider: KnowledgeProvider): () => void',
+        description: '注册本进程唯一的知识 Provider。',
+        parameters: [{ name: 'provider', description: 'provider that owns knowledge storage and retrieval.' }],
+        returns: 'disposer for the registered provider.',
+      },
+      {
+        signature: 'importDocument(request: ImportDocumentRequest): Promise<ImportDocumentResult>',
+        description: '登记资料并返回版本状态。',
+        parameters: [{ name: 'request', description: 'immutable source registration request.' }],
+        returns: 'imported document version status.',
+      },
+      {
+        signature: 'getImportStatus(documentId: KnowledgeDocumentId, versionId?: KnowledgeDocumentVersionId): Promise<ImportStatusResult | undefined>',
+        description: '读取资料导入状态。',
+        parameters: [{ name: 'documentId', description: 'document to inspect.' }, { name: 'versionId', description: 'optional version to inspect.' }],
+        returns: 'import status, when the document or version exists.',
+      },
+      {
+        signature: 'listImportStatuses(): Promise<readonly ImportStatusResult[]>',
+        description: '列出所有资料的最近版本状态，供 Web Consumer 展示导入进度。',
+        parameters: [],
+        returns: 'latest import status for each knowledge document.',
+      },
+      {
+        signature: 'search(request: KnowledgeSearchRequest): Promise<readonly KnowledgeSearchResult[]>',
+        description: '执行带上下文过滤和引用的知识检索。',
+        parameters: [{ name: 'request', description: 'query, filters, and result limits.' }],
+        returns: 'ranked citation results.',
+      },
+      {
+        signature: 'listConflicts(experimentId?: KnowledgeSearchRequest[\'experimentId\']): Promise<readonly KnowledgeConflict[]>',
+        description: '列出冲突事实。',
+        parameters: [{ name: 'experimentId', description: 'optional experiment scope.' }],
+        returns: 'recorded knowledge conflicts.',
+      },
+      {
+        signature: 'recordConflict(request: RecordConflictRequest): Promise<KnowledgeConflict>',
+        description: '登记一条待人工处理的知识冲突。',
+        parameters: [{ name: 'request', description: 'conflict details and cited facts.' }],
+        returns: 'persisted conflict record.',
+      },
+      {
+        signature: 'confirmFact(request: ConfirmFactRequest): Promise<void>',
+        description: '确认一条带来源的事实。',
+        parameters: [{ name: 'request', description: 'citation confirmation request.' }],
+      },
+      {
+        signature: 'rebuildIndex(): Promise<void>',
+        description: '重建派生检索索引。',
+        parameters: [],
+      },
+    ],
+  },
+  {
+    key: 'labMvpWeb',
+    summary: 'Web Consumer 服务。',
+    description: 'Web Consumer 服务。',
+    methods: [
+      {
+        signature: 'async snapshot(experimentId: ExperimentId, planningContext?: PlanningContext): Promise<LabMvpWebSnapshot>',
+        description: '返回供 Web 层序列化的当前实验状态。',
+        parameters: [{ name: 'experimentId', description: 'experiment whose run state is projected.' }, { name: 'planningContext', description: 'optional planning context to include.' }],
+        returns: 'serializable device, planning, and runtime state.',
+      },
+    ],
+  },
+  {
+    key: 'labPlanning',
+    summary: '实验规划服务，隔离 Agent 提案与知识/设备/Skill 具体实现。',
+    description: '实验规划服务，隔离 Agent 提案与知识/设备/Skill 具体实现。',
+    methods: [
+      {
+        signature: 'registerProvider(provider: LabPlanningProvider): () => void',
+        description: '注册本进程唯一的规划 Provider。',
+        parameters: [{ name: 'provider', description: 'provider that owns planning and proposal storage.' }],
+        returns: 'disposer for the registered provider.',
+      },
+      {
+        signature: 'buildContext(request: ExperimentRequest): Promise<PlanningContext>',
+        description: '根据实验需求组装可审查的检索上下文。',
+        parameters: [{ name: 'request', description: 'experiment request to contextualize.' }],
+        returns: 'cited knowledge, conflicts, gaps, and device context.',
+      },
+      {
+        signature: 'propose(input: PlanProposalInput): Promise<PlanProposalResult>',
+        description: '接收 Agent 生成的声明式计划和 Skill 草案。',
+        parameters: [{ name: 'input', description: 'plan and Skill drafts submitted by the Agent.' }],
+        returns: 'deterministic proposal validation result.',
+      },
+      {
+        signature: 'getProposal(planId: ExperimentPlan[\'planId\']): PlanProposalResult | undefined',
+        description: '返回已保存的计划提案，供审核和 Web 读取使用。',
+        parameters: [{ name: 'planId', description: 'plan identifier to read.' }],
+        returns: 'stored proposal or undefined when it is not known.',
+      },
+      {
+        signature: 'listProposals(experimentId?: ExperimentRequest[\'experimentId\']): readonly PlanProposalResult[]',
+        description: '返回计划审核列表，供 Web Consumer 展示修订状态。',
+        parameters: [{ name: 'experimentId', description: 'optional experiment filter.' }],
+        returns: 'stored proposal copies.',
+      },
+      {
+        signature: 'validatePlan(planId: ExperimentPlan[\'planId\']): Promise<PlanProposalResult>',
+        description: '使用当前 Skill、知识和设备事实重新执行计划确定性校验。',
+        parameters: [{ name: 'planId', description: 'plan identifier to validate.' }],
+        returns: 'updated proposal with current validation result.',
+      },
+      {
+        signature: 'approvePlan(planId: ExperimentPlan[\'planId\'], approvedBy: string): Promise<PlanProposalResult>',
+        description: '将已通过确定性校验的计划标记为人工批准。',
+        parameters: [{ name: 'planId', description: 'plan identifier to approve.' }, { name: 'approvedBy', description: 'reviewer identity.' }],
+        returns: 'updated proposal.',
+      },
+      {
+        signature: 'rejectPlan(planId: ExperimentPlan[\'planId\'], reason: string): Promise<PlanProposalResult>',
+        description: '将计划标记为拒绝并保留拒绝原因。',
+        parameters: [{ name: 'planId', description: 'plan identifier to reject.' }, { name: 'reason', description: 'human review reason.' }],
+        returns: 'updated proposal.',
+      },
+    ],
+  },
+  {
+    key: 'labRuntime',
+    summary: '受控实验运行时，只允许从已注册 Provider 进入执行。',
+    description: '受控实验运行时，只允许从已注册 Provider 进入执行。',
+    methods: [
+      {
+        signature: 'registerProvider(provider: LabRuntimeProvider): () => void',
+        description: '注册本进程唯一的 Runtime Provider。',
+        parameters: [{ name: 'provider', description: 'provider that owns controlled execution state.' }],
+        returns: 'disposer for the registered provider.',
+      },
+      {
+        signature: 'createExperiment(request: ExperimentRequest): Promise<void>',
+        description: '创建实验请求。',
+        parameters: [{ name: 'request', description: 'experiment request to register.' }],
+        returns: 'completion after the request is stored.',
+      },
+      {
+        signature: 'approvePlan(request: ApprovePlanRequest): Promise<void>',
+        description: '记录计划及 Skill 的人工批准。',
+        parameters: [{ name: 'request', description: 'approved plan, Skill revisions, and optional execution graph inputs.' }],
+        returns: 'completion after approval is stored.',
+      },
+      {
+        signature: 'startRun(experimentId: ExperimentId, planId: PlanId): Promise<RunView>',
+        description: '从批准的计划启动运行。',
+        parameters: [{ name: 'experimentId', description: 'experiment to run.' }, { name: 'planId', description: 'approved plan revision.' }],
+        returns: 'newly created or existing run view.',
+      },
+      {
+        signature: 'confirmStep( runId: RunId, evidence: readonly string[], confirmedBy: string, stepId?: PlanStepId, operationId?: OperationId, ): Promise<RunView>',
+        description: '提交人工步骤证据，或批准需要人工门禁的设备步骤。',
+        parameters: [{ name: 'runId', description: 'run receiving the evidence.' }, { name: 'evidence', description: 'evidence strings supplied by a human or operation.' }, { name: 'confirmedBy', description: 'accountable confirmer.' }, { name: 'stepId', description: 'optional step identity for a waiting operation.' }, { name: 'operationId', description: 'optional operation identity for an idempotent confirmation.' }],
+        returns: 'updated run view.',
+      },
+      {
+        signature: 'executeNextStep(runId: RunId): Promise<RunView>',
+        description: '推进当前执行图步骤；设备步骤只能通过 Lab Device Service 执行。',
+        parameters: [{ name: 'runId', description: 'run whose current graph step should advance.' }],
+        returns: 'updated run view.',
+      },
+      {
+        signature: 'stopRun(runId: RunId, requestedBy: string): Promise<RunView>',
+        description: '请求安全停止。',
+        parameters: [{ name: 'runId', description: 'run to stop.' }, { name: 'requestedBy', description: 'actor requesting the stop.' }],
+        returns: 'stopped run view.',
+      },
+      {
+        signature: 'getRun(experimentId: ExperimentId): RunView | undefined',
+        description: '读取运行状态。',
+        parameters: [{ name: 'experimentId', description: 'experiment whose run is requested.' }],
+        returns: 'run view, when one exists.',
+      },
+      {
+        signature: 'buildReport(runId: RunId): Promise<Readonly<Record<string, unknown>>>',
+        description: '生成带证据的实验报告。',
+        parameters: [{ name: 'runId', description: 'run to report.' }],
+        returns: 'structured report fields and observations.',
+      },
+    ],
+  },
+  {
+    key: 'labSkills',
+    summary: '实验 Skill 服务，隔离动作定义与 Harness 指令 Skill。',
+    description: '实验 Skill 服务，隔离动作定义与 Harness 指令 Skill。',
+    methods: [
+      {
+        signature: 'registerProvider(provider: LabSkillProvider): () => void',
+        description: '注册本进程唯一的实验 Skill Provider。',
+        parameters: [{ name: 'provider', description: 'provider that owns Skill revisions.' }],
+        returns: 'disposer for the registered provider.',
+      },
+      {
+        signature: 'registerCandidateResource(resource: LabOperationResourceInput): Promise<LabOperationResource>',
+        description: '登记模型生成的脚本或 API 候选资源。',
+        parameters: [{ name: 'resource', description: 'candidate resource content and stable reference.' }],
+        returns: 'stored candidate resource.',
+      },
+      {
+        signature: 'installResource(kind: LabOperationResourceKind, resourceRef: string): Promise<LabOperationResource>',
+        description: '将已登记候选资源标记为可供 Skill 校验使用。',
+        parameters: [{ name: 'kind', description: 'candidate resource kind.' }, { name: 'resourceRef', description: 'stable resource reference.' }],
+        returns: 'installed resource.',
+      },
+      {
+        signature: 'resolveResource(kind: LabOperationResourceKind, resourceRef: string): LabOperationResource | undefined',
+        description: '查询候选或已安装资源。',
+        parameters: [{ name: 'kind', description: 'resource kind.' }, { name: 'resourceRef', description: 'stable resource reference.' }],
+        returns: 'resource, when registered.',
+      },
+      {
+        signature: 'createDraft(draft: LabSkillDraft): Promise<LabSkillRevision>',
+        description: '保存 Agent 生成的声明式 Skill 草案。',
+        parameters: [{ name: 'draft', description: 'Agent-generated declarative Skill draft.' }],
+        returns: 'stored Skill revision.',
+      },
+      {
+        signature: 'validateDraft(revisionId: SkillRevisionId): Promise<LabSkillRevision>',
+        description: '对草案执行确定性校验。',
+        parameters: [{ name: 'revisionId', description: 'draft revision to validate.' }],
+        returns: 'validated Skill revision.',
+      },
+      {
+        signature: 'approveDraft(revisionId: SkillRevisionId, approvedBy: string): Promise<LabSkillRevision>',
+        description: '记录人工批准。',
+        parameters: [{ name: 'revisionId', description: 'revision to approve.' }, { name: 'approvedBy', description: 'accountable reviewer identity.' }],
+        returns: 'human-approved Skill revision.',
+      },
+      {
+        signature: 'activateRevision(revisionId: SkillRevisionId): Promise<LabSkillRevision>',
+        description: '激活已批准的 Skill 修订。',
+        parameters: [{ name: 'revisionId', description: 'approved revision to activate.' }],
+        returns: 'active Skill revision.',
+      },
+      {
+        signature: 'resolveRevision(revisionId: SkillRevisionId): LabSkillRevision | undefined',
+        description: '读取修订。',
+        parameters: [{ name: 'revisionId', description: 'revision to resolve.' }],
+        returns: 'matching Skill revision, when present.',
+      },
+      {
+        signature: 'snapshotForRun(revisionIds: readonly SkillRevisionId[]): Promise<readonly SkillSnapshot[]>',
+        description: '为运行实例创建不可变 Skill 快照。',
+        parameters: [{ name: 'revisionIds', description: 'active revisions to snapshot.' }],
+        returns: 'immutable Skill snapshots for a run.',
+      },
+      {
+        signature: 'retireRevision(revisionId: SkillRevisionId): Promise<LabSkillRevision>',
+        description: '退役一条修订。',
+        parameters: [{ name: 'revisionId', description: 'active revision to retire.' }],
+        returns: 'retired Skill revision.',
+      },
+    ],
+  },
+  {
     key: 'llm',
     summary: 'The abstract `llm` service: an adapter registry plus a streaming model-call API, interceptable via the `llm/stream` waterfall.',
     description: 'The abstract `llm` service: an adapter registry plus a streaming model-call API, interceptable via the `llm/stream` waterfall.',
@@ -2902,6 +3218,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export class ApprovalService extends Service {\n    static Config: z<Config>;\n    constructor(ctx: Context, public config: Config);\n    setPolicy(agent: Agent, policy: ApprovalPolicy): void;\n    async request(req: ApprovalRequest): Promise<ApprovalOutcome>;\n    overrideOf(session: Session): ApprovalPolicy | undefined;\n}',
   },
   {
+    name: 'ApprovePlanRequest',
+    declaration: 'export interface ApprovePlanRequest {\n    readonly experimentId: ExperimentId;\n    readonly planId: PlanId;\n    readonly approvedBy: string;\n    readonly skillRevisionIds: readonly SkillRevisionId[];\n    readonly executionSteps?: readonly ExecutionStepSpec[];\n    readonly skillSnapshots?: readonly SkillSnapshotInput[];\n}',
+  },
+  {
     name: 'AskUserQuestionAnswer',
     declaration: 'export interface AskUserQuestionAnswer {\n    answers: AskUserQuestionAnswerItem[];\n}',
   },
@@ -3022,6 +3342,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface CancelOptions {\n    keepInbox?: boolean | undefined;\n}',
   },
   {
+    name: 'CitationId',
+    declaration: 'export type CitationId = Branded<\'CitationId\'>;',
+  },
+  {
     name: 'ClientResponse',
     declaration: 'export interface ClientResponse {\n    type: \'client-response\';\n    rpcId: RpcId;\n    result: RpcResult<unknown>;\n}',
   },
@@ -3112,6 +3436,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ConfinedSandboxMode',
     declaration: 'export type ConfinedSandboxMode = Exclude<SandboxMode, \'danger-full-access\'>;',
+  },
+  {
+    name: 'ConfirmFactRequest',
+    declaration: 'export interface ConfirmFactRequest {\n    readonly citationId: CitationId;\n    readonly confirmedBy: string;\n    readonly note?: string;\n}',
   },
   {
     name: 'ContentBlockMap',
@@ -3226,6 +3554,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type CredentialRef = Branded<\'CredentialRef\'>;',
   },
   {
+    name: 'DeviceCapability',
+    declaration: 'export interface DeviceCapability {\n    readonly name: string;\n    readonly parameters: Readonly<Record<string, string>>;\n}',
+  },
+  {
+    name: 'DeviceId',
+    declaration: 'export type DeviceId = Branded<\'DeviceId\'>;',
+  },
+  {
+    name: 'DeviceOperationRequest',
+    declaration: 'export interface DeviceOperationRequest {\n    readonly deviceId: DeviceId;\n    readonly runId: RunId;\n    readonly operationId: OperationId;\n    readonly idempotencyKey: string;\n    readonly parameters: Readonly<Record<string, UnitValue | string | number | boolean>>;\n}',
+  },
+  {
+    name: 'DeviceReceipt',
+    declaration: 'export interface DeviceReceipt {\n    readonly operationId: OperationId;\n    readonly idempotencyKey: string;\n    readonly status: \'accepted\' | \'completed\' | \'failed\' | \'stopped\';\n    readonly evidence: readonly string[];\n}',
+  },
+  {
+    name: 'DeviceView',
+    declaration: 'export interface DeviceView {\n    readonly id: DeviceId;\n    readonly name: string;\n    readonly capabilities: readonly DeviceCapability[];\n    readonly healthy: boolean;\n    readonly reserved: boolean;\n}',
+  },
+  {
     name: 'DiffCallView',
     declaration: 'export interface DiffCallView {\n    card: \'diff\';\n    title: string;\n    diffs: FileDiff[];\n    locations?: FileLocation[];\n}',
   },
@@ -3336,6 +3684,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'EpochHeader',
     declaration: 'export interface EpochHeader {\n    config: LlmCallConfig;\n    adapterDefaults?: LlmCallConfigAdapterDefaults;\n    system?: string;\n    tools?: ToolSchema[];\n}',
+  },
+  {
+    name: 'ExecutionGraph',
+    declaration: 'export interface ExecutionGraph {\n    readonly version: 1;\n    readonly planId: PlanId;\n    readonly skillSnapshots: readonly SkillSnapshot[];\n    readonly steps: readonly ExecutionStepSpec[];\n}',
+  },
+  {
+    name: 'ExecutionStepSpec',
+    declaration: 'export interface ExecutionStepSpec {\n    readonly stepId: PlanStepId;\n    readonly skillRevisionId: SkillRevisionId;\n    readonly operationKind: OperationKind;\n    readonly operationResource: string;\n    readonly deviceId?: DeviceId;\n    readonly parameters: Readonly<Record<string, PlanParameter>>;\n    readonly requiresApproval: boolean;\n    readonly expectedEvidence: readonly string[];\n    readonly failurePolicy: RuntimeFailurePolicy;\n}',
+  },
+  {
+    name: 'ExperimentCacheProjection',
+    declaration: 'export interface ExperimentCacheProjection {\n    readonly version: 1;\n    readonly experimentId: ExperimentId;\n    readonly planId?: PlanId;\n    readonly runId?: RunId;\n    readonly status: PlanStatus | RunStatus;\n    readonly knowledgeCitations: readonly CitationId[];\n    readonly skillRevisionIds: readonly SkillRevisionId[];\n    readonly updatedBy: SessionId;\n}',
+  },
+  {
+    name: 'ExperimentId',
+    declaration: 'export type ExperimentId = Branded<\'ExperimentId\'>;',
+  },
+  {
+    name: 'ExperimentPlan',
+    declaration: 'export interface ExperimentPlan {\n    readonly planId: PlanId;\n    readonly experimentId: ExperimentId;\n    readonly revision: number;\n    readonly supersedesPlanId?: PlanId;\n    readonly status: PlanStatus;\n    readonly objective: string;\n    readonly citations: readonly CitationId[];\n    readonly assumptions: readonly string[];\n    readonly unresolved: readonly string[];\n    readonly steps: readonly PlanStep[];\n}',
   },
   {
     name: 'FileDiff',
@@ -3470,6 +3838,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ImageVariantId = Branded<\'ImageVariantId\'>;',
   },
   {
+    name: 'ImportDocumentRequest',
+    declaration: 'export interface ImportDocumentRequest {\n    readonly source: KnowledgeSource;\n    readonly metadata?: Readonly<Record<string, string>>;\n}',
+  },
+  {
+    name: 'ImportDocumentResult',
+    declaration: 'export interface ImportDocumentResult {\n    readonly documentId: KnowledgeDocumentId;\n    readonly versionId: KnowledgeDocumentVersionId;\n    readonly status: KnowledgeImportStatus;\n    readonly metadata?: Readonly<Record<string, string>>;\n}',
+  },
+  {
+    name: 'ImportStatusResult',
+    declaration: 'export interface ImportStatusResult extends ImportDocumentResult {\n    readonly error?: string;\n}',
+  },
+  {
     name: 'Inbox',
     declaration: 'export class Inbox {\n    constructor(private readonly session: Session, private readonly notifications: InboxNotifications);\n    get nextTurn(): readonly UserMessage[];\n    get nextStep(): readonly UserMessage[];\n    get hasPending(): boolean;\n    clear(): void;\n    claim(target: InboxTarget, turn: number): UserMessage[];\n    append(target: InboxTarget, message: UserMessage): void;\n    prepend(target: InboxTarget, message: UserMessage): void;\n    replace(messageId: MessageId, newMessage: UserMessage): boolean;\n    remove(messageId: MessageId): boolean;\n    splice(target: InboxTarget, start: number, deleteCount: number, inserted: UserMessage[]): UserMessage[];\n}',
   },
@@ -3578,6 +3958,46 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface KnobState {\n    preset: string | null;\n    sandbox: SandboxMode | null;\n    approval: ApprovalPolicy | null;\n}',
   },
   {
+    name: 'KnowledgeConflict',
+    declaration: 'export interface KnowledgeConflict {\n    readonly conflictId: KnowledgeConflictId;\n    readonly experimentId?: ExperimentId;\n    readonly citationIds: readonly CitationId[];\n    readonly summary: string;\n    readonly status: KnowledgeConflictStatus;\n}',
+  },
+  {
+    name: 'KnowledgeConflictId',
+    declaration: 'export type KnowledgeConflictId = Branded<\'KnowledgeConflictId\'>;',
+  },
+  {
+    name: 'KnowledgeConflictStatus',
+    declaration: 'export type KnowledgeConflictStatus = \'OPEN\' | \'RESOLVED\';',
+  },
+  {
+    name: 'KnowledgeDocumentId',
+    declaration: 'export type KnowledgeDocumentId = Branded<\'KnowledgeDocumentId\'>;',
+  },
+  {
+    name: 'KnowledgeDocumentVersionId',
+    declaration: 'export type KnowledgeDocumentVersionId = Branded<\'KnowledgeDocumentVersionId\'>;',
+  },
+  {
+    name: 'KnowledgeImportStatus',
+    declaration: 'export type KnowledgeImportStatus = \'QUEUED\' | \'PARSING\' | \'INDEXING\' | \'READY\' | \'FAILED\';',
+  },
+  {
+    name: 'KnowledgeProvider',
+    declaration: 'export interface KnowledgeProvider {\n    readonly name: string;\n    importDocument(request: ImportDocumentRequest): Promise<ImportDocumentResult>;\n    getImportStatus(documentId: KnowledgeDocumentId, versionId?: KnowledgeDocumentVersionId): Promise<ImportStatusResult | undefined>;\n    listImportStatuses(): Promise<readonly ImportStatusResult[]>;\n    search(request: KnowledgeSearchRequest): Promise<readonly KnowledgeSearchResult[]>;\n    listConflicts(experimentId?: KnowledgeSearchRequest[\'experimentId\']): Promise<readonly KnowledgeConflict[]>;\n    recordConflict(request: RecordConflictRequest): Promise<KnowledgeConflict>;\n    confirmFact(request: ConfirmFactRequest): Promise<void>;\n    rebuildIndex(): Promise<void>;\n    dispose?(): Promise<void> | void;\n}',
+  },
+  {
+    name: 'KnowledgeSearchRequest',
+    declaration: 'export interface KnowledgeSearchRequest {\n    readonly query: string;\n    readonly experimentId?: ExperimentId;\n    readonly documentIds?: readonly KnowledgeDocumentId[];\n    readonly versionIds?: readonly KnowledgeDocumentVersionId[];\n    readonly confirmed?: boolean;\n    readonly limit?: number;\n}',
+  },
+  {
+    name: 'KnowledgeSearchResult',
+    declaration: 'export interface KnowledgeSearchResult {\n    readonly citationId: CitationId;\n    readonly documentId: KnowledgeDocumentId;\n    readonly versionId: KnowledgeDocumentVersionId;\n    readonly location: string;\n    readonly excerpt: string;\n    readonly kind?: \'text\' | \'table\';\n    readonly page?: number;\n    readonly titlePath?: readonly string[];\n    readonly tableHeaders?: readonly string[];\n    readonly tableRow?: number;\n    readonly confirmed: boolean;\n    readonly conflicted: boolean;\n    readonly score: number;\n}',
+  },
+  {
+    name: 'KnowledgeSource',
+    declaration: 'export type KnowledgeSource = {\n    readonly kind: \'path\';\n    readonly path: string;\n} | {\n    readonly kind: \'bytes\';\n    readonly name: string;\n    readonly bytes: Uint8Array;\n};',
+  },
+  {
     name: 'KvFacet',
     declaration: 'export interface KvFacet {\n    open(descriptor: KvUnitDescriptor): Promise<KvUnit>;\n}',
   },
@@ -3592,6 +4012,62 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'KvUnitDescriptor',
     declaration: 'export interface KvUnitDescriptor {\n    readonly name: string;\n    readonly version: number;\n    readonly tables: readonly string[];\n    readonly hasGlobal: boolean;\n}',
+  },
+  {
+    name: 'LabDeviceProvider',
+    declaration: 'export interface LabDeviceProvider {\n    readonly name: string;\n    listDevices(): readonly DeviceView[];\n    healthCheck(deviceId: DeviceId): Promise<boolean>;\n    reserve(deviceId: DeviceId, runId: RunId): Promise<void>;\n    execute(request: DeviceOperationRequest): Promise<DeviceReceipt>;\n    status(deviceId: DeviceId): DeviceView | undefined;\n    stop(request: Pick<DeviceOperationRequest, \'deviceId\' | \'runId\' | \'operationId\'>): Promise<DeviceReceipt>;\n    release(deviceId: DeviceId, runId: RunId): Promise<void>;\n    dispose?(): Promise<void> | void;\n}',
+  },
+  {
+    name: 'LabFailurePolicy',
+    declaration: 'export type LabFailurePolicy = \'BLOCK\' | \'STOP\' | \'REPLAN\';',
+  },
+  {
+    name: 'LabMvpWebSnapshot',
+    declaration: 'export interface LabMvpWebSnapshot {\n    readonly knowledge: readonly ImportStatusResult[];\n    readonly devices: readonly DeviceView[];\n    readonly planningContext?: PlanningContext;\n    readonly planReviews: readonly PlanProposalResult[];\n    readonly run?: RunView;\n    readonly report?: Readonly<Record<string, unknown>>;\n}',
+  },
+  {
+    name: 'LabOperationBinding',
+    declaration: 'export interface LabOperationBinding {\n    readonly kind: OperationKind;\n    readonly resourceRef: string;\n    readonly installed: boolean;\n}',
+  },
+  {
+    name: 'LabOperationResource',
+    declaration: 'export interface LabOperationResource extends LabOperationResourceInput {\n    readonly status: \'CANDIDATE\' | \'INSTALLED\';\n}',
+  },
+  {
+    name: 'LabOperationResourceInput',
+    declaration: 'export interface LabOperationResourceInput {\n    readonly kind: LabOperationResourceKind;\n    readonly resourceRef: string;\n    readonly content: string;\n}',
+  },
+  {
+    name: 'LabOperationResourceKind',
+    declaration: 'export type LabOperationResourceKind = Extract<OperationKind, \'script\' | \'api\'>;',
+  },
+  {
+    name: 'LabPlanningProvider',
+    declaration: 'export interface LabPlanningProvider {\n    readonly name: string;\n    buildContext(request: ExperimentRequest): Promise<PlanningContext>;\n    propose(input: PlanProposalInput): Promise<PlanProposalResult>;\n    getProposal(planId: ExperimentPlan[\'planId\']): PlanProposalResult | undefined;\n    listProposals(experimentId?: ExperimentRequest[\'experimentId\']): readonly PlanProposalResult[];\n    validatePlan(planId: ExperimentPlan[\'planId\']): Promise<PlanProposalResult>;\n    approvePlan(planId: ExperimentPlan[\'planId\'], approvedBy: string): Promise<PlanProposalResult>;\n    rejectPlan(planId: ExperimentPlan[\'planId\'], reason: string): Promise<PlanProposalResult>;\n    dispose?(): Promise<void> | void;\n}',
+  },
+  {
+    name: 'LabRuntimeProvider',
+    declaration: 'export interface LabRuntimeProvider {\n    readonly name: string;\n    createExperiment(request: ExperimentRequest): Promise<void>;\n    approvePlan(request: ApprovePlanRequest): Promise<void>;\n    startRun(experimentId: ExperimentId, planId: PlanId): Promise<RunView>;\n    confirmStep(runId: RunId, evidence: readonly string[], confirmedBy: string, stepId?: PlanStepId, operationId?: OperationId): Promise<RunView>;\n    executeNextStep(runId: RunId): Promise<RunView>;\n    stopRun(runId: RunId, requestedBy: string): Promise<RunView>;\n    getRun(experimentId: ExperimentId): RunView | undefined;\n    buildReport(runId: RunId): Promise<Readonly<Record<string, unknown>>>;\n    dispose?(): Promise<void> | void;\n}',
+  },
+  {
+    name: 'LabSkillDraft',
+    declaration: 'export interface LabSkillDraft {\n    readonly skillId: LabSkillId;\n    readonly revisionId: SkillRevisionId;\n    readonly status: Extract<LabSkillStatus, \'DRAFT\'>;\n    readonly name: string;\n    readonly purpose: string;\n    readonly applicability: readonly string[];\n    readonly inputs: readonly string[];\n    readonly outputs: readonly string[];\n    readonly parameterConstraints: Readonly<Record<string, string>>;\n    readonly completionConditions: readonly string[];\n    readonly failurePolicy: LabFailurePolicy;\n    readonly citations: readonly CitationId[];\n    readonly operations: readonly LabOperationBinding[];\n}',
+  },
+  {
+    name: 'LabSkillId',
+    declaration: 'export type LabSkillId = Branded<\'LabSkillId\'>;',
+  },
+  {
+    name: 'LabSkillProvider',
+    declaration: 'export interface LabSkillProvider {\n    readonly name: string;\n    registerCandidateResource(resource: LabOperationResourceInput): Promise<LabOperationResource>;\n    installResource(kind: LabOperationResourceKind, resourceRef: string): Promise<LabOperationResource>;\n    resolveResource(kind: LabOperationResourceKind, resourceRef: string): LabOperationResource | undefined;\n    createDraft(draft: LabSkillDraft): Promise<LabSkillRevision>;\n    validateDraft(revisionId: SkillRevisionId): Promise<LabSkillRevision>;\n    approveDraft(revisionId: SkillRevisionId, approvedBy: string): Promise<LabSkillRevision>;\n    activateRevision(revisionId: SkillRevisionId): Promise<LabSkillRevision>;\n    resolveRevision(revisionId: SkillRevisionId): LabSkillRevision | undefined;\n    snapshotForRun(revisionIds: readonly SkillRevisionId[]): Promise<readonly SkillSnapshot[]>;\n    retireRevision(revisionId: SkillRevisionId): Promise<LabSkillRevision>;\n    dispose?(): Promise<void> | void;\n}',
+  },
+  {
+    name: 'LabSkillRevision',
+    declaration: 'export interface LabSkillRevision extends Omit<LabSkillDraft, \'status\'> {\n    readonly status: LabSkillStatus;\n    readonly definitionHash: string;\n    readonly approvedBy?: string;\n}',
+  },
+  {
+    name: 'LabSkillStatus',
+    declaration: 'export type LabSkillStatus = \'DRAFT\' | \'VALIDATED\' | \'HUMAN_APPROVED\' | \'ACTIVE\' | \'RETIRED\';',
   },
   {
     name: 'LlmAdapter',
@@ -3806,8 +4282,52 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface OneShotSubagentDescriptorData extends SubagentDescriptorBase {\n    readonly mode: \'one-shot\';\n    readonly label?: string;\n}',
   },
   {
+    name: 'OperationId',
+    declaration: 'export type OperationId = Branded<\'OperationId\'>;',
+  },
+  {
+    name: 'OperationKind',
+    declaration: 'export type OperationKind = \'device\' | \'human\' | \'approval\' | \'script\' | \'api\';',
+  },
+  {
     name: 'PermissionSelect',
     declaration: 'export interface PermissionSelect {\n    options: PresetOption[];\n    currentValue: string;\n}',
+  },
+  {
+    name: 'PlanId',
+    declaration: 'export type PlanId = Branded<\'PlanId\'>;',
+  },
+  {
+    name: 'PlanningContext',
+    declaration: 'export interface PlanningContext {\n    readonly experimentId: ExperimentRequest[\'experimentId\'];\n    readonly objective: string;\n    readonly queries: readonly string[];\n    readonly citations: readonly KnowledgeSearchResult[];\n    readonly conflicts: readonly KnowledgeConflict[];\n    readonly devices: readonly DeviceView[];\n    readonly assumptions: readonly string[];\n    readonly unresolved: readonly string[];\n}',
+  },
+  {
+    name: 'PlanParameter',
+    declaration: 'export type PlanParameter = UnitValue | string | number | boolean;',
+  },
+  {
+    name: 'PlanProposalInput',
+    declaration: 'export interface PlanProposalInput {\n    readonly request: ExperimentRequest;\n    readonly plan: ExperimentPlan;\n    readonly skillDrafts: readonly LabSkillDraft[];\n}',
+  },
+  {
+    name: 'PlanProposalResult',
+    declaration: 'export interface PlanProposalResult {\n    readonly context: PlanningContext;\n    readonly plan: ExperimentPlan;\n    readonly skillRevisions: readonly LabSkillRevision[];\n    readonly validation: PlanValidationResult;\n}',
+  },
+  {
+    name: 'PlanStatus',
+    declaration: 'export type PlanStatus = \'DRAFT\' | \'VALIDATED\' | \'HUMAN_APPROVED\' | \'LOCKED\' | \'REJECTED\';',
+  },
+  {
+    name: 'PlanStep',
+    declaration: 'export interface PlanStep {\n    readonly stepId: PlanStepId;\n    readonly title: string;\n    readonly dependencies: readonly PlanStepId[];\n    readonly skillRevisionId: SkillRevisionId;\n    readonly operationKind: OperationKind;\n    readonly operationResource: string;\n    readonly deviceId?: DeviceId;\n    readonly deviceCapability?: string;\n    readonly requiresApproval: boolean;\n    readonly requiredInputs: readonly string[];\n    readonly parameters: Readonly<Record<string, PlanParameter>>;\n    readonly citations: readonly CitationId[];\n    readonly expectedOutputs: readonly string[];\n}',
+  },
+  {
+    name: 'PlanStepId',
+    declaration: 'export type PlanStepId = Branded<\'PlanStepId\'>;',
+  },
+  {
+    name: 'PlanValidationResult',
+    declaration: 'export interface PlanValidationResult extends ValidationResult {\n    readonly planId: PlanId;\n    readonly revision: number;\n}',
   },
   {
     name: 'PostToolDecision',
@@ -3910,8 +4430,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ReasoningEffortId = Branded<\'ReasoningEffortId\'>;',
   },
   {
+    name: 'RecordConflictRequest',
+    declaration: 'export interface RecordConflictRequest {\n    readonly experimentId?: ExperimentId;\n    readonly citationIds: readonly CitationId[];\n    readonly summary: string;\n}',
+  },
+  {
     name: 'RedactedSecret',
     declaration: 'export interface RedactedSecret {\n    path: string[];\n    set: boolean;\n}',
+  },
+  {
+    name: 'ReplanRequest',
+    declaration: 'export interface ReplanRequest {\n    readonly runId: RunId;\n    readonly stepId: PlanStepId;\n    readonly reason: string;\n}',
   },
   {
     name: 'ReplayEnvelope',
@@ -3994,8 +4522,32 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type RpcResult<T> = {\n    ok: true;\n    value: T;\n} | {\n    ok: false;\n    error: RpcError;\n};',
   },
   {
+    name: 'RunId',
+    declaration: 'export type RunId = Branded<\'RunId\'>;',
+  },
+  {
     name: 'RunnerFailureRule',
     declaration: 'export interface RunnerFailureRule {\n    allowedExitCodes?: readonly number[];\n    fatalSignatures: readonly string[];\n    informationalLines?: readonly string[];\n}',
+  },
+  {
+    name: 'RunStatus',
+    declaration: 'export type RunStatus = \'CREATED\' | \'WAITING_CONFIRMATION\' | \'RUNNING\' | \'BLOCKED\' | \'FAILED\' | \'COMPLETED\' | \'STOPPED\';',
+  },
+  {
+    name: 'RuntimeFailurePolicy',
+    declaration: 'export type RuntimeFailurePolicy = \'BLOCK\' | \'STOP\' | \'REPLAN\';',
+  },
+  {
+    name: 'RuntimeFeedback',
+    declaration: 'export interface RuntimeFeedback {\n    readonly status: RunStatus;\n    readonly valid: boolean;\n    readonly summary: string;\n    readonly issues: readonly string[];\n    readonly replanRequested: boolean;\n}',
+  },
+  {
+    name: 'RuntimeObservation',
+    declaration: 'export interface RuntimeObservation {\n    readonly stepId: PlanStepId;\n    readonly operationId: OperationId;\n    readonly valid: boolean;\n    readonly evidence: readonly string[];\n    readonly status: \'WAITING\' | \'COMPLETED\' | \'FAILED\' | \'STOPPED\';\n    readonly error?: string;\n    readonly replanRequested?: boolean;\n}',
+  },
+  {
+    name: 'RunView',
+    declaration: 'export interface RunView {\n    readonly experimentId: ExperimentId;\n    readonly planId: PlanId;\n    readonly runId?: RunId;\n    readonly planStatus: PlanStatus;\n    readonly runStatus?: RunStatus;\n    readonly executionGraph: ExecutionGraph;\n    readonly observations: readonly RuntimeObservation[];\n    readonly currentStepId?: PlanStepId;\n    readonly cache: ExperimentCacheProjection;\n    readonly feedback: RuntimeFeedback;\n    readonly replanRequest?: ReplanRequest;\n}',
   },
   {
     name: 'SandboxEnforcement',
@@ -4408,6 +4960,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SkillResourceBase',
     declaration: 'export type SkillResourceBase = {\n    readonly kind: \'directory\';\n    readonly path: string;\n} | {\n    readonly kind: \'url\';\n    readonly url: string;\n} | {\n    readonly kind: \'opaque\';\n    readonly description: string;\n};',
+  },
+  {
+    name: 'SkillRevisionId',
+    declaration: 'export type SkillRevisionId = Branded<\'SkillRevisionId\'>;',
+  },
+  {
+    name: 'SkillSnapshot',
+    declaration: 'export interface SkillSnapshot {\n    readonly skillId: LabSkillId;\n    readonly revisionId: SkillRevisionId;\n    readonly status: \'ACTIVE\';\n    readonly definitionHash: string;\n}',
+  },
+  {
+    name: 'SkillSnapshotInput',
+    declaration: 'export interface SkillSnapshotInput extends Omit<SkillSnapshot, \'status\'> {\n    readonly status: string;\n}',
   },
   {
     name: 'SkillSource',
@@ -4926,6 +5490,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface TypertTypeModel {\n    readonly name: string;\n    readonly declaration: string;\n}',
   },
   {
+    name: 'UnitValue',
+    declaration: 'export interface UnitValue {\n    readonly value: number;\n    readonly unit: string;\n}',
+  },
+  {
     name: 'UpdateTeamTaskRequest',
     declaration: 'export interface UpdateTeamTaskRequest {\n    readonly taskId: TeamTaskId;\n    readonly expectedRevision: number;\n    readonly action: TeamTaskAction;\n    readonly subject?: string;\n    readonly description?: string;\n    readonly blockedBy?: readonly TeamTaskId[];\n    readonly writeScopes?: readonly string[];\n    readonly owner?: string;\n}',
   },
@@ -4936,6 +5504,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'UserQuestionProvider',
     declaration: 'export interface UserQuestionProvider {\n    ask(request: AskUserQuestionRequest): Promise<AskUserQuestionAnswer>;\n}',
+  },
+  {
+    name: 'ValidationIssue',
+    declaration: 'export interface ValidationIssue {\n    readonly code: string;\n    readonly message: string;\n    readonly path?: string;\n}',
+  },
+  {
+    name: 'ValidationResult',
+    declaration: 'export interface ValidationResult {\n    readonly valid: boolean;\n    readonly issues: readonly ValidationIssue[];\n}',
   },
   {
     name: 'WebBootEntry',

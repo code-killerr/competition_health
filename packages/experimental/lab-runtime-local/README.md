@@ -3,9 +3,9 @@ English | [中文](README.zh.md)
 
 In-process Provider for the experimental controlled laboratory runtime.
 
-The Provider is opt-in and keeps experiment, approved-plan, ExecutionGraph, run, and observation state in memory. It accepts only the exact approved plan revision. Device steps call the injected Lab Device Service for health checks, leases, idempotent execution, and release; human and approval steps wait for evidence. Unsupported script and API steps become BLOCKED observations and are never executed.
+The Provider is opt-in and persists experiment, approved-plan, ExecutionGraph, run, and observation state in SQLite by default. Pass `statePath: ':memory:'` for an isolated test. It accepts only the exact approved plan revision. Device steps call the injected Lab Device Service for health checks, leases, idempotent execution, and release; human and approval steps wait for evidence. Unsupported script and API steps become BLOCKED observations and are never executed.
 
-Use the lab-mvp bundle or mount the Provider after Lab Runtime and Lab Device Service. The Provider is suitable for deterministic composition tests and demonstrations, not for cross-process recovery or production scheduling.
+Use the lab-mvp bundle or mount the Provider after Lab Runtime and Lab Device Service. The SQLite state store restores control-plane state after process recreation, but the Provider is not a production scheduler and does not automatically re-submit interrupted device commands.
 
 ## Model Experience
 
@@ -25,5 +25,4 @@ Stable experiment, plan, Skill revision, and run identifiers keep repeated step 
 
 ## Known Limitations and Deferred Work
 
-- This experimental package provides local typed contracts and does not claim production persistence, recovery, or hardware integration.
 - This experimental package provides local typed contracts and does not claim production persistence, recovery, or hardware integration.

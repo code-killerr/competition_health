@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import { LocalKnowledgeProvider } from '../src/index.ts'
+import type { KnowledgeDocumentId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import {
   SPACE_ATAC_CSV,
   availablePdfKnowledgeFixtures,
@@ -11,7 +12,7 @@ import {
 describe('knowledge data switching', () => {
   it('keeps PDF, CSV, flow-confirmation, and mouse-brain inputs source-scoped', async () => {
     const provider = new LocalKnowledgeProvider({ path: ':memory:', documentParser: createPdfKnowledgeFixtureParser() })
-    const imported: Array<{ readonly key: string; readonly documentId: string; readonly query: string }> = []
+    const imported: Array<{ readonly key: string; readonly documentId: KnowledgeDocumentId; readonly query: string }> = []
 
     const mouseBrain = await provider.importDocument({
       source: {

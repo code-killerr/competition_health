@@ -1,0 +1,21 @@
+# 实验自动化 Web 原型的 opt-in patch；不改变默认 Web profile。
+# lab-mvp 提供实验 Service、知识库、规划、Skill、Mock Device、Runtime 和 /api/lab。
+# ui-lab-workbench 只注册浏览器 overlay，浏览器不直接访问 Provider 或数据库。
+- insert:
+    - id: lab-mvp
+      name: '@deepseek-ai/dsh-experimental-lab-mvp'
+      config:
+        knowledgePath: .lab-data/knowledge.sqlite
+        web: {}
+        device:
+          devices:
+            - id: dev-dispenser
+              name: development dispenser
+              capabilities:
+                - dispense
+
+    - id: tool-lab
+      name: '@deepseek-ai/dsh-experimental-tool-lab'
+
+    - id: ui-lab-workbench
+      name: '@deepseek-ai/dsh-client-ui-lab-workbench'

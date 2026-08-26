@@ -70,6 +70,13 @@ export class KnowledgeService extends Service {
     return this.requireProvider().getImportStatus(documentId, versionId)
   }
 
+  /** 列出所有资料的最近版本状态，供 Web Consumer 展示导入进度。
+   * @returns - latest import status for each knowledge document.
+   */
+  listImportStatuses(): Promise<readonly ImportStatusResult[]> {
+    return this.requireProvider().listImportStatuses()
+  }
+
   /** 执行带上下文过滤和引用的知识检索。
  * @param request - query, filters, and result limits.
  * @returns - ranked citation results.

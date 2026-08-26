@@ -2,20 +2,22 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import {
-  brandId,
-} from '@deepseek-ai/dsh-experimental-lab-domain'
+import { brandId, type ExperimentPlan } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { ExecutionStepSpec, LabRuntimeService, RunView } from '@deepseek-ai/dsh-experimental-lab-runtime'
 import type { OperationKind, PlanParameter, SkillSnapshot } from '@deepseek-ai/dsh-experimental-lab-domain'
+import type { LabPlanningService } from '@deepseek-ai/dsh-experimental-lab-planning'
+import type { LabSkillService } from '@deepseek-ai/dsh-experimental-lab-skill'
 import type { JsonValue } from '@deepseek-ai/dsh-session'
 import { defineTool, type InferValue, type PreToolDecision, type ValueSchemaSpec } from '@deepseek-ai/dsh-tools'
 import * as ToolLabKnowledge from '@deepseek-ai/dsh-experimental-tool-lab-knowledge'
 import * as ToolLabPlanning from '@deepseek-ai/dsh-experimental-tool-lab-planning'
+import LabExperimentCache from '@deepseek-ai/dsh-experimental-lab-cache'
+import type { LabExperimentCacheService } from '@deepseek-ai/dsh-experimental-lab-cache'
 
 /** Cordis 插件名称。 */
 export const name = 'tool-lab'
 /** 复用 Harness Agent、工具注册表与 Runtime Service。 */
-export const inject = ['agents', 'tools', 'labRuntime']
+export const inject = ['agents', 'tools', 'labRuntime', 'labPlanning', 'labSkills']
 
 const JSON_SCHEMA = { type: 'json' } as const
 
@@ -40,7 +42,13 @@ function callingAgent(agent: Agent | undefined, toolName: string): Agent {
   return agent
 }
 
-function install(agent: Agent, runtime: LabRuntimeService): () => void {
+function install(
+  agent: Agent,
+  runtime: LabRuntimeService,
+  planning: LabPlanningService,
+  skills: LabSkillService,
+  cache: LabExperimentCacheService,
+): () => void {
   const disposers: Array<() => unknown> = []
   const register = (disposer: () => unknown): void => { disposers.push(disposer) }
   try {
@@ -93,19 +101,35 @@ function install(agent: Agent, runtime: LabRuntimeService): () => void {
         const skillRevisionIds = stringArray(args.skill_revision_ids, 'skill_revision_ids').map(id => brandId<'SkillRevisionId'>(id))
         const executionSteps = parseExecutionSteps(args.execution_steps)
         const skillSnapshots = parseSkillSnapshots(args.skill_snapshots)
+        const proposal = await planning.validatePlan(planId)
+        if (proposal.plan.experimentId !== experimentId) throw new Error('plan experimentId does not match request')
+        if (!proposal.validation.valid || proposal.plan.status !== 'VALIDATED') throw new Error('only a validated plan can be approved')
+        const referencedRevisionIds = new Set(proposal.plan.steps.map(step => step.skillRevisionId))
+        if (
+          referencedRevisionIds.size !== skillRevisionIds.length
+          || skillRevisionIds.some(revisionId => !referencedRevisionIds.has(revisionId))
+        ) {
+          throw new Error('skill_revision_ids must exactly match the plan step Skill revisions')
+        }
+        for (const revisionId of skillRevisionIds) {
+          if (skills.resolveRevision(revisionId)?.status !== 'ACTIVE') throw new Error(`Skill revision ${revisionId} must be ACTIVE before plan approval`)
+        }
+        const lockedExecutionSteps = executionSteps ?? executionStepsFromPlan(proposal.plan, skills)
+        const lockedSkillSnapshots = skillSnapshots ?? await skills.snapshotForRun(skillRevisionIds)
         await runtime.approvePlan({
           experimentId,
           planId,
           approvedBy,
           skillRevisionIds,
-          ...executionSteps === undefined ? {} : { executionSteps },
-          ...skillSnapshots === undefined ? {} : { skillSnapshots },
+          executionSteps: lockedExecutionSteps,
+          skillSnapshots: lockedSkillSnapshots,
         })
+        await planning.approvePlan(planId, approvedBy)
         caller.session.append('lab/plan/approved', {
           version: 1,
           experimentId,
           planId,
-          approvedBy: caller.session.id,
+          approvedBy,
           skillRevisionIds,
         })
         return jsonValue({ experimentId, planId, approvedBy, skillRevisionIds })
@@ -130,6 +154,7 @@ function install(agent: Agent, runtime: LabRuntimeService): () => void {
         const reason = string(args.reason, 'reason')
         const replacement = optionalString(args.replacement_plan_id, 'replacement_plan_id')
         const replacementPlanId = replacement === undefined ? undefined : brandId<'PlanId'>(replacement)
+        await planning.rejectPlan(planId, reason)
         caller.session.append('lab/plan/rejected', {
           version: 1,
           experimentId,
@@ -160,7 +185,8 @@ function install(agent: Agent, runtime: LabRuntimeService): () => void {
         const planId = brandId<'PlanId'>(string(args.plan_id, 'plan_id'))
         const run = await runtime.startRun(experimentId, planId)
         appendState(caller, run, 'CREATED')
-        appendCache(caller, run)
+        await appendCache(caller, run, cache)
+        appendFeedback(caller, run)
         return jsonValue(run)
       },
     })))
@@ -178,7 +204,8 @@ function install(agent: Agent, runtime: LabRuntimeService): () => void {
         const run = await runtime.executeNextStep(runId)
         for (const observation of run.observations) appendObservation(caller, run, observation)
         appendState(caller, run, undefined)
-        appendCache(caller, run)
+        await appendCache(caller, run, cache)
+        appendFeedback(caller, run)
         return jsonValue(run)
       },
     })))
@@ -211,7 +238,8 @@ function install(agent: Agent, runtime: LabRuntimeService): () => void {
           evidence,
         })
         appendState(caller, run, 'WAITING_CONFIRMATION')
-        appendCache(caller, run)
+        await appendCache(caller, run, cache)
+        appendFeedback(caller, run)
         return jsonValue(run)
       },
     })))
@@ -232,7 +260,8 @@ function install(agent: Agent, runtime: LabRuntimeService): () => void {
         const reason = string(args.reason, 'reason')
         const run = await runtime.stopRun(runId, requestedBy)
         appendState(caller, run, 'WAITING_CONFIRMATION', reason)
-        appendCache(caller, run)
+        await appendCache(caller, run, cache)
+        appendFeedback(caller, run)
         return jsonValue(run)
       },
     })))
@@ -271,8 +300,9 @@ function appendState(agent: Agent, run: RunView, from: RunView['runStatus'], rea
   })
 }
 
-function appendCache(agent: Agent, run: RunView): void {
+async function appendCache(agent: Agent, run: RunView, cache: LabExperimentCacheService): Promise<void> {
   agent.session.append('lab/cache/projected', { version: 1, projection: run.cache })
+  await cache.project(run.cache)
 }
 
 function appendObservation(agent: Agent, run: RunView, observation: RunView['observations'][number]): void {
@@ -285,6 +315,24 @@ function appendObservation(agent: Agent, run: RunView, observation: RunView['obs
     operationId: observation.operationId,
     valid: observation.valid,
     evidence: observation.evidence,
+    status: observation.status,
+    ...observation.error === undefined ? {} : { error: observation.error },
+    ...observation.replanRequested === undefined ? {} : { replanRequested: observation.replanRequested },
+  })
+}
+
+function appendFeedback(agent: Agent, run: RunView): void {
+  if (run.runId === undefined || run.runStatus === undefined) throw new Error('runtime returned a run without feedback state')
+  agent.session.append('lab/run/feedback', {
+    version: 1,
+    experimentId: run.experimentId,
+    runId: run.runId,
+    status: run.runStatus,
+    valid: run.feedback.valid,
+    summary: run.feedback.summary,
+    issues: run.feedback.issues,
+    replanRequested: run.feedback.replanRequested,
+    ...run.replanRequest === undefined ? {} : { replanRequest: { stepId: run.replanRequest.stepId, reason: run.replanRequest.reason } },
   })
 }
 
@@ -373,11 +421,14 @@ function stringArray(value: unknown, path: string): string[] {
 export async function apply(ctx: Context): Promise<void> {
   await ctx.plugin(ToolLabKnowledge)
   await ctx.plugin(ToolLabPlanning)
+  if (ctx.get('labExperimentCache') === undefined) await ctx.plugin(LabExperimentCache)
+  const cache = ctx.get('labExperimentCache')
+  if (cache === undefined) throw new Error('lab experiment cache service did not install')
 
   const installed = new Map<Agent, () => void>()
   const maybeInstall = (agent: Agent): void => {
     if (installed.has(agent)) return
-    installed.set(agent, install(agent, ctx.labRuntime))
+    installed.set(agent, install(agent, ctx.labRuntime, ctx.labPlanning, ctx.labSkills, cache))
   }
   for (const agent of ctx.agents.list()) maybeInstall(agent)
   ctx.on('agent/created', ({ agent }) => { maybeInstall(agent) })
@@ -389,4 +440,23 @@ export async function apply(ctx: Context): Promise<void> {
     for (const dispose of installed.values()) dispose()
     installed.clear()
   }, 'tool-lab.runtimeTools()')
+}
+
+/** 将已校验计划转换为 Runtime 可锁定的声明式执行图步骤。 */
+function executionStepsFromPlan(plan: ExperimentPlan, skills: LabSkillService): readonly ExecutionStepSpec[] {
+  return plan.steps.map((step) => {
+    const revision = skills.resolveRevision(step.skillRevisionId)
+    if (revision === undefined || revision.status !== 'ACTIVE') throw new Error(`Skill revision ${step.skillRevisionId} is not ACTIVE`)
+    return {
+      stepId: step.stepId,
+      skillRevisionId: step.skillRevisionId,
+      operationKind: step.operationKind,
+      operationResource: step.operationResource,
+      parameters: step.parameters,
+      requiresApproval: step.requiresApproval,
+      expectedEvidence: step.expectedOutputs,
+      failurePolicy: revision.failurePolicy,
+      ...step.deviceId === undefined ? {} : { deviceId: step.deviceId },
+    }
+  })
 }

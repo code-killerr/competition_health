@@ -1,7 +1,7 @@
 /** 实验自动化平台共享领域类型；本文件只包含类型与类型声明。 */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 
 /** 实验实例标识。 */
 export type ExperimentId = Branded<'ExperimentId'>
@@ -108,6 +108,8 @@ export interface ExperimentPlan {
   readonly planId: PlanId
   readonly experimentId: ExperimentId
   readonly revision: number
+  /** 被拒绝计划的下一版修订来源。 */
+  readonly supersedesPlanId?: PlanId
   readonly status: PlanStatus
   readonly objective: string
   readonly citations: readonly CitationId[]
@@ -165,6 +167,24 @@ export interface ExperimentCacheProjection {
   readonly knowledgeCitations: readonly CitationId[]
   readonly skillRevisionIds: readonly SkillRevisionId[]
   readonly updatedBy: SessionId
+}
+
+/** 从 Session 权威事件重建最近一次实验缓存投影；缺少投影事件时返回 undefined。
+ * @param events - authoritative Session events to replay.
+ * @param experimentId - optional experiment scope.
+ * @returns - latest matching cache projection, when one was recorded.
+ */
+export function rebuildExperimentCache(
+  events: readonly SessionEvent[],
+  experimentId?: ExperimentId,
+): ExperimentCacheProjection | undefined {
+  let projection: ExperimentCacheProjection | undefined
+  for (const event of events) {
+    if (event.type !== 'lab/cache/projected') continue
+    if (experimentId !== undefined && event.data.projection.experimentId !== experimentId) continue
+    projection = event.data.projection
+  }
+  return projection
 }
 
 /** Knowledge Service 的检索请求。 */
@@ -227,6 +247,8 @@ declare module '@deepseek-ai/dsh-session/types' {
       version: 1
       experimentId: ExperimentId
       planId: PlanId
+      revision: number
+      supersedesPlanId?: PlanId
       citationIds: readonly CitationId[]
       skillRevisionIds: readonly SkillRevisionId[]
     }
@@ -235,7 +257,7 @@ declare module '@deepseek-ai/dsh-session/types' {
       version: 1
       experimentId: ExperimentId
       planId: PlanId
-      approvedBy: SessionId
+      approvedBy: string
       skillRevisionIds: readonly SkillRevisionId[]
     }
     /** 人工拒绝的计划修订及其可选替代修订。 */
@@ -246,6 +268,24 @@ declare module '@deepseek-ai/dsh-session/types' {
       rejectedBy: SessionId
       reason: string
       replacementPlanId?: PlanId
+    }
+    /** Skill 草案通过确定性校验。 */
+    'lab/skill/validated': {
+      version: 1
+      skillRevisionId: SkillRevisionId
+      validatedBy: SessionId
+    }
+    /** 人工批准 Skill 修订。 */
+    'lab/skill/approved': {
+      version: 1
+      skillRevisionId: SkillRevisionId
+      approvedBy: string
+    }
+    /** Skill 修订进入可供计划锁定的 ACTIVE 状态。 */
+    'lab/skill/activated': {
+      version: 1
+      skillRevisionId: SkillRevisionId
+      activatedBy: SessionId
     }
     /** 人工确认的知识引用。 */
     'lab/knowledge/confirmed': {
@@ -263,6 +303,21 @@ declare module '@deepseek-ai/dsh-session/types' {
       operationId: OperationId
       valid: boolean
       evidence: readonly string[]
+      status?: 'WAITING' | 'COMPLETED' | 'FAILED' | 'STOPPED'
+      error?: string
+      replanRequested?: boolean
+    }
+    /** 运行结果验证、失败策略和最终反馈。 */
+    'lab/run/feedback': {
+      version: 1
+      experimentId: ExperimentId
+      runId: RunId
+      status: RunStatus
+      valid: boolean
+      summary: string
+      issues: readonly string[]
+      replanRequested: boolean
+      replanRequest?: { stepId: PlanStepId; reason: string }
     }
     /** 运行状态转移，供运行时间线重建。 */
     'lab/run/state': {

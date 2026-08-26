@@ -7,8 +7,12 @@
     { "path": "../../../vendor/cordis" },
     { "path": "../../runtime-diagnostics/invariants" },
     { "path": "../lab-domain" },
+    { "path": "../lab-cache" },
+    { "path": "../../core/session" },
     { "path": "../lab-planning" },
     { "path": "../lab-device" },
-    { "path": "../lab-runtime" }
+    { "path": "../lab-runtime" },
+    { "path": "../lab-skill" },
+    { "path": "../../host/webserver" }
   ]
 }

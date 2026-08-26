@@ -20,6 +20,7 @@
   "files": ["lib/index.js", "lib/invariant.js", "lib/types/**/*.d.ts"],
   "license": "MIT",
   "dependencies": {
+    "@deepseek-ai/dsh-experimental-lab-cache": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-knowledge": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-knowledge-local": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-planning": "workspace:^",
@@ -30,7 +31,10 @@
     "@deepseek-ai/dsh-experimental-lab-device-mock": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-runtime": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-runtime-local": "workspace:^",
-    "@deepseek-ai/dsh-experimental-lab-mvp-web": "workspace:^"
+    "@deepseek-ai/dsh-experimental-lab-mvp-web": "workspace:^",
+    "@deepseek-ai/dsh-storage": "workspace:^",
+    "@deepseek-ai/dsh-storage-domain": "workspace:^",
+    "@deepseek-ai/dsh-storage-sqlite": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-invariants": "workspace:^",
@@ -38,6 +42,9 @@
   },
   "devDependencies": {
     "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-storage": "workspace:^",
+    "@deepseek-ai/dsh-storage-domain": "workspace:^",
+    "@deepseek-ai/dsh-storage-sqlite": "workspace:^"
   }
 }

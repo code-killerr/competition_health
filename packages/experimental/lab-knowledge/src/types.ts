@@ -51,6 +51,7 @@ export interface KnowledgeProvider {
   readonly name: string
   importDocument(request: ImportDocumentRequest): Promise<ImportDocumentResult>
   getImportStatus(documentId: KnowledgeDocumentId, versionId?: KnowledgeDocumentVersionId): Promise<ImportStatusResult | undefined>
+  listImportStatuses(): Promise<readonly ImportStatusResult[]>
   search(request: KnowledgeSearchRequest): Promise<readonly KnowledgeSearchResult[]>
   listConflicts(experimentId?: KnowledgeSearchRequest['experimentId']): Promise<readonly KnowledgeConflict[]>
   recordConflict(request: RecordConflictRequest): Promise<KnowledgeConflict>

@@ -16,8 +16,8 @@ This table connects model-visible tool names to the plugin package and service s
 | Tool package | Model-visible names | Requires | Writes / affects | Shipped aliases | Deployment note |
 | --- | --- | --- | --- | --- | --- |
 | `@deepseek-ai/dsh-experimental-tool-lab-knowledge` | `lab_knowledge_confirm`, `lab_knowledge_conflicts`, `lab_knowledge_import`, `lab_knowledge_search`, `lab_knowledge_status` | `ctx.tools`, `ctx.agents`, `ctx.labKnowledge` | `tool/call`, `tool/result`, `lab knowledge events` | - | The catalog boots the local Knowledge Provider in memory and exposes the scoped knowledge tools through one synthetic Agent. |
-| `@deepseek-ai/dsh-experimental-tool-lab-planning` | `lab_plan_context`, `lab_plan_devices`, `lab_plan_propose` | `ctx.tools`, `ctx.agents`, `ctx.labPlanning`, `ctx.labDevices` | `tool/call`, `tool/result`, `lab planning events` | - | The catalog boots the local Planning, Knowledge, Skill, and Mock Device Providers and exposes the scoped planning tools through one synthetic Agent. |
-| `@deepseek-ai/dsh-experimental-tool-lab` | `lab_experiment_create`, `lab_knowledge_confirm`, `lab_knowledge_conflicts`, `lab_knowledge_import`, `lab_knowledge_search`, `lab_knowledge_status`, `lab_plan_approve`, `lab_plan_context`, `lab_plan_devices`, `lab_plan_propose`, `lab_run_confirm`, `lab_run_report`, `lab_run_start`, `lab_run_step`, `lab_run_stop` | `ctx.tools`, `ctx.agents`, `ctx.labRuntime`, `the composed local lab providers` | `tool/call`, `tool/result`, `experiment planning and controlled-run events` | - | The catalog boots the complete local laboratory bundle in memory and exposes the aggregate scoped experiment tools through one synthetic Agent. |
+| `@deepseek-ai/dsh-experimental-tool-lab-planning` | `lab_plan_context`, `lab_plan_devices`, `lab_plan_propose`, `lab_skill_activate`, `lab_skill_approve`, `lab_skill_validate` | `ctx.tools`, `ctx.agents`, `ctx.labPlanning`, `ctx.labDevices` | `tool/call`, `tool/result`, `lab planning events` | - | The catalog boots the local Planning, Knowledge, Skill, and Mock Device Providers and exposes the scoped planning tools through one synthetic Agent. |
+| `@deepseek-ai/dsh-experimental-tool-lab` | `lab_experiment_create`, `lab_knowledge_confirm`, `lab_knowledge_conflicts`, `lab_knowledge_import`, `lab_knowledge_search`, `lab_knowledge_status`, `lab_plan_approve`, `lab_plan_context`, `lab_plan_devices`, `lab_plan_propose`, `lab_plan_reject`, `lab_run_confirm`, `lab_run_report`, `lab_run_start`, `lab_run_step`, `lab_run_stop`, `lab_skill_activate`, `lab_skill_approve`, `lab_skill_validate` | `ctx.tools`, `ctx.agents`, `ctx.labRuntime`, `the composed local lab providers` | `tool/call`, `tool/result`, `experiment planning and controlled-run events` | - | The catalog boots the complete local laboratory bundle in memory and exposes the aggregate scoped experiment tools through one synthetic Agent. |
 | `@deepseek-ai/dsh-tool-ask-user` | `ask_user_question` | `ctx.tools`, `ctx.userQuestions` | `tool/call`, `tool/result after a UI/provider answers the question` | - | ask_user_question pauses the tool call until the active UI provider returns a human answer. |
 | `@deepseek-ai/dsh-tools` | `run_code` | `ctx.tools`, `ctx.codeRuntime (execution time)`, `ctx.systemPrompt` | `tool/call`, `one tool/code-dispatch-start + tool/code-dispatch pair per bridged sub-call`, `tool/result` | - | Owned by the tool registry as a reserved transport outside filterable capability layers under `mode: code` / `mode: both` (see the Code Mode Agent Note). Under `code` it is the registry's only wire contribution; the other visible capabilities are declared in a generated SDK section in the loaded runtime's language, and a program calls them through bindings scheduled under the native concurrency contract (submission-ordered starts and policy; concurrency-safe bodies overlap up to `maxParallelSubCalls`) that re-enter the complete guarded tool pipeline and link each nested execution to this outer result. |
 | `@deepseek-ai/dsh-plan-mode` | `exit_plan_mode` | `ctx.tools`, `ctx.systemPrompt`, `ctx.userQuestions (execution time, opportunistic)` | `tool/call`, `plan/mode inactive on an approved review`, `tool/result` | - | exit_plan_mode stays in the model-facing schema while planning is inactive so transitions add no tool-catalog churn on top of the plan-policy change. Its execute path rejects calls outside plan mode; in plan mode it presents the plan over the user-questions seam (approve / keep planning with feedback), and approval logs plan mode inactive at the step boundary. |
@@ -244,6 +244,74 @@ Submit a structured experiment plan and declarative Lab Skill drafts for determi
     "request",
     "plan",
     "skill_drafts"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab-planning/src/index.ts`](../packages/experimental/tool-lab-planning/src/index.ts)
+
+### `lab_skill_activate`
+
+Activate an approved Lab Skill revision so a plan can lock an immutable run snapshot.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "skill_revision_id": {
+      "type": "string",
+      "description": "Exact approved Skill revision id."
+    }
+  },
+  "required": [
+    "skill_revision_id"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab-planning/src/index.ts`](../packages/experimental/tool-lab-planning/src/index.ts)
+
+### `lab_skill_approve`
+
+Record human approval for a validated Lab Skill revision. This never activates or executes the Skill.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "skill_revision_id": {
+      "type": "string",
+      "description": "Exact Skill revision id."
+    },
+    "approved_by": {
+      "type": "string",
+      "description": "Accountable reviewer identity."
+    }
+  },
+  "required": [
+    "skill_revision_id",
+    "approved_by"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab-planning/src/index.ts`](../packages/experimental/tool-lab-planning/src/index.ts)
+
+### `lab_skill_validate`
+
+Validate one declarative Lab Skill revision before human approval. This never activates or executes the Skill.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "skill_revision_id": {
+      "type": "string",
+      "description": "Exact Skill revision id."
+    }
+  },
+  "required": [
+    "skill_revision_id"
   ]
 }
 ```
@@ -530,6 +598,41 @@ Submit a structured experiment plan and declarative Lab Skill drafts for determi
 
 Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
 
+### `lab_plan_reject`
+
+Reject a plan revision and record an optional replacement revision. This never starts or changes a run.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "experiment_id": {
+      "type": "string",
+      "description": "Opaque experiment id."
+    },
+    "plan_id": {
+      "type": "string",
+      "description": "Plan revision to reject."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Human-readable rejection reason."
+    },
+    "replacement_plan_id": {
+      "type": "string",
+      "description": "Optional new plan revision id to submit for validation."
+    }
+  },
+  "required": [
+    "experiment_id",
+    "plan_id",
+    "reason"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
 ### `lab_run_confirm`
 
 Submit evidence for a waiting human step and resume the controlled run.
@@ -667,6 +770,74 @@ Request a safe stop for a running experiment.
     "run_id",
     "requested_by",
     "reason"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_skill_activate`
+
+Activate an approved Lab Skill revision so a plan can lock an immutable run snapshot.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "skill_revision_id": {
+      "type": "string",
+      "description": "Exact approved Skill revision id."
+    }
+  },
+  "required": [
+    "skill_revision_id"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_skill_approve`
+
+Record human approval for a validated Lab Skill revision. This never activates or executes the Skill.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "skill_revision_id": {
+      "type": "string",
+      "description": "Exact Skill revision id."
+    },
+    "approved_by": {
+      "type": "string",
+      "description": "Accountable reviewer identity."
+    }
+  },
+  "required": [
+    "skill_revision_id",
+    "approved_by"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_skill_validate`
+
+Validate one declarative Lab Skill revision before human approval. This never activates or executes the Skill.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "skill_revision_id": {
+      "type": "string",
+      "description": "Exact Skill revision id."
+    }
+  },
+  "required": [
+    "skill_revision_id"
   ]
 }
 ```

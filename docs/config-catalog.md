@@ -638,10 +638,14 @@ export interface MockDeviceConfig {
   readonly name: string
   /** 设备支持的操作能力名称。 */
   readonly capabilities?: string[]
+  /** 启动时的健康状态。 */
+  readonly healthy?: boolean
+  /** 是否在执行阶段模拟通信失败。 */
+  readonly communicationFailure?: boolean
 }
 ```
 
-Source: [`packages/experimental/lab-device-mock/src/index.ts:26`](../packages/experimental/lab-device-mock/src/index.ts)
+Source: [`packages/experimental/lab-device-mock/src/index.ts:30`](../packages/experimental/lab-device-mock/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-lab-knowledge-local"></a>
 
@@ -691,10 +695,14 @@ export interface ParsedDocumentBlock {
   readonly page?: number
   /** 从文档标题层级推导的路径。 */
   readonly titlePath?: readonly string[]
+  /** 表格列名；表格区块必须与行数据一起提供。 */
+  readonly tableHeaders?: readonly string[]
+  /** 表格中的一基行号；表头占用第 1 行。 */
+  readonly tableRow?: number
 }
 ```
 
-Source: [`packages/experimental/lab-knowledge-local/src/index.ts:60`](../packages/experimental/lab-knowledge-local/src/index.ts)
+Source: [`packages/experimental/lab-knowledge-local/src/index.ts:64`](../packages/experimental/lab-knowledge-local/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-lab-mvp"></a>
 
@@ -705,18 +713,22 @@ Source: [`packages/experimental/lab-knowledge-local/src/index.ts:60`](../package
 export interface Config {
   /** Provider-owned SQLite 路径；memory 路径适合组合测试。 */
   readonly knowledgePath?: string
+  /** Harness Storage SQLite 路径；缓存投影使用其中的独立 domain。 */
+  readonly storagePath?: string
   /** 本地规划 Provider 配置。 */
   readonly planning?: LocalPlanning.Config
   /** Mock 设备配置。 */
   readonly device?: MockDevice.Config
   /** 本地 Skill Provider 配置。 */
   readonly skill?: LocalSkill.Config
+  /** 本地 Runtime 配置；默认使用 `.lab-data/runtime.sqlite` 保存权威状态。 */
+  readonly runtime?: LocalRuntime.Config
 }
 ```
 
-Depends on: [`LocalPlanning`](../packages/experimental/lab-planning-local/src/index.ts) · [`LocalSkill`](../packages/experimental/lab-skill-local/src/index.ts) · [`MockDevice`](../packages/experimental/lab-device-mock/src/index.ts)
+Depends on: [`LocalPlanning`](../packages/experimental/lab-planning-local/src/index.ts) · [`LocalRuntime`](../packages/experimental/lab-runtime-local/src/index.ts) · [`LocalSkill`](../packages/experimental/lab-skill-local/src/index.ts) · [`MockDevice`](../packages/experimental/lab-device-mock/src/index.ts)
 
-Source: [`packages/experimental/lab-mvp/src/index.ts:17`](../packages/experimental/lab-mvp/src/index.ts)
+Source: [`packages/experimental/lab-mvp/src/index.ts:20`](../packages/experimental/lab-mvp/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-lab-planning-local"></a>
 
@@ -732,7 +744,23 @@ export interface Config {
 }
 ```
 
-Source: [`packages/experimental/lab-planning-local/src/index.ts:19`](../packages/experimental/lab-planning-local/src/index.ts)
+Source: [`packages/experimental/lab-planning-local/src/index.ts:20`](../packages/experimental/lab-planning-local/src/index.ts)
+
+<a id="deepseek-aidsh-experimental-lab-runtime-local"></a>
+
+## `@deepseek-ai/dsh-experimental-lab-runtime-local`
+
+Requires: `labRuntime` · `labDevices`
+
+```ts config-catalog
+/** 本地 Runtime 配置；SQLite 是生产默认权威记录，测试可显式使用内存路径。 */
+export interface Config {
+  /** Runtime 权威状态 SQLite 路径。 */
+  readonly statePath?: string
+}
+```
+
+Source: [`packages/experimental/lab-runtime-local/src/index.ts:40`](../packages/experimental/lab-runtime-local/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-lab-skill-local"></a>
 
@@ -750,7 +778,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/experimental/lab-skill-local/src/index.ts:28`](../packages/experimental/lab-skill-local/src/index.ts)
+Source: [`packages/experimental/lab-skill-local/src/index.ts:31`](../packages/experimental/lab-skill-local/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-tool-agent-team"></a>
 
@@ -3404,14 +3432,13 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-cordis-client-runner` ([`packages/extensions/cordis-client-runner/src/index.ts`](../packages/extensions/cordis-client-runner/src/index.ts))
 - `@deepseek-ai/dsh-experimental-lab-device` ([`packages/experimental/lab-device/src/index.ts`](../packages/experimental/lab-device/src/index.ts))
 - `@deepseek-ai/dsh-experimental-lab-knowledge` ([`packages/experimental/lab-knowledge/src/index.ts`](../packages/experimental/lab-knowledge/src/index.ts))
-- `@deepseek-ai/dsh-experimental-lab-mvp-web` — requires `labDevices` · `labPlanning` · `labRuntime` ([`packages/experimental/lab-mvp-web/src/index.ts`](../packages/experimental/lab-mvp-web/src/index.ts))
+- `@deepseek-ai/dsh-experimental-lab-mvp-web` — requires `labKnowledge` · `labDevices` · `labPlanning` · `labRuntime` ([`packages/experimental/lab-mvp-web/src/index.ts`](../packages/experimental/lab-mvp-web/src/index.ts))
 - `@deepseek-ai/dsh-experimental-lab-planning` ([`packages/experimental/lab-planning/src/index.ts`](../packages/experimental/lab-planning/src/index.ts))
 - `@deepseek-ai/dsh-experimental-lab-runtime` ([`packages/experimental/lab-runtime/src/index.ts`](../packages/experimental/lab-runtime/src/index.ts))
-- `@deepseek-ai/dsh-experimental-lab-runtime-local` — requires `labRuntime` · `labDevices` ([`packages/experimental/lab-runtime-local/src/index.ts`](../packages/experimental/lab-runtime-local/src/index.ts))
 - `@deepseek-ai/dsh-experimental-lab-skill` ([`packages/experimental/lab-skill/src/index.ts`](../packages/experimental/lab-skill/src/index.ts))
-- `@deepseek-ai/dsh-experimental-tool-lab` — requires `agents` · `tools` · `labRuntime` ([`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts))
+- `@deepseek-ai/dsh-experimental-tool-lab` — requires `agents` · `tools` · `labRuntime` · `labPlanning` · `labSkills` ([`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts))
 - `@deepseek-ai/dsh-experimental-tool-lab-knowledge` — requires `agents` · `tools` · `labKnowledge` ([`packages/experimental/tool-lab-knowledge/src/index.ts`](../packages/experimental/tool-lab-knowledge/src/index.ts))
-- `@deepseek-ai/dsh-experimental-tool-lab-planning` — requires `agents` · `tools` · `labPlanning` · `labDevices` ([`packages/experimental/tool-lab-planning/src/index.ts`](../packages/experimental/tool-lab-planning/src/index.ts))
+- `@deepseek-ai/dsh-experimental-tool-lab-planning` — requires `agents` · `tools` · `labPlanning` · `labDevices` · `labSkills` ([`packages/experimental/tool-lab-planning/src/index.ts`](../packages/experimental/tool-lab-planning/src/index.ts))
 - `@deepseek-ai/dsh-fs-e2b` — requires `e2b` ([`packages/e2b/fs-e2b/src/index.ts`](../packages/e2b/fs-e2b/src/index.ts))
 - `@deepseek-ai/dsh-fs-observation-policy` ([`packages/fs/fs-observation-policy/src/index.ts`](../packages/fs/fs-observation-policy/src/index.ts))
 - `@deepseek-ai/dsh-goal-round-driver` — requires `agents` · `goals` · `sessions` ([`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts))

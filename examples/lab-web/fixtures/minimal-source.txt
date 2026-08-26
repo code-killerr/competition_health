@@ -1,0 +1,5 @@
+Controlled bench procedure
+
+Record the start of the bench operation before the first action.
+Complete the declared human confirmation step and record the observed output.
+Stop the run when the expected output cannot be confirmed.

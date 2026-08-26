@@ -21,7 +21,10 @@
   "license": "MIT",
   "dependencies": {
     "@deepseek-ai/dsh-experimental-tool-lab-knowledge": "workspace:^",
-    "@deepseek-ai/dsh-experimental-tool-lab-planning": "workspace:^"
+    "@deepseek-ai/dsh-experimental-tool-lab-planning": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-cache": "workspace:^",
+    "@deepseek-ai/dsh-storage-domain": "workspace:^",
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:^",

@@ -7,9 +7,9 @@ import {
 
 describe('lab-domain lifecycle rules', () => {
   it('accepts only the ordered Lab Skill lifecycle transitions', () => {
-    expect(() => assertSkillTransition('DRAFT', 'VALIDATED')).not.toThrow()
-    expect(() => assertSkillTransition('VALIDATED', 'ACTIVE')).toThrow(/HUMAN_APPROVED/)
-    expect(() => assertSkillTransition('RETIRED', 'ACTIVE')).toThrow(/cannot transition/)
+    expect(() => { assertSkillTransition('DRAFT', 'VALIDATED') }).not.toThrow()
+    expect(() => { assertSkillTransition('VALIDATED', 'ACTIVE') }).toThrow(/HUMAN_APPROVED/)
+    expect(() => { assertSkillTransition('RETIRED', 'ACTIVE') }).toThrow(/cannot transition/)
   })
 
   it('blocks execution when a step does not resolve to an active installed operation', () => {
@@ -39,8 +39,8 @@ describe('lab-domain lifecycle rules', () => {
   })
 
   it('rejects unit values that could hide invalid experiment parameters', () => {
-    expect(() => validateUnitValue({ value: 2, unit: 'uL' })).not.toThrow()
-    expect(() => validateUnitValue({ value: Number.NaN, unit: 'uL' })).toThrow(/finite/)
-    expect(() => validateUnitValue({ value: 2, unit: ' ' })).toThrow(/unit/)
+    expect(() => { validateUnitValue({ value: 2, unit: 'uL' }) }).not.toThrow()
+    expect(() => { validateUnitValue({ value: Number.NaN, unit: 'uL' }) }).toThrow(/finite/)
+    expect(() => { validateUnitValue({ value: 2, unit: ' ' }) }).toThrow(/unit/)
   })
 })

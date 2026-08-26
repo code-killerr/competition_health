@@ -5,6 +5,7 @@
   "references": [
     { "path": "../../../vendor/cosmokit" },
     { "path": "../../../vendor/cordis" },
+    { "path": "../../../vendor/schemastery" },
     { "path": "../../runtime-diagnostics/invariants" },
     { "path": "../lab-domain" },
     { "path": "../lab-runtime" },

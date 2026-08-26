@@ -39,7 +39,7 @@ describe('lab-skill-local Harness composition', () => {
     }])
     expect(await ctx.skills.get('prepare-sample')).toMatchObject({
       name: 'prepare-sample',
-      content: expect.stringContaining('human:prepare-sample'),
+      content: expect.stringContaining('human:prepare-sample') as unknown,
     })
 
     await fiber.dispose()

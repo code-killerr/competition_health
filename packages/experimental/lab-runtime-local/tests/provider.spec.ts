@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { brandId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import { MockDeviceProvider } from '@deepseek-ai/dsh-experimental-lab-device-mock'
 import type { ExecutionStepSpec } from '@deepseek-ai/dsh-experimental-lab-runtime'
 import { LocalLabRuntimeProvider } from '../src/index.ts'
+import { SqliteRuntimeStateStore } from '../src/sqlite-store.ts'
 
 const experimentId = brandId<'ExperimentId'>('experiment-1')
 const planId = brandId<'PlanId'>('plan-1')
@@ -21,7 +25,7 @@ function executionStep(operationKind: ExecutionStepSpec['operationKind'], stepId
     operationResource: operationKind === 'device' ? 'dispense' : 'inspect',
     parameters: { volume: { value: 10, unit: 'uL' } },
     requiresApproval,
-    expectedEvidence: ['mock receipt'],
+    expectedEvidence: operationKind === 'device' ? ['mock-device:device-1'] : ['human-check'],
     failurePolicy: 'BLOCK',
     ...stepDeviceId === undefined ? {} : { deviceId: stepDeviceId },
   }
@@ -102,7 +106,7 @@ describe('local runtime controlled execution', () => {
     const blocked = await provider.executeNextStep(started.runId!)
     expect(blocked.runStatus).toBe('BLOCKED')
     expect(blocked.observations).toMatchObject([
-      { status: 'FAILED', valid: false, error: expect.stringContaining('not executable') },
+      { status: 'FAILED', valid: false, error: expect.stringContaining('not executable') as unknown },
     ])
     expect(device.status(deviceId)?.reserved).toBe(false)
   })
@@ -130,5 +134,62 @@ describe('local runtime controlled execution', () => {
       steps: [{ stepId: 'step-locked', operationResource: 'dispense' }],
     })
     await expect(provider.startRun(experimentId, brandId<'PlanId'>('plan-other'))).rejects.toThrow(/approved plan revision/)
+  })
+
+  it('validates evidence and emits a replan request according to the failure policy', async () => {
+    const provider = await createProvider({
+      ...executionStep('human', 'step-replan'),
+      expectedEvidence: ['required-evidence'],
+      failurePolicy: 'REPLAN',
+    })
+    const started = await provider.startRun(experimentId, planId)
+    const blocked = await provider.confirmStep(
+      started.runId!,
+      ['unexpected-evidence'],
+      'reviewer-1',
+      brandId<'PlanStepId'>('step-replan'),
+      brandId<'OperationId'>('operation-replan'),
+    )
+
+    expect(blocked.runStatus).toBe('BLOCKED')
+    expect(blocked.observations).toMatchObject([{
+      status: 'FAILED',
+      valid: false,
+      replanRequested: true,
+      error: expect.stringContaining('required evidence') as unknown,
+    }])
+    expect(blocked.feedback).toMatchObject({ status: 'BLOCKED', valid: false, replanRequested: true })
+    expect(blocked.replanRequest).toMatchObject({ stepId: 'step-replan', runId: started.runId })
+    await expect(provider.buildReport(started.runId!)).resolves.toMatchObject({
+      feedback: { status: 'BLOCKED', replanRequested: true },
+      replanRequest: { stepId: 'step-replan' },
+    })
+  })
+
+  it('restores the authoritative experiment and run state from SQLite', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'lab-runtime-'))
+    const path = join(root, 'runtime.sqlite')
+    try {
+      const first = new LocalLabRuntimeProvider(device, new SqliteRuntimeStateStore(path))
+      const step = executionStep('human', 'step-recovered')
+      await first.createExperiment({ experimentId, objective: 'prepare sample', expectedOutputs: ['sample'] })
+      await first.approvePlan({
+        experimentId,
+        planId,
+        approvedBy: 'reviewer-1',
+        skillRevisionIds: [skillRevisionId],
+        executionSteps: [step],
+        skillSnapshots: [{ skillId, revisionId: skillRevisionId, status: 'ACTIVE', definitionHash: 'hash-1' }],
+      })
+      const started = await first.startRun(experimentId, planId)
+      await first.dispose()
+
+      const recovered = new LocalLabRuntimeProvider(device, new SqliteRuntimeStateStore(path))
+      await expect(recovered.buildReport(started.runId!)).resolves.toMatchObject({ runId: started.runId, status: 'WAITING_CONFIRMATION' })
+      expect(recovered.getRun(experimentId)).toMatchObject({ runId: started.runId, planId, runStatus: 'WAITING_CONFIRMATION' })
+      await recovered.dispose()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })
