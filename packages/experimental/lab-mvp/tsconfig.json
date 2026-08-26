@@ -6,9 +6,17 @@
     { "path": "../../../vendor/cosmokit" },
     { "path": "../../../vendor/cordis" },
     { "path": "../../runtime-diagnostics/invariants" },
+    { "path": "../lab-domain" },
     { "path": "../lab-knowledge" },
+    { "path": "../lab-knowledge-local" },
+    { "path": "../lab-planning" },
+    { "path": "../lab-planning-local" },
     { "path": "../lab-skill" },
+    { "path": "../lab-skill-local" },
     { "path": "../lab-device" },
-    { "path": "../lab-runtime" }
+    { "path": "../lab-device-mock" },
+    { "path": "../lab-runtime" },
+    { "path": "../lab-runtime-local" },
+    { "path": "../lab-mvp-web" }
   ]
 }

@@ -1,4 +1,5 @@
 # @deepseek-ai/dsh-experimental-lab-device
+English | [中文](README.zh.md)
 
 Service Definition for laboratory device capabilities, health, leases, controlled operations, receipts, status, and safe stop.
 
@@ -6,17 +7,21 @@ The Agent can query this service through a Consumer, but only Runtime may submit
 
 ## Model Experience
 
-Device capability summaries may be model-visible during planning. Raw device commands and provider transport details are not model-facing contracts.
+### Controlled laboratory context
 
-### Token impact
+#### What the model sees
 
-Planning receives bounded capability summaries; operation receipts are returned as structured evidence after execution.
+The model sees approved plans, controlled run states, and bounded observations through the package typed service or `lab_*` tools.
 
-### KV-cache impact
+#### Token effect
 
-Device status is live runtime state and should not be treated as a stable prompt prefix.
+Only requested plan fields, current-step status, and bounded evidence are returned; local storage details remain host-side.
+
+#### KV Cache effect
+
+Stable experiment, plan, Skill revision, and run identifiers keep repeated step results compact and prefix-friendly.
 
 ## Known Limitations and Deferred Work
 
-- No real hardware or Mock Device Provider is included yet.
+- This experimental package provides local typed contracts and does not claim production persistence, recovery, or hardware integration.
 - Lease persistence, idempotency, and fault injection are planned for I2.

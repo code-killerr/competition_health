@@ -29,7 +29,10 @@ export class LabDeviceService extends Service {
     super(ctx, 'labDevices')
   }
 
-  /** 注册本进程唯一的设备 Provider。 */
+  /** 注册本进程唯一的设备 Provider。
+ * @param provider - provider that owns device operations.
+ * @returns - disposer for the registered provider.
+ */
   registerProvider(provider: LabDeviceProvider): () => void {
     if (this.provider !== undefined) throw new LabDuplicateProviderError('lab-device')
     const dispose = this.ctx.effect(() => {
@@ -42,37 +45,59 @@ export class LabDeviceService extends Service {
     return () => void dispose()
   }
 
-  /** 查询设备及能力，只读。 */
+  /** 查询设备及能力，只读。
+ * @returns - current device views and capabilities.
+ */
   listDevices(): readonly DeviceView[] {
     return this.requireProvider().listDevices()
   }
 
-  /** 检查设备健康状态。 */
+  /** 检查设备健康状态。
+ * @param deviceId - device to check.
+ * @returns - whether the device is healthy.
+ */
   healthCheck(deviceId: DeviceId): Promise<boolean> {
     return this.requireProvider().healthCheck(deviceId)
   }
 
-  /** 为一个运行实例申请设备租约。 */
+  /** 为一个运行实例申请设备租约。
+ * @param deviceId - device to lease.
+ * @param runId - run that owns the lease.
+ * @returns - completion after the lease is acquired.
+ */
   reserve(deviceId: DeviceId, runId: RunId): Promise<void> {
     return this.requireProvider().reserve(deviceId, runId)
   }
 
-  /** 提交已由 Runtime 校验的设备操作。 */
+  /** 提交已由 Runtime 校验的设备操作。
+ * @param request - validated device operation request.
+ * @returns - provider receipt for the operation.
+ */
   execute(request: DeviceOperationRequest): Promise<DeviceReceipt> {
     return this.requireProvider().execute(request)
   }
 
-  /** 查询设备当前状态。 */
+  /** 查询设备当前状态。
+ * @param deviceId - device to inspect.
+ * @returns - current device view, when registered.
+ */
   status(deviceId: DeviceId): DeviceView | undefined {
     return this.requireProvider().status(deviceId)
   }
 
-  /** 请求安全停止。 */
+  /** 请求安全停止。
+ * @param request - device operation to stop.
+ * @returns - provider receipt for the stop request.
+ */
   stop(request: Pick<DeviceOperationRequest, 'deviceId' | 'runId' | 'operationId'>): Promise<DeviceReceipt> {
     return this.requireProvider().stop(request)
   }
 
-  /** 释放运行实例持有的设备租约。 */
+  /** 释放运行实例持有的设备租约。
+ * @param deviceId - device whose lease is released.
+ * @param runId - run that owns the lease.
+ * @returns - completion after the lease is released.
+ */
   release(deviceId: DeviceId, runId: RunId): Promise<void> {
     return this.requireProvider().release(deviceId, runId)
   }

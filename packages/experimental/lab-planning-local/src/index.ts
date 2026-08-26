@@ -101,15 +101,19 @@ export class LocalLabPlanningProvider implements LabPlanningProvider {
     for (const draft of input.skillDrafts) skillRevisions.push(await this.skills.createDraft(draft))
     const validationContext: PlanValidationContext = {
       availableInputs: new Set(input.request.samples.map(sample => sample.name)),
+      availableCitations: new Set(context.citations.map(citation => citation.citationId)),
+      requiredCitations: new Set(input.request.constraints.flatMap(constraint => constraint.citations)),
       skillStatuses: new Map(skillRevisions.map(revision => [revision.revisionId, revision.status])),
+      skillParameterConstraints: new Map(skillRevisions.map(revision => [revision.revisionId, revision.parameterConstraints])),
       installedOperations: new Set(skillRevisions.flatMap(revision => revision.operations.filter(operation => operation.installed).map(operation => `${operation.kind}:${operation.resourceRef}`))),
       deviceCapabilities: new Map(context.devices.map(device => [device.id, device.capabilities.map(capability => capability.name)])),
     }
+    const validation = validateExperimentPlan(plan, validationContext)
     return {
       context,
-      plan,
+      plan: validation.valid ? { ...plan, status: 'VALIDATED' } : plan,
       skillRevisions,
-      validation: validateExperimentPlan(plan, validationContext),
+      validation,
     }
   }
 

@@ -14,13 +14,21 @@ import type {
 
 /** 一个模拟设备的配置。 */
 export interface MockDeviceConfig {
+  /** 设备的稳定标识。 */
   readonly id: string
+  /** 展示名称。 */
   readonly name: string
+  /** 设备支持的操作能力名称。 */
   readonly capabilities?: string[]
+  /** 启动时的健康状态。 */
+  readonly healthy?: boolean
+  /** 是否在执行阶段模拟通信失败。 */
+  readonly communicationFailure?: boolean
 }
 
 /** Mock Provider 配置。默认不创建任何设备。 */
 export interface Config {
+  /** 启动时注册的模拟设备。 */
   readonly devices?: MockDeviceConfig[]
 }
 
@@ -30,6 +38,8 @@ export const Config: z<Config> = z.object({
     id: z.string().min(1),
     name: z.string().min(1),
     capabilities: z.array(z.string()).default([]),
+    healthy: z.boolean().default(true),
+    communicationFailure: z.boolean().default(false),
   })).default([]),
 })
 
@@ -40,9 +50,11 @@ export const inject = ['labDevices']
 
 interface MockDeviceState {
   readonly id: DeviceId
+  /** 展示名称。 */
   readonly name: string
   readonly capabilities: readonly DeviceCapability[]
   healthy: boolean
+  communicationFailure: boolean
   reservedBy: RunId | undefined
 }
 
@@ -60,7 +72,8 @@ export class MockDeviceProvider implements LabDeviceProvider {
         id,
         name: device.name,
         capabilities: (device.capabilities ?? []).map(name => ({ name, parameters: {} })),
-        healthy: true,
+        healthy: device.healthy ?? true,
+        communicationFailure: device.communicationFailure ?? false,
         reservedBy: undefined,
       })
     }
@@ -73,11 +86,13 @@ export class MockDeviceProvider implements LabDeviceProvider {
 
   /** 模拟健康检查。 */
   async healthCheck(deviceId: DeviceId): Promise<boolean> {
+    await Promise.resolve()
     return this.requireDevice(deviceId).healthy
   }
 
   /** 为一个运行实例申请设备租约。 */
   async reserve(deviceId: DeviceId, runId: RunId): Promise<void> {
+    await Promise.resolve()
     const device = this.requireDevice(deviceId)
     if (!device.healthy) throw new Error(`mock device "${deviceId}" is unhealthy`)
     if (device.reservedBy !== undefined && device.reservedBy !== runId) {
@@ -88,11 +103,13 @@ export class MockDeviceProvider implements LabDeviceProvider {
 
   /** 执行已注册的模拟操作；同一幂等键只产生一条回执。 */
   async execute(request: DeviceOperationRequest): Promise<DeviceReceipt> {
+    await Promise.resolve()
     const device = this.requireDevice(request.deviceId)
     if (device.reservedBy !== request.runId) throw new Error(`mock device "${request.deviceId}" is not reserved by this run`)
     const key = `${request.deviceId}:${request.idempotencyKey}`
     const prior = this.receipts.get(key)
     if (prior !== undefined) return prior
+    if (device.communicationFailure) throw new Error(`mock device "${request.deviceId}" communication failed`)
     const receipt = this.receipt(request.operationId, request.idempotencyKey, 'completed', `mock-device:${request.deviceId}`)
     this.receipts.set(key, receipt)
     return receipt
@@ -106,6 +123,7 @@ export class MockDeviceProvider implements LabDeviceProvider {
 
   /** 生成停止回执，不推进任何后继步骤。 */
   async stop(request: Pick<DeviceOperationRequest, 'deviceId' | 'runId' | 'operationId'>): Promise<DeviceReceipt> {
+    await Promise.resolve()
     const device = this.requireDevice(request.deviceId)
     if (device.reservedBy !== request.runId) throw new Error(`mock device "${request.deviceId}" is not reserved by this run`)
     return this.receipt(request.operationId, `stop:${request.operationId}`, 'stopped', `mock-device:${request.deviceId}`)
@@ -113,6 +131,7 @@ export class MockDeviceProvider implements LabDeviceProvider {
 
   /** 释放当前运行实例持有的租约。 */
   async release(deviceId: DeviceId, runId: RunId): Promise<void> {
+    await Promise.resolve()
     const device = this.requireDevice(deviceId)
     if (device.reservedBy !== undefined && device.reservedBy !== runId) {
       throw new Error(`mock device "${deviceId}" is reserved by another run`)

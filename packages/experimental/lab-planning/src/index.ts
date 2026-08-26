@@ -25,7 +25,10 @@ export class LabPlanningService extends Service {
     super(ctx, 'labPlanning')
   }
 
-  /** 注册本进程唯一的规划 Provider。 */
+  /** 注册本进程唯一的规划 Provider。
+ * @param provider - provider that owns planning and proposal storage.
+ * @returns - disposer for the registered provider.
+ */
   registerProvider(provider: LabPlanningProvider): () => void {
     if (this.provider !== undefined) throw new LabDuplicateProviderError('lab-planning')
     const dispose = this.ctx.effect(() => {
@@ -38,12 +41,18 @@ export class LabPlanningService extends Service {
     return () => void dispose()
   }
 
-  /** 根据实验需求组装可审查的检索上下文。 */
+  /** 根据实验需求组装可审查的检索上下文。
+ * @param request - experiment request to contextualize.
+ * @returns - cited knowledge, conflicts, gaps, and device context.
+ */
   buildContext(request: ExperimentRequest): Promise<PlanningContext> {
     return this.requireProvider().buildContext(request)
   }
 
-  /** 接收 Agent 生成的声明式计划和 Skill 草案。 */
+  /** 接收 Agent 生成的声明式计划和 Skill 草案。
+ * @param input - plan and Skill drafts submitted by the Agent.
+ * @returns - deterministic proposal validation result.
+ */
   propose(input: PlanProposalInput): Promise<PlanProposalResult> {
     return this.requireProvider().propose(input)
   }

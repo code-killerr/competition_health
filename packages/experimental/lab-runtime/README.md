@@ -1,22 +1,29 @@
 # @deepseek-ai/dsh-experimental-lab-runtime
+English | [中文](README.zh.md)
 
-Service Definition for approved-plan locking, controlled experiment runs, human confirmations, safe stop, recoverable state, and reports.
+Service Definition for approved-plan locking, controlled experiment runs, human confirmations, safe stop, and structured reports.
 
-Runtime does not call the LLM, read raw SOP files, or accept arbitrary device commands. A Provider will build the execution graph from approved plan and Skill snapshots.
+Runtime accepts an approved plan revision, optional execution steps, and ACTIVE Skill snapshots. A Provider freezes these inputs into an ExecutionGraph. Consumers advance one step at a time through executeNextStep, submit evidence through confirmStep, request stop through stopRun, and read observations through RunView or buildReport.
+
+Runtime never calls the LLM, reads raw SOP files, or accepts arbitrary device commands. Device side effects are delegated to the Lab Device Service; human and approval operations remain waiting until evidence is supplied. Script and API operations are represented as blocked observations by the local Provider.
 
 ## Model Experience
 
-Consumers may show plan approval, waiting steps, observations, failures, and final reports. Runtime state is exposed as structured evidence rather than hidden prompt text.
+### Controlled laboratory context
 
-### Token impact
+#### What the model sees
 
-Only current step state, required confirmation, and bounded evidence should be returned to the Agent.
+The model sees approved plans, controlled run states, and bounded observations through the package typed service or `lab_*` tools.
 
-### KV-cache impact
+#### Token effect
 
-Run and Skill revision identities are durable and must remain stable across later retries or process recovery.
+Only requested plan fields, current-step status, and bounded evidence are returned; local storage details remain host-side.
+
+#### KV Cache effect
+
+Stable experiment, plan, Skill revision, and run identifiers keep repeated step results compact and prefix-friendly.
 
 ## Known Limitations and Deferred Work
 
-- No ExecutionGraph or local Runtime Provider is included yet.
-- Cross-process recovery and production scheduling are outside the first increment.
+- This experimental package provides local typed contracts and does not claim production persistence, recovery, or hardware integration.
+- Production devices, scheduling, permission policy, and remote feedback remain outside this opt-in experimental package.

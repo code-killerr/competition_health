@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-26-lab-controlled-execution-graph.md
+2026-08-26-lab-controlled-execution-graph.md: 5787d7ddf9194cc4d3285a0bd7e37ba4f0743d55
+2026-08-26-lab-controlled-execution-graph.zh.md: 94d962f605e5a27116de9eeb41444460dc7ebb4a

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-26-lab-deterministic-plan-validation.md
+2026-08-26-lab-deterministic-plan-validation.md: fcfe9ea79208d96873193edd97b39a13f7118292
+2026-08-26-lab-deterministic-plan-validation.zh.md: 929e8e21ce074b9e756c66b291b26aa4cfe6f9a8

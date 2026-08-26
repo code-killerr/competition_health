@@ -1,21 +1,25 @@
 # @deepseek-ai/dsh-experimental-lab-domain
+English | [中文](README.zh.md)
 
 Shared laboratory domain ids, lifecycle states, experiment requests, plan steps, deterministic validation results, and Session event declarations for the first-round prototype.
 
 ## Model Experience
 
-This package adds no model-facing tool or prompt. It defines the durable vocabulary used by Knowledge, Skill, Device, and Runtime consumers.
+### Controlled laboratory context
 
-### Token impact
+#### What the model sees
 
-None directly. Consumers decide which validated domain values enter model context.
+The model sees approved plans, controlled run states, and bounded observations through the package typed service or `lab_*` tools.
 
-### KV-cache impact
+#### Token effect
 
-None directly. Session event types are designed so model-visible decisions remain reconstructable.
+Only requested plan fields, current-step status, and bounded evidence are returned; local storage details remain host-side.
+
+#### KV Cache effect
+
+Stable experiment, plan, Skill revision, and run identifiers keep repeated step results compact and prefix-friendly.
 
 ## Known Limitations and Deferred Work
 
-- It does not persist documents, Skills, devices, or runs.
-- It does not encode any Space ATAC or mouse-brain-specific protocol.
+- This experimental package provides local typed contracts and does not claim production persistence, recovery, or hardware integration.
 - It validates plan data only; it does not call a model, request human approval, or execute devices.

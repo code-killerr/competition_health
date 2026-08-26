@@ -3,29 +3,14 @@
 - insert:
     - id: lab-mvp
       name: '@deepseek-ai/dsh-experimental-lab-mvp'
-
-    - id: lab-knowledge-local
-      name: '@deepseek-ai/dsh-experimental-lab-knowledge-local'
       config:
-        path: .lab-data/knowledge.sqlite
+        knowledgePath: .lab-data/knowledge.sqlite
+        device:
+          devices:
+            - id: dev-dispenser
+              name: development dispenser
+              capabilities:
+                - dispense
 
-    - id: lab-device-mock
-      name: '@deepseek-ai/dsh-experimental-lab-device-mock'
-      config:
-        devices:
-          - id: dev-dispenser
-            name: development dispenser
-            capabilities:
-              - dispense
-
-    - id: tool-lab-knowledge
-      name: '@deepseek-ai/dsh-experimental-tool-lab-knowledge'
-
-    - id: lab-skill-local
-      name: '@deepseek-ai/dsh-experimental-lab-skill-local'
-
-    - id: lab-planning-local
-      name: '@deepseek-ai/dsh-experimental-lab-planning-local'
-
-    - id: tool-lab-planning
-      name: '@deepseek-ai/dsh-experimental-tool-lab-planning'
+    - id: tool-lab
+      name: '@deepseek-ai/dsh-experimental-tool-lab'

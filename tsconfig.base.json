@@ -116,6 +116,9 @@
       "@deepseek-ai/dsh-experimental-lab-device/invariant": ["./packages/experimental/lab-device/src/invariant.ts"],
       "@deepseek-ai/dsh-experimental-lab-device-mock/invariant": ["./packages/experimental/lab-device-mock/src/invariant.ts"],
       "@deepseek-ai/dsh-experimental-lab-runtime/invariant": ["./packages/experimental/lab-runtime/src/invariant.ts"],
+      "@deepseek-ai/dsh-experimental-lab-runtime-local/invariant": ["./packages/experimental/lab-runtime-local/src/invariant.ts"],
+      "@deepseek-ai/dsh-experimental-tool-lab/invariant": ["./packages/experimental/tool-lab/src/invariant.ts"],
+      "@deepseek-ai/dsh-experimental-lab-mvp-web/invariant": ["./packages/experimental/lab-mvp-web/src/invariant.ts"],
       "@deepseek-ai/dsh-experimental-lab-mvp/invariant": ["./packages/experimental/lab-mvp/src/invariant.ts"],
       "@deepseek-ai/dsh-*/invariant": [
         "./packages/core/*/src/invariant.ts",
@@ -262,6 +265,9 @@
       "@deepseek-ai/dsh-experimental-lab-device": ["./packages/experimental/lab-device/src"],
       "@deepseek-ai/dsh-experimental-lab-device-mock": ["./packages/experimental/lab-device-mock/src"],
       "@deepseek-ai/dsh-experimental-lab-runtime": ["./packages/experimental/lab-runtime/src"],
+      "@deepseek-ai/dsh-experimental-lab-runtime-local": ["./packages/experimental/lab-runtime-local/src"],
+      "@deepseek-ai/dsh-experimental-tool-lab": ["./packages/experimental/tool-lab/src"],
+      "@deepseek-ai/dsh-experimental-lab-mvp-web": ["./packages/experimental/lab-mvp-web/src"],
       "@deepseek-ai/dsh-experimental-lab-mvp": ["./packages/experimental/lab-mvp/src"],
       "@deepseek-ai/dsh-*": [
         "./packages/core/*/src",

@@ -21,10 +21,16 @@
   "license": "MIT",
   "dependencies": {
     "@deepseek-ai/dsh-experimental-lab-knowledge": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-knowledge-local": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-planning": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-planning-local": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-skill": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-skill-local": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-device": "workspace:^",
-    "@deepseek-ai/dsh-experimental-lab-runtime": "workspace:^"
+    "@deepseek-ai/dsh-experimental-lab-device-mock": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-runtime": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-runtime-local": "workspace:^",
+    "@deepseek-ai/dsh-experimental-lab-mvp-web": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-invariants": "workspace:^",

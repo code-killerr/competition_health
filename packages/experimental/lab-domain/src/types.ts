@@ -28,7 +28,10 @@ export type RunId = Branded<'RunId'>
 /** 操作幂等标识。 */
 export type OperationId = Branded<'OperationId'>
 
-/** 为领域对象创建 branded id。 */
+/** 为领域对象创建 branded id。
+ * @param id - string value to brand as a domain identifier.
+ * @returns - branded identifier with compile-time identity B.
+ */
 export function brandId<B extends string>(id: string): Branded<B> {
   return id as Branded<B>
 }
@@ -116,7 +119,12 @@ export interface ExperimentPlan {
 /** 计划校验所需的外部事实快照。 */
 export interface PlanValidationContext {
   readonly availableInputs: ReadonlySet<string>
+  readonly availableCitations: ReadonlySet<CitationId>
+  /** Citation ids inherited from request constraints and other required sources. */
+  readonly requiredCitations?: ReadonlySet<CitationId>
   readonly skillStatuses: ReadonlyMap<SkillRevisionId, LabSkillStatus>
+  /** Declarative parameter constraints for each Skill revision referenced by the plan. */
+  readonly skillParameterConstraints: ReadonlyMap<SkillRevisionId, Readonly<Record<string, string>>>
   readonly installedOperations: ReadonlySet<string>
   readonly deviceCapabilities: ReadonlyMap<DeviceId, readonly string[]>
 }
@@ -176,13 +184,22 @@ export interface KnowledgeSearchResult {
   readonly versionId: KnowledgeDocumentVersionId
   readonly location: string
   readonly excerpt: string
+  readonly kind?: 'text' | 'table'
+  readonly page?: number
+  readonly titlePath?: readonly string[]
+  /** Table column names when the cited block is a normalized table row. */
+  readonly tableHeaders?: readonly string[]
+  /** One-based logical row number in the source table. */
+  readonly tableRow?: number
   readonly confirmed: boolean
+  readonly conflicted: boolean
   readonly score: number
 }
 
 /** 两条或多条引用之间需要人工处理的知识冲突。 */
 export interface KnowledgeConflict {
   readonly conflictId: KnowledgeConflictId
+  readonly experimentId?: ExperimentId
   readonly citationIds: readonly CitationId[]
   readonly summary: string
   readonly status: KnowledgeConflictStatus
@@ -221,6 +238,15 @@ declare module '@deepseek-ai/dsh-session/types' {
       approvedBy: SessionId
       skillRevisionIds: readonly SkillRevisionId[]
     }
+    /** 人工拒绝的计划修订及其可选替代修订。 */
+    'lab/plan/rejected': {
+      version: 1
+      experimentId: ExperimentId
+      planId: PlanId
+      rejectedBy: SessionId
+      reason: string
+      replacementPlanId?: PlanId
+    }
     /** 人工确认的知识引用。 */
     'lab/knowledge/confirmed': {
       version: 1
@@ -237,6 +263,16 @@ declare module '@deepseek-ai/dsh-session/types' {
       operationId: OperationId
       valid: boolean
       evidence: readonly string[]
+    }
+    /** 运行状态转移，供运行时间线重建。 */
+    'lab/run/state': {
+      version: 1
+      experimentId: ExperimentId
+      runId: RunId
+      from?: RunStatus
+      to: RunStatus
+      requestedBy?: SessionId
+      reason?: string
     }
     /** 当前实验缓存投影更新。 */
     'lab/cache/projected': {

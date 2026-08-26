@@ -14,6 +14,7 @@ import type {
   KnowledgeDocumentId,
   KnowledgeDocumentVersionId,
   KnowledgeImportStatus,
+  ExperimentId,
   KnowledgeSearchRequest,
   KnowledgeSearchResult,
 } from '@deepseek-ai/dsh-experimental-lab-domain'
@@ -28,18 +29,30 @@ import type {
 
 /** 解析后供 Knowledge Provider 持久化的标准区块。 */
 export interface ParsedDocumentBlock {
+  /** 文档内可复现的区块位置。 */
   readonly location: string
+  /** 区块正文。 */
   readonly content: string
+  /** 区块内容类型。 */
   readonly kind?: 'text' | 'table'
+  /** 区块所在页码。 */
   readonly page?: number
+  /** 从文档标题层级推导的路径。 */
   readonly titlePath?: readonly string[]
+  /** 表格列名；表格区块必须与行数据一起提供。 */
+  readonly tableHeaders?: readonly string[]
+  /** 表格中的一基行号；表头占用第 1 行。 */
+  readonly tableRow?: number
 }
 
 /** 文档解析器接缝；解析失败必须由 Provider 显式记录。 */
 export interface DocumentParser {
+  /** 解析器的稳定名称。 */
   readonly name: string
   supports(name: string): boolean
-  parse(input: { readonly name: string; readonly bytes: Uint8Array }): Promise<readonly ParsedDocumentBlock[]>
+  parse(
+    input: { readonly name: string; readonly bytes: Iterable<number> },
+  ): Promise<readonly ParsedDocumentBlock[]>
 }
 
 /** 可选的向量生成接缝；首轮没有适配器时只使用 FTS5。 */
@@ -78,15 +91,24 @@ interface DocumentRow {
   readonly version_id: string
   readonly status: KnowledgeImportStatus
   readonly error: string | null
+  readonly metadata_json: string | null
 }
 
 interface SearchRow {
   readonly block_id: string
   readonly document_id: string
   readonly version_id: string
+  /** 文档内可复现的区块位置。 */
   readonly location: string
+  /** 区块正文。 */
   readonly content: string
+  readonly kind: 'text' | 'table'
+  readonly page: number | null
+  readonly title_path: string | null
+  readonly table_headers: string | null
+  readonly table_row: number | null
   readonly confirmed: number
+  readonly conflicted: number
   readonly rank: number
 }
 
@@ -94,13 +116,23 @@ interface EmbeddingRow {
   readonly block_id: string
   readonly document_id: string
   readonly version_id: string
+  /** 文档内可复现的区块位置。 */
   readonly location: string
+  /** 区块正文。 */
   readonly content: string
+  readonly kind: 'text' | 'table'
+  readonly page: number | null
+  readonly title_path: string | null
+  readonly table_headers: string | null
+  readonly table_row: number | null
   readonly confirmed: number
+  readonly conflicted: number
   readonly vector: string
 }
 
 type SqlParam = string | number | null
+
+const OPEN_CONFLICT_SQL = "EXISTS (SELECT 1 FROM conflict_citations AS cc JOIN conflicts AS c ON c.id = cc.conflict_id WHERE cc.citation_id = 'citation-' || b.id AND c.status = 'OPEN')"
 
 /** Provider-owned SQLite/FTS5 知识库。 */
 export class LocalKnowledgeProvider implements KnowledgeProvider {
@@ -131,12 +163,14 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
     const hash = createHash('sha256').update(source.bytes).digest('hex')
     const documentId = brandId<'KnowledgeDocumentId'>(`document-${hash}`)
     const versionId = brandId<'KnowledgeDocumentVersionId'>(`version-${hash}`)
-    const existing = db.prepare('SELECT id, id AS version_id, status, error FROM document_versions WHERE content_hash = ?').get(hash) as DocumentRow | undefined
-    if (existing !== undefined) return { documentId, versionId: brandId<'KnowledgeDocumentVersionId'>(existing.version_id), status: existing.status }
+    const metadata = sourceMetadata(request, source)
+    const existing = db.prepare('SELECT dv.id, dv.id AS version_id, dv.status, dv.error, d.metadata_json FROM document_versions AS dv JOIN documents AS d ON d.id = dv.document_id WHERE dv.content_hash = ?').get(hash) as DocumentRow | undefined
+    if (existing !== undefined) return { documentId, versionId: brandId<'KnowledgeDocumentVersionId'>(existing.version_id), status: existing.status, metadata: parseMetadata(existing.metadata_json) ?? metadata }
 
-    db.prepare('INSERT OR IGNORE INTO documents (id, name) VALUES (?, ?)').run(documentId, source.name)
+    db.prepare('INSERT OR IGNORE INTO documents (id, name, metadata_json) VALUES (?, ?, ?)').run(documentId, source.name, JSON.stringify(metadata))
     db.prepare('INSERT INTO document_versions (id, document_id, content_hash, status, error, content) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(versionId, documentId, hash, 'PARSING', null, source.bytes)
+      .run(versionId, documentId, hash, 'QUEUED', null, source.bytes)
+    db.prepare('UPDATE document_versions SET status = ? WHERE id = ?').run('PARSING', versionId)
 
     let blocks: readonly ParsedDocumentBlock[]
     try {
@@ -144,12 +178,13 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       db.prepare('UPDATE document_versions SET status = ?, error = ? WHERE id = ?').run('FAILED', message, versionId)
-      return { documentId, versionId, status: 'FAILED' }
+      return { documentId, versionId, status: 'FAILED', metadata }
     }
 
+    db.prepare('UPDATE document_versions SET status = ? WHERE id = ?').run('INDEXING', versionId)
     db.exec('BEGIN')
     try {
-      const insertBlock = db.prepare('INSERT INTO blocks (id, version_id, document_id, location, content, kind, page, title_path, confirmed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)')
+      const insertBlock = db.prepare('INSERT INTO blocks (id, version_id, document_id, location, content, kind, page, title_path, table_headers, table_row, confirmed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)')
       const insertFts = db.prepare('INSERT INTO blocks_fts (block_id, content, location, version_id) VALUES (?, ?, ?, ?)')
       const insertEmbedding = this.embeddingAdapter === undefined ? undefined : db.prepare('INSERT INTO block_embeddings (block_id, vector) VALUES (?, ?)')
       for (const [index, block] of blocks.entries()) {
@@ -157,7 +192,23 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
         if (content.length === 0) continue
         const blockId = `block-${hash}-${index + 1}`
         const location = block.location.trim()
-        insertBlock.run(blockId, versionId, documentId, location, content, block.kind ?? 'text', block.page ?? null, block.titlePath === undefined ? null : JSON.stringify(block.titlePath))
+        const kind = block.kind ?? 'text'
+        if (kind === 'table' && (block.tableHeaders === undefined || block.tableHeaders.length === 0)) throw new Error('table blocks require non-empty table headers')
+        if (block.tableRow !== undefined && (!Number.isInteger(block.tableRow) || block.tableRow < 1)) throw new Error('table row must be a positive integer')
+        const titlePath = block.titlePath === undefined ? null : JSON.stringify(block.titlePath)
+        const tableHeaders = block.tableHeaders === undefined ? null : JSON.stringify(block.tableHeaders)
+        insertBlock.run(
+          blockId,
+          versionId,
+          documentId,
+          location,
+          content,
+          kind,
+          block.page ?? null,
+          titlePath,
+          tableHeaders,
+          block.tableRow ?? null,
+        )
         insertFts.run(blockId, content, location, versionId)
         if (insertEmbedding !== undefined) insertEmbedding.run(blockId, JSON.stringify(await this.vectorFor(content)))
       }
@@ -167,17 +218,23 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
       db.exec('ROLLBACK')
       const message = error instanceof Error ? error.message : String(error)
       db.prepare('UPDATE document_versions SET status = ?, error = ? WHERE id = ?').run('FAILED', message, versionId)
-      return { documentId, versionId, status: 'FAILED' }
+      return { documentId, versionId, status: 'FAILED', metadata }
     }
-    return { documentId, versionId, status: 'READY' }
+    return { documentId, versionId, status: 'READY', metadata }
   }
 
   /** 读取导入状态。 */
   async getImportStatus(documentId: KnowledgeDocumentId, versionId?: KnowledgeDocumentVersionId): Promise<ImportStatusResult | undefined> {
     const db = await this.requireDatabase()
-    const row = db.prepare(`SELECT document_id AS id, id AS version_id, status, error FROM document_versions WHERE document_id = ? AND (? IS NULL OR id = ?) ORDER BY rowid DESC LIMIT 1`).get(documentId, versionId ?? null, versionId ?? null) as (DocumentRow & { id: string }) | undefined
+    const row = db.prepare(
+      'SELECT dv.document_id AS id, dv.id AS version_id, dv.status, dv.error, d.metadata_json ' +
+      'FROM document_versions AS dv JOIN documents AS d ON d.id = dv.document_id ' +
+      'WHERE dv.document_id = ? AND (? IS NULL OR dv.id = ?) ' +
+      'ORDER BY dv.rowid DESC LIMIT 1',
+    ).get(documentId, versionId ?? null, versionId ?? null) as (DocumentRow & { id: string }) | undefined
     if (row === undefined) return undefined
-    return { documentId, versionId: brandId<'KnowledgeDocumentVersionId'>(row.version_id), status: row.status, ...row.error === null ? {} : { error: row.error } }
+    const metadata = parseMetadata(row.metadata_json)
+    return { documentId, versionId: brandId<'KnowledgeDocumentVersionId'>(row.version_id), status: row.status, ...metadata === undefined ? {} : { metadata }, ...row.error === null ? {} : { error: row.error } }
   }
 
   /** 使用 FTS5 和可选向量索引返回带来源的混合检索结果。 */
@@ -187,7 +244,7 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
     const limit = Math.min(Math.max(request.limit ?? 20, 1), 100)
     const filter = searchFilter(request)
     const keywordRows = query.length === 0 ? [] : db.prepare(`
-      SELECT f.block_id, b.document_id, f.version_id, f.location, f.content, b.confirmed, bm25(blocks_fts) AS rank
+      SELECT f.block_id, b.document_id, f.version_id, f.location, f.content, b.kind, b.page, b.title_path, b.table_headers, b.table_row, b.confirmed, ${OPEN_CONFLICT_SQL} AS conflicted, bm25(blocks_fts) AS rank
       FROM blocks_fts AS f JOIN blocks AS b ON b.id = f.block_id
       WHERE blocks_fts MATCH ?${filter.sql} ORDER BY rank ASC LIMIT ?
     `).all(query, ...filter.params, limit) as unknown as SearchRow[]
@@ -197,7 +254,7 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
     if (this.embeddingAdapter !== undefined) {
       const vector = await this.vectorFor(request.query)
       const rows = db.prepare(`
-        SELECT b.id AS block_id, b.document_id, b.version_id, b.location, b.content, b.confirmed, e.vector
+        SELECT b.id AS block_id, b.document_id, b.version_id, b.location, b.content, b.kind, b.page, b.title_path, b.table_headers, b.table_row, b.confirmed, ${OPEN_CONFLICT_SQL} AS conflicted, e.vector
         FROM block_embeddings AS e JOIN blocks AS b ON b.id = e.block_id
         WHERE 1 = 1${filter.sql}
       `).all(...filter.params) as unknown as EmbeddingRow[]
@@ -214,23 +271,19 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
 
     const keywordWeight = this.embeddingAdapter === undefined ? 1 : this.keywordWeight
     const embeddingWeight = this.embeddingAdapter === undefined ? 0 : this.embeddingWeight
-    return [...ranked.values()].map(({ row, keyword, embedding }) => ({
-      citationId: brandId<'CitationId'>(`citation-${row.block_id}`),
-      documentId: brandId<'KnowledgeDocumentId'>(row.document_id),
-      versionId: brandId<'KnowledgeDocumentVersionId'>(row.version_id),
-      location: row.location,
-      excerpt: row.content,
-      confirmed: row.confirmed === 1,
-      score: keywordWeight * keyword + embeddingWeight * embedding,
-    })).sort((left, right) => right.score - left.score || left.location.localeCompare(right.location)).slice(0, limit)
+    return [...ranked.values()]
+      .map(({ row, keyword, embedding }) => searchResult(row, keywordWeight * keyword + embeddingWeight * embedding))
+      .sort((left, right) => right.score - left.score || left.location.localeCompare(right.location))
+      .slice(0, limit)
   }
 
   /** 返回 Provider 已登记的待处理冲突。 */
-  async listConflicts(): Promise<readonly KnowledgeConflict[]> {
+  async listConflicts(experimentId?: ExperimentId): Promise<readonly KnowledgeConflict[]> {
     const db = await this.requireDatabase()
-    const rows = db.prepare('SELECT id, summary, status FROM conflicts ORDER BY rowid ASC').all() as Array<{ id: string; summary: string; status: KnowledgeConflictStatus }>
+    const rows = db.prepare('SELECT id, experiment_id, summary, status FROM conflicts WHERE (? IS NULL OR experiment_id = ?) ORDER BY rowid ASC').all(experimentId ?? null, experimentId ?? null) as Array<{ id: string; experiment_id: string | null; summary: string; status: KnowledgeConflictStatus }>
     return rows.map(row => ({
       conflictId: brandId<'KnowledgeConflictId'>(row.id),
+      ...row.experiment_id === null ? {} : { experimentId: brandId<'ExperimentId'>(row.experiment_id) },
       citationIds: (db.prepare('SELECT citation_id FROM conflict_citations WHERE conflict_id = ? ORDER BY rowid ASC').all(row.id) as Array<{ citation_id: string }>).map(item => brandId<'CitationId'>(item.citation_id)),
       summary: row.summary,
       status: row.status,
@@ -246,11 +299,11 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
     const placeholders = blockIds.map(() => '?').join(', ')
     const rows = db.prepare(`SELECT id FROM blocks WHERE id IN (${placeholders})`).all(...blockIds) as Array<{ id: string }>
     if (rows.length !== new Set(blockIds).size) throw new Error('knowledge conflict contains an unknown citation')
-    const conflictId = `conflict-${createHash('sha256').update(`${request.summary}\n${request.citationIds.join('\n')}`).digest('hex')}`
-    db.prepare('INSERT OR IGNORE INTO conflicts (id, summary, status) VALUES (?, ?, ?)').run(conflictId, request.summary.trim(), 'OPEN')
+    const conflictId = `conflict-${createHash('sha256').update(`${request.experimentId ?? ''}\n${request.summary}\n${request.citationIds.join('\n')}`).digest('hex')}`
+    db.prepare('INSERT OR IGNORE INTO conflicts (id, experiment_id, summary, status) VALUES (?, ?, ?, ?)').run(conflictId, request.experimentId ?? null, request.summary.trim(), 'OPEN')
     const insert = db.prepare('INSERT OR IGNORE INTO conflict_citations (conflict_id, citation_id) VALUES (?, ?)')
     for (const citationId of request.citationIds) insert.run(conflictId, citationId)
-    return { conflictId: brandId<'KnowledgeConflictId'>(conflictId), citationIds: request.citationIds, summary: request.summary.trim(), status: 'OPEN' }
+    return { conflictId: brandId<'KnowledgeConflictId'>(conflictId), ...request.experimentId === undefined ? {} : { experimentId: request.experimentId }, citationIds: request.citationIds, summary: request.summary.trim(), status: 'OPEN' }
   }
 
   /** 按引用 id 确认一个已导入区块。 */
@@ -260,6 +313,8 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
     if (request.confirmedBy.trim().length === 0) throw new Error('confirmedBy must be non-blank')
     const block = db.prepare('SELECT id FROM blocks WHERE id = ?').get(blockId) as { id: string } | undefined
     if (block === undefined) throw new Error(`unknown citation "${request.citationId}"`)
+    const openConflict = db.prepare("SELECT 1 AS found FROM conflict_citations AS cc JOIN conflicts AS c ON c.id = cc.conflict_id WHERE cc.citation_id = ? AND c.status = 'OPEN' LIMIT 1").get(request.citationId) as { found: number } | undefined
+    if (openConflict !== undefined) throw new Error(`citation "${request.citationId}" belongs to an OPEN knowledge conflict`)
     db.prepare('UPDATE blocks SET confirmed = 1 WHERE id = ?').run(blockId)
     db.prepare('INSERT INTO fact_confirmations (block_id, citation_id, confirmed_by, note) VALUES (?, ?, ?, ?)').run(blockId, request.citationId, request.confirmedBy.trim(), request.note ?? null)
   }
@@ -296,27 +351,34 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
     const db = new DatabaseSync(this.path)
     db.exec(`
       PRAGMA foreign_keys = ON;
-      CREATE TABLE IF NOT EXISTS documents (id TEXT PRIMARY KEY, name TEXT NOT NULL) STRICT;
+      CREATE TABLE IF NOT EXISTS documents (id TEXT PRIMARY KEY, name TEXT NOT NULL, metadata_json TEXT) STRICT;
       CREATE TABLE IF NOT EXISTS document_versions (id TEXT PRIMARY KEY, document_id TEXT NOT NULL REFERENCES documents(id), content_hash TEXT NOT NULL UNIQUE, status TEXT NOT NULL, error TEXT, content BLOB NOT NULL) STRICT;
-      CREATE TABLE IF NOT EXISTS blocks (id TEXT PRIMARY KEY, version_id TEXT NOT NULL REFERENCES document_versions(id), document_id TEXT NOT NULL REFERENCES documents(id), location TEXT NOT NULL, content TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'text', page INTEGER, title_path TEXT, confirmed INTEGER NOT NULL DEFAULT 0) STRICT;
+      CREATE TABLE IF NOT EXISTS blocks (id TEXT PRIMARY KEY, version_id TEXT NOT NULL REFERENCES document_versions(id), document_id TEXT NOT NULL REFERENCES documents(id), location TEXT NOT NULL, content TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'text', page INTEGER, title_path TEXT, table_headers TEXT, table_row INTEGER, confirmed INTEGER NOT NULL DEFAULT 0) STRICT;
       CREATE VIRTUAL TABLE IF NOT EXISTS blocks_fts USING fts5(block_id UNINDEXED, content, location UNINDEXED, version_id UNINDEXED);
       CREATE TABLE IF NOT EXISTS block_embeddings (block_id TEXT PRIMARY KEY REFERENCES blocks(id), vector TEXT NOT NULL) STRICT;
       CREATE TABLE IF NOT EXISTS fact_confirmations (id INTEGER PRIMARY KEY, block_id TEXT NOT NULL REFERENCES blocks(id), citation_id TEXT NOT NULL, confirmed_by TEXT NOT NULL, note TEXT, confirmed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP) STRICT;
-      CREATE TABLE IF NOT EXISTS conflicts (id TEXT PRIMARY KEY, summary TEXT NOT NULL, status TEXT NOT NULL) STRICT;
+      CREATE TABLE IF NOT EXISTS conflicts (id TEXT PRIMARY KEY, experiment_id TEXT, summary TEXT NOT NULL, status TEXT NOT NULL) STRICT;
       CREATE TABLE IF NOT EXISTS conflict_citations (conflict_id TEXT NOT NULL REFERENCES conflicts(id), citation_id TEXT NOT NULL, PRIMARY KEY (conflict_id, citation_id)) STRICT;
     `)
+
+    ensureColumn(db, 'documents', 'metadata_json', 'TEXT')
+    ensureColumn(db, 'conflicts', 'experiment_id', 'TEXT')
     ensureColumn(db, 'blocks', 'kind', "TEXT NOT NULL DEFAULT 'text'")
     ensureColumn(db, 'blocks', 'page', 'INTEGER')
     ensureColumn(db, 'blocks', 'title_path', 'TEXT')
+    ensureColumn(db, 'blocks', 'table_headers', 'TEXT')
+    ensureColumn(db, 'blocks', 'table_row', 'INTEGER')
     return db
   }
 
   private async parse(source: { readonly name: string; readonly bytes: Uint8Array }): Promise<readonly ParsedDocumentBlock[]> {
     if (this.documentParser?.supports(source.name) === true) return await this.documentParser.parse(source)
-    if (extname(source.name).toLowerCase() === '.pdf') throw new Error('parser unavailable for PDF input; install a configured document parser before publishing')
+    const extension = extname(source.name).toLowerCase()
+    if (extension === '.pdf') throw new Error('parser unavailable for PDF input; install a configured document parser before publishing')
     const text = new TextDecoder().decode(source.bytes)
-    const isTable = ['.csv', '.tsv'].includes(extname(source.name).toLowerCase())
-    return text.split(/\r?\n/).flatMap((line, index) => line.trim().length === 0 ? [] : [{ location: `${isTable ? 'row' : 'line'}:${index + 1}`, content: line.trim(), kind: isTable ? 'table' as const : 'text' as const }])
+    if (extension === '.csv') return parseTableBlocks(text, ',')
+    if (extension === '.tsv') return parseTableBlocks(text, '\t')
+    return text.split(/\r?\n/).flatMap((line, index) => line.trim().length === 0 ? [] : [{ location: `line:${index + 1}`, content: line.trim(), kind: 'text' as const }])
   }
 
   private async vectorFor(text: string): Promise<readonly number[]> {
@@ -327,12 +389,96 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
   }
 }
 
+function parseTableBlocks(text: string, delimiter: ',' | '\t'): readonly ParsedDocumentBlock[] {
+  const rows = parseDelimitedRows(text, delimiter)
+  if (rows.length === 0) return []
+  const width = Math.max(...rows.map(row => row.length))
+  const headers = Array.from({ length: width }, (_, index) => `column${index + 1}`)
+  return rows.flatMap((row, index) => {
+    if (row.every(cell => cell.trim().length === 0)) return []
+    const tableRow = index + 1
+    return [{
+      location: `row:${tableRow}`,
+      content: formatTableRow(headers, row),
+      kind: 'table' as const,
+      tableHeaders: headers,
+      tableRow,
+    }]
+  })
+}
+
+function parseDelimitedRows(text: string, delimiter: ',' | '\t'): readonly (readonly string[])[] {
+  const rows: string[][] = []
+  const source = text.replace(/^\uFEFF/, '')
+  let row: string[] = []
+  let field = ''
+  let quoted = false
+  const pushRow = (): void => {
+    rows.push(row)
+    row = []
+  }
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index]
+    if (character === undefined) continue
+    if (quoted) {
+      if (character === '"' && source[index + 1] === '"') {
+        field += '"'
+        index += 1
+      } else if (character === '"') {
+        quoted = false
+      } else {
+        field += character
+      }
+      continue
+    }
+    if (character === '"' && field.length === 0) {
+      quoted = true
+    } else if (character === delimiter) {
+      row.push(field)
+      field = ''
+    } else if (character === '\n' || character === '\r') {
+      if (character === '\r' && source[index + 1] === '\n') index += 1
+      row.push(field)
+      field = ''
+      pushRow()
+    } else {
+      field += character
+    }
+  }
+  if (quoted) throw new Error('unterminated quoted table field')
+  if (field.length > 0 || row.length > 0) {
+    row.push(field)
+    pushRow()
+  }
+  return rows.filter(candidate => candidate.some(cell => cell.trim().length > 0))
+}
+
+function formatTableRow(headers: readonly string[], row: readonly string[]): string {
+  return headers.map((header, index) => `${header}: ${(row[index] ?? '').trim()}`).join(' | ')
+}
+
 /** 把 Provider 注册到 Knowledge Service。 */
 export function apply(ctx: Context, config: Config): void {
   ctx.effect(() => {
     const provider = new LocalKnowledgeProvider(config)
     return ctx.labKnowledge.registerProvider(provider)
   }, 'lab-knowledge-local.provider')
+}
+
+function sourceMetadata(request: ImportDocumentRequest, source: { readonly name: string }): Readonly<Record<string, string>> {
+  return { ...request.metadata, sourceKind: request.source.kind, sourceName: source.name }
+}
+
+function parseMetadata(value: string | null | undefined): Readonly<Record<string, string>> | undefined {
+  if (value === null || value === undefined) return undefined
+  const parsed: unknown = JSON.parse(value)
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('stored document metadata is invalid')
+  const metadata: Record<string, string> = {}
+  for (const [key, item] of Object.entries(parsed)) {
+    if (typeof item !== 'string') throw new Error('stored document metadata field ' + key + ' is invalid')
+    metadata[key] = item
+  }
+  return metadata
 }
 
 async function readSource(request: ImportDocumentRequest): Promise<{ name: string; bytes: Uint8Array }> {
@@ -358,10 +504,28 @@ function searchFilter(request: KnowledgeSearchRequest): { sql: string; params: S
     params.push(...request.versionIds)
   }
   if (request.confirmed !== undefined) {
-    clauses.push('b.confirmed = ?')
-    params.push(request.confirmed ? 1 : 0)
+    clauses.push(request.confirmed ? `b.confirmed = 1 AND NOT (${OPEN_CONFLICT_SQL})` : `(b.confirmed = 0 OR ${OPEN_CONFLICT_SQL})`)
   }
   return { sql: clauses.length === 0 ? '' : ` AND ${clauses.join(' AND ')}`, params }
+}
+
+function searchResult(row: SearchRow | EmbeddingRow, score: number): KnowledgeSearchResult {
+  const titlePath = row.title_path === null ? undefined : parseTitlePath(row.title_path)
+  return {
+    citationId: brandId<'CitationId'>(`citation-${row.block_id}`),
+    documentId: brandId<'KnowledgeDocumentId'>(row.document_id),
+    versionId: brandId<'KnowledgeDocumentVersionId'>(row.version_id),
+    location: row.location,
+    excerpt: row.content,
+    kind: row.kind,
+    ...row.page === null ? {} : { page: row.page },
+    ...titlePath === undefined ? {} : { titlePath },
+    ...row.table_headers === null ? {} : { tableHeaders: parseTableHeaders(row.table_headers) },
+    ...row.table_row === null ? {} : { tableRow: row.table_row },
+    confirmed: row.confirmed === 1 && row.conflicted === 0,
+    conflicted: row.conflicted === 1,
+    score,
+  }
 }
 
 function ftsQuery(query: string): string {
@@ -374,10 +538,22 @@ function citationBlockId(citationId: CitationId): string {
   return citationId.slice(prefix.length)
 }
 
+function parseTitlePath(value: string): readonly string[] {
+  const parsed: unknown = JSON.parse(value)
+  if (!Array.isArray(parsed) || parsed.some(item => typeof item !== 'string')) throw new Error('stored title path is invalid')
+  return parsed as readonly string[]
+}
+
+function parseTableHeaders(value: string): readonly string[] {
+  const parsed: unknown = JSON.parse(value)
+  if (!Array.isArray(parsed) || parsed.some(item => typeof item !== 'string')) throw new Error('stored table headers are invalid')
+  return parsed as readonly string[]
+}
+
 function parseVector(value: string): readonly number[] {
   const parsed: unknown = JSON.parse(value)
   if (!Array.isArray(parsed) || parsed.some(item => typeof item !== 'number' || !Number.isFinite(item))) throw new Error('stored embedding vector is invalid')
-  return parsed
+  return parsed as readonly number[]
 }
 
 function cosineSimilarity(left: readonly number[], right: readonly number[]): number {
@@ -386,8 +562,9 @@ function cosineSimilarity(left: readonly number[], right: readonly number[]): nu
   let leftNorm = 0
   let rightNorm = 0
   for (let index = 0; index < left.length; index += 1) {
-    const leftValue = left[index]!
-    const rightValue = right[index]!
+    const leftValue = left[index]
+    const rightValue = right[index]
+    if (leftValue === undefined || rightValue === undefined) throw new Error('embedding vector index is missing')
     dot += leftValue * rightValue
     leftNorm += leftValue * leftValue
     rightNorm += rightValue * rightValue

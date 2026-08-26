@@ -85,7 +85,7 @@ describe('tool-lab-planning', () => {
     const contextResult = await execute(ctx, agent, 'lab_plan_context', { request })
     expect(contextResult.isError).toBe(false)
     const context = JSON.parse(text(contextResult)) as { objective: string; citations: Array<{ citationId: string; excerpt: string }> }
-    expect(context).toMatchObject({ objective: 'alpha', citations: [{ excerpt: 'alpha,42' }] })
+    expect(context).toMatchObject({ objective: 'alpha', citations: [{ excerpt: 'column1: alpha | column2: 42', kind: 'table', tableHeaders: ['column1', 'column2'], tableRow: 1 }] })
     const citationId = context.citations[0]!.citationId
 
     const proposalResult = await execute(ctx, agent, 'lab_plan_propose', {
@@ -121,6 +121,12 @@ describe('tool-lab-planning', () => {
         status: 'DRAFT',
         name: 'dispense-sample',
         purpose: 'Dispense a sample with a configured device.',
+        applicability: ['configured dispenser'],
+        inputs: ['sample'],
+        outputs: ['dispensed sample'],
+        parameterConstraints: { volume: 'positive uL volume' },
+        completionConditions: ['receipt recorded'],
+        failurePolicy: 'STOP',
         citations: [citationId],
         operations: [{ kind: 'device', resourceRef: 'dispense', installed: true }],
       }],

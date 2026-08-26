@@ -43,7 +43,11 @@ const SEARCH_RESULT_SCHEMA = {
     versionId: { type: 'string', required: true },
     location: { type: 'string', required: true },
     excerpt: { type: 'string', required: true },
+    kind: { type: 'string', enum: ['text', 'table'] },
+    page: { type: 'integer' },
+    titlePath: { type: 'array', items: { type: 'string' } },
     confirmed: { type: 'boolean', required: true },
+    conflicted: { type: 'boolean', required: true },
     score: { type: 'number', required: true },
   },
 } as const
@@ -53,6 +57,7 @@ const CONFLICT_SCHEMA = {
   additionalProperties: false,
   properties: {
     conflictId: { type: 'string', required: true },
+    experimentId: { type: 'string' },
     citationIds: { type: 'array', required: true, items: { type: 'string' } },
     summary: { type: 'string', required: true },
     status: { type: 'string', required: true, enum: ['OPEN', 'RESOLVED'] },
@@ -99,7 +104,8 @@ function install(agent: Agent, knowledge: KnowledgeService): () => void {
       output: jsonOutput(IMPORT_OUTPUT_SCHEMA),
       async execute(args, exec) {
         callingAgent(exec.agent, 'lab_knowledge_import')
-        return await knowledge.importDocument({ source: { kind: 'path', path: args.path } })
+        const result = await knowledge.importDocument({ source: { kind: 'path', path: args.path } })
+        return { documentId: result.documentId, versionId: result.versionId, status: result.status }
       },
     })))
 
@@ -113,8 +119,18 @@ function install(agent: Agent, knowledge: KnowledgeService): () => void {
       output: jsonOutput(STATUS_OUTPUT_SCHEMA),
       async execute(args, exec) {
         callingAgent(exec.agent, 'lab_knowledge_status')
-        const result = await knowledge.getImportStatus(brandId<'KnowledgeDocumentId'>(args.document_id), args.version_id === undefined ? undefined : brandId<'KnowledgeDocumentVersionId'>(args.version_id))
-        return result === undefined ? { found: false } : { found: true, ...result }
+        const result = await knowledge.getImportStatus(
+          brandId<'KnowledgeDocumentId'>(args.document_id),
+          args.version_id === undefined ? undefined : brandId<'KnowledgeDocumentVersionId'>(args.version_id),
+        )
+        if (result === undefined) return { found: false }
+        return {
+          found: true,
+          documentId: result.documentId,
+          versionId: result.versionId,
+          status: result.status,
+          ...result.error === undefined ? {} : { error: result.error },
+        }
       },
     })))
 
@@ -131,14 +147,26 @@ function install(agent: Agent, knowledge: KnowledgeService): () => void {
       output: jsonOutput({ type: 'array', items: SEARCH_RESULT_SCHEMA } as const),
       async execute(args, exec) {
         callingAgent(exec.agent, 'lab_knowledge_search')
-        return [...await knowledge.search({
+        const results = await knowledge.search({
           query: args.query,
           ...args.document_ids === undefined ? {} : { documentIds: args.document_ids.map(id => brandId<'KnowledgeDocumentId'>(id)) },
           ...args.version_ids === undefined ? {} : { versionIds: args.version_ids.map(id => brandId<'KnowledgeDocumentVersionId'>(id)) },
           ...args.confirmed === undefined ? {} : { confirmed: args.confirmed },
           ...args.limit === undefined ? {} : { limit: args.limit },
-        })]
-      },
+        })
+        return results.map(result => ({
+          citationId: result.citationId,
+          documentId: result.documentId,
+          versionId: result.versionId,
+          location: result.location,
+          excerpt: result.excerpt,
+          confirmed: result.confirmed,
+          conflicted: result.conflicted,
+          score: result.score,
+          ...result.kind === undefined ? {} : { kind: result.kind },
+          ...result.page === undefined ? {} : { page: result.page },
+          ...result.titlePath === undefined ? {} : { titlePath: [...result.titlePath] },
+        }))      },
     })))
 
     register(agent.ctx.tools.register(defineTool({

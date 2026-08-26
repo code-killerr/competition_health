@@ -37,7 +37,10 @@ export class KnowledgeService extends Service {
     super(ctx, 'labKnowledge')
   }
 
-  /** 注册本进程唯一的知识 Provider。 */
+  /** 注册本进程唯一的知识 Provider。
+ * @param provider - provider that owns knowledge storage and retrieval.
+ * @returns - disposer for the registered provider.
+ */
   registerProvider(provider: KnowledgeProvider): () => void {
     if (this.provider !== undefined) throw new LabDuplicateProviderError('knowledge')
     const dispose = this.ctx.effect(() => {
@@ -50,32 +53,50 @@ export class KnowledgeService extends Service {
     return () => void dispose()
   }
 
-  /** 登记资料并返回版本状态。 */
+  /** 登记资料并返回版本状态。
+ * @param request - immutable source registration request.
+ * @returns - imported document version status.
+ */
   importDocument(request: ImportDocumentRequest): Promise<ImportDocumentResult> {
     return this.requireProvider().importDocument(request)
   }
 
-  /** 读取资料导入状态。 */
+  /** 读取资料导入状态。
+ * @param documentId - document to inspect.
+ * @param versionId - optional version to inspect.
+ * @returns - import status, when the document or version exists.
+ */
   getImportStatus(documentId: KnowledgeDocumentId, versionId?: KnowledgeDocumentVersionId): Promise<ImportStatusResult | undefined> {
     return this.requireProvider().getImportStatus(documentId, versionId)
   }
 
-  /** 执行带上下文过滤和引用的知识检索。 */
+  /** 执行带上下文过滤和引用的知识检索。
+ * @param request - query, filters, and result limits.
+ * @returns - ranked citation results.
+ */
   search(request: KnowledgeSearchRequest): Promise<readonly KnowledgeSearchResult[]> {
     return this.requireProvider().search(request)
   }
 
-  /** 列出冲突事实。 */
+  /** 列出冲突事实。
+ * @param experimentId - optional experiment scope.
+ * @returns - recorded knowledge conflicts.
+ */
   listConflicts(experimentId?: KnowledgeSearchRequest['experimentId']): Promise<readonly KnowledgeConflict[]> {
     return this.requireProvider().listConflicts(experimentId)
   }
 
-  /** 登记一条待人工处理的知识冲突。 */
+  /** 登记一条待人工处理的知识冲突。
+ * @param request - conflict details and cited facts.
+ * @returns - persisted conflict record.
+ */
   recordConflict(request: RecordConflictRequest): Promise<KnowledgeConflict> {
     return this.requireProvider().recordConflict(request)
   }
 
-  /** 确认一条带来源的事实。 */
+  /** 确认一条带来源的事实。
+ * @param request - citation confirmation request.
+ */
   confirmFact(request: ConfirmFactRequest): Promise<void> {
     return this.requireProvider().confirmFact(request)
   }

@@ -6,6 +6,7 @@ import type {
   KnowledgeDocumentId,
   KnowledgeDocumentVersionId,
   KnowledgeImportStatus,
+  ExperimentId,
   KnowledgeSearchRequest,
   KnowledgeSearchResult,
   KnowledgeSource,
@@ -22,6 +23,7 @@ export interface ImportDocumentResult {
   readonly documentId: KnowledgeDocumentId
   readonly versionId: KnowledgeDocumentVersionId
   readonly status: KnowledgeImportStatus
+  readonly metadata?: Readonly<Record<string, string>>
 }
 
 /** 查询导入状态。 */
@@ -38,6 +40,8 @@ export interface ConfirmFactRequest {
 
 /** 登记一条需要人工处理的知识冲突。 */
 export interface RecordConflictRequest {
+
+  readonly experimentId?: ExperimentId
   readonly citationIds: readonly CitationId[]
   readonly summary: string
 }

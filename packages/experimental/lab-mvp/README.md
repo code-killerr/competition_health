@@ -1,22 +1,27 @@
 # @deepseek-ai/dsh-experimental-lab-mvp
+English | [中文](README.zh.md)
 
-Opt-in bundle that mounts the first-round laboratory Knowledge, Planning, Lab Skill, Device, and Runtime Service Definitions.
+Opt-in bundle for the first-round laboratory prototype. It mounts the Knowledge, Planning, Lab Skill, Device, and Runtime Service Definitions together with the local Knowledge, Planning, Skill, Mock Device, Runtime, and read-only Web Consumer Providers.
 
-The bundle intentionally mounts no local Provider and changes no default Harness profile. It is a composition seam for I0 and later increments.
+Configure knowledgePath, planning, skill, and device when loading the bundle. The default Harness profile is unchanged; this bundle must be explicitly composed. Agent-facing tools remain a separate opt-in Consumer in tool-lab.
 
 ## Model Experience
 
-No tools or prompts are added by this bundle. Consumers and Providers own model-visible behavior.
+### Controlled laboratory context
 
-### Token impact
+#### What the model sees
 
-None until a tool Consumer is explicitly composed.
+The model sees approved plans, controlled run states, and bounded observations through the package typed service or `lab_*` tools.
 
-### KV-cache impact
+#### Token effect
 
-None until a Provider and experiment session are explicitly composed.
+Only requested plan fields, current-step status, and bounded evidence are returned; local storage details remain host-side.
+
+#### KV Cache effect
+
+Stable experiment, plan, Skill revision, and run identifiers keep repeated step results compact and prefix-friendly.
 
 ## Known Limitations and Deferred Work
 
-- It does not execute experiments, ingest files, or connect to devices by itself.
-- A local Provider bundle and tool Consumer are planned for later increments.
+- This experimental package provides local typed contracts and does not claim production persistence, recovery, or hardware integration.
+- Tool registration is not automatic for an Agent unless tool-lab is explicitly composed.

@@ -60,6 +60,10 @@ import * as ToolSessionQuery from '@deepseek-ai/dsh-tool-session-query'
 import * as ToolTasks from '@deepseek-ai/dsh-tool-jobs'
 import type TeamService from '@deepseek-ai/dsh-experimental-agent-team'
 import * as ToolTeam from '@deepseek-ai/dsh-experimental-tool-agent-team'
+import * as LabMvp from '@deepseek-ai/dsh-experimental-lab-mvp'
+import * as ToolLab from '@deepseek-ai/dsh-experimental-tool-lab'
+import * as ToolLabKnowledge from '@deepseek-ai/dsh-experimental-tool-lab-knowledge'
+import * as ToolLabPlanning from '@deepseek-ai/dsh-experimental-tool-lab-planning'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
@@ -115,6 +119,28 @@ function registerCatalogSubagentProvider(ctx: Context, name: string): void {
 
 /** Minted child-scope keys for packages whose tools are never global. */
 const catalogChildScopes = new WeakMap<Context, Agent>()
+
+/** Boot one registered Agent scope for tools that install per Agent. */
+async function mountCatalogAgentScope(
+  ctx: Context,
+  mountScoped: (agentCtx: Context) => void | PromiseLike<unknown>,
+  inject: string[],
+): Promise<void> {
+  await ctx.plugin(SessionStore)
+  const session = ctx.sessions.create(SessionId('tool-catalog-lab-agent'))
+  const agent = {
+    id: session.id,
+    session,
+    options: {},
+    status: 'idle',
+  } as unknown as Agent
+  await ctx.plugin(Object.assign(async (inner: Context) => {
+    Object.assign(agent, { ctx: createScope(inner, agent).ctx })
+    inner.agents.register(agent)
+    catalogChildScopes.set(ctx, agent)
+    await mountScoped(agent.ctx)
+  }, { inject }))
+}
 
 /**
  * Install one scope-local tool package into an agent-like child scope for
@@ -186,6 +212,48 @@ export interface ToolPackage {
  * guard proves it is exhaustive against the on-disk glob.
  */
 const TOOL_PACKAGES: ToolPackage[] = [
+  {
+    pkg: '@deepseek-ai/dsh-experimental-tool-lab-knowledge',
+    dir: 'tool-lab-knowledge',
+    source: 'packages/experimental/tool-lab-knowledge/src/index.ts',
+    requires: ['ctx.tools', 'ctx.agents', 'ctx.labKnowledge'],
+    writes: ['tool/call', 'tool/result', 'lab knowledge events'],
+    async mount(ctx) {
+      await ctx.plugin(LabMvp, { knowledgePath: ':memory:', device: { devices: [] } })
+      await ctx.plugin(AgentRegistry)
+      await mountCatalogAgentScope(ctx, agentCtx => agentCtx.plugin(ToolLabKnowledge), ['tools', 'systemPrompt', 'agents', 'labKnowledge'])
+    },
+    scope: ctx => catalogChildScopes.get(ctx) as Agent,
+    note: 'The catalog boots the local Knowledge Provider in memory and exposes the scoped knowledge tools through one synthetic Agent.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-experimental-tool-lab-planning',
+    dir: 'tool-lab-planning',
+    source: 'packages/experimental/tool-lab-planning/src/index.ts',
+    requires: ['ctx.tools', 'ctx.agents', 'ctx.labPlanning', 'ctx.labDevices'],
+    writes: ['tool/call', 'tool/result', 'lab planning events'],
+    async mount(ctx) {
+      await ctx.plugin(LabMvp, { knowledgePath: ':memory:', device: { devices: [] } })
+      await ctx.plugin(AgentRegistry)
+      await mountCatalogAgentScope(ctx, agentCtx => agentCtx.plugin(ToolLabPlanning), ['tools', 'systemPrompt', 'agents', 'labPlanning', 'labDevices'])
+    },
+    scope: ctx => catalogChildScopes.get(ctx) as Agent,
+    note: 'The catalog boots the local Planning, Knowledge, Skill, and Mock Device Providers and exposes the scoped planning tools through one synthetic Agent.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-experimental-tool-lab',
+    dir: 'tool-lab',
+    source: 'packages/experimental/tool-lab/src/index.ts',
+    requires: ['ctx.tools', 'ctx.agents', 'ctx.labRuntime', 'the composed local lab providers'],
+    writes: ['tool/call', 'tool/result', 'experiment planning and controlled-run events'],
+    async mount(ctx) {
+      await ctx.plugin(LabMvp, { knowledgePath: ':memory:', device: { devices: [] } })
+      await ctx.plugin(AgentRegistry)
+      await mountCatalogAgentScope(ctx, agentCtx => agentCtx.plugin(ToolLab), ['tools', 'systemPrompt', 'agents', 'labRuntime', 'labPlanning', 'labKnowledge', 'labSkills', 'labDevices'])
+    },
+    scope: ctx => catalogChildScopes.get(ctx) as Agent,
+    note: 'The catalog boots the complete local laboratory bundle in memory and exposes the aggregate scoped experiment tools through one synthetic Agent.',
+  },
   {
     pkg: '@deepseek-ai/dsh-tool-ask-user',
     dir: 'tool-ask-user',

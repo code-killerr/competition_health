@@ -13,3 +13,7 @@
 - `lab_knowledge_confirm` 记录具名人工对引用事实的确认。
 
 本包不选择模型、provider、preset、API Key 或 Session 实现，这些仍由 DeepSeek Harness 配置负责；本包也不执行文档解析器、脚本、设备命令或模型生成的任意输出。
+
+## 已知限制与暂缓事项
+
+- 本实验包提供本地类型化能力，不承诺生产持久化、恢复或硬件集成。

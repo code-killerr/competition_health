@@ -2,23 +2,26 @@
 
 [English](README.md) | 中文
 
-第一阶段 opt-in 组合包，挂载实验 Knowledge、Planning、Lab Skill、Device 和 Runtime Service Definition。
+第一阶段实验原型的 opt-in 组合包。它组合 Knowledge、Planning、Lab Skill、Device 和 Runtime Service Definition，并挂载本地 Knowledge、Planning、Skill、Mock Device、Runtime 以及只读 Web Consumer Provider。
 
-本组合包不挂载本地 Provider，也不修改 Harness 默认 profile，是 I0 及后续增量的组合接缝。
+加载本组合包时可配置 knowledgePath、planning、skill 和 device。Harness 默认 profile 不变，必须显式组合本包。面向 Agent 的工具仍由 tool-lab 作为独立 opt-in Consumer 提供。
 
 ## 模型体验
 
-本组合包不新增工具或提示词，模型可见行为由 Consumer 和 Provider 负责。
+### 受控实验上下文
 
-### Token 影响
+#### 模型看到的内容
 
-只有显式组合工具 Consumer 后才会产生影响。
+模型通过类型化服务或 `lab_*` 工具看到已批准计划、受控运行状态和有边界的观察结果。
 
-### KV Cache 影响
+#### Token 影响
 
-只有显式组合 Provider 和实验 Session 后才会产生影响。
+仅返回请求的计划字段、当前步骤状态和有边界的证据；本地存储细节留在宿主侧。
 
+#### KV Cache 影响
+
+实验、计划、Skill 修订和运行 id 保持稳定，使重复步骤结果保持紧凑并利于复用前缀。
 ## 已知限制与暂缓事项
 
-- 本包自身不执行实验、不录入资料、不连接设备。
-- 本地 Provider 组合和工具 Consumer 计划在后续增量实现。
+- 本实验包提供本地类型化能力，不承诺生产持久化、恢复或硬件集成。
+- Agent 未显式组合 tool-lab 时不会自动注册实验工具。

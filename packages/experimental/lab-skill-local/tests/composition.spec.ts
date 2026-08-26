@@ -17,6 +17,12 @@ describe('lab-skill-local Harness composition', () => {
       status: 'DRAFT',
       name: 'prepare-sample',
       purpose: 'Prepare a sample with an approved operation.',
+      applicability: ['sample preparation'],
+      inputs: ['sample'],
+      outputs: ['prepared sample'],
+      parameterConstraints: { volume: 'positive unit volume' },
+      completionConditions: ['operation receipt recorded'],
+      failurePolicy: 'BLOCK',
       citations: [],
       operations: [{ kind: 'human', resourceRef: 'human:prepare-sample', installed: true }],
     })

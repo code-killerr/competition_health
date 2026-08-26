@@ -14,6 +14,7 @@ describe('LocalLabPlanningProvider', () => {
       location: 'row:2',
       excerpt: 'dispense sample',
       confirmed: true,
+      conflicted: false,
       score: 0.9,
     }
     const conflict: KnowledgeConflict = {
@@ -99,6 +100,12 @@ function makeSkillDraft() {
     status: 'DRAFT' as const,
     name: 'dispense-sample',
     purpose: 'Dispense a sample with a configured device.',
+    applicability: ['configured dispenser'],
+    inputs: ['sample'],
+    outputs: ['dispensed sample'],
+    parameterConstraints: { volume: 'positive uL volume' },
+    completionConditions: ['receipt recorded'],
+    failurePolicy: 'STOP' as const,
     citations: [brandId<'CitationId'>('citation-1')],
     operations: [{ kind: 'device' as const, resourceRef: 'dispense', installed: true }],
   }

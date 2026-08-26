@@ -8,7 +8,9 @@ const skillRevisionId = brandId<'SkillRevisionId'>('skill-revision-1')
 function context(overrides: Partial<PlanValidationContext> = {}): PlanValidationContext {
   return {
     availableInputs: new Set(['sample']),
+    availableCitations: new Set([citationId]),
     skillStatuses: new Map([[skillRevisionId, 'ACTIVE']]),
+    skillParameterConstraints: new Map([[skillRevisionId, { volume: 'positive uL volume' }]]),
     installedOperations: new Set(['device:dispense']),
     deviceCapabilities: new Map([[deviceId, ['dispense']]]),
     ...overrides,
@@ -96,6 +98,40 @@ describe('validateExperimentPlan', () => {
       'REQUIRED_INPUT_MISSING',
       'OPERATION_NOT_INSTALLED',
       'DEVICE_CAPABILITY_UNAVAILABLE',
+    ]))
+  })
+
+  it('rejects non-draft plans and step citations that are not carried by the plan', () => {
+    const otherCitation = brandId<'CitationId'>('citation-2')
+    const invalid = plan({
+      status: 'VALIDATED',
+      citations: [citationId],
+      steps: [{ ...plan().steps[0]!, citations: [otherCitation] }],
+    })
+    const result = validateExperimentPlan(invalid, context({
+      availableCitations: new Set([citationId, otherCitation]),
+      requiredCitations: new Set([otherCitation]),
+    }))
+
+    expect(result.issues.map(issue => issue.code)).toEqual(expect.arrayContaining([
+      'PLAN_STATUS_INVALID',
+      'CITATION_SOURCE_MISSING',
+      'CITATION_NOT_IN_PLAN',
+    ]))
+  })
+
+  it('enforces declared Skill parameter constraints', () => {
+    const invalid = plan({
+      steps: [{
+        ...plan().steps[0]!,
+        parameters: { volume: { value: 0, unit: 'mL' }, mode: 'fast' },
+      }],
+    })
+    const result = validateExperimentPlan(invalid, context())
+
+    expect(result.issues.map(issue => issue.code)).toEqual(expect.arrayContaining([
+      'PARAMETER_CONSTRAINT_VIOLATION',
+      'PARAMETER_UNDECLARED',
     ]))
   })
 })

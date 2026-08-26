@@ -65,6 +65,7 @@ function install(agent: Agent, planning: LabPlanningService, devices: LabDeviceS
       parameters: {},
       output: jsonOutput(DEVICE_OUTPUT_SCHEMA),
       async execute(_args, exec) {
+        await Promise.resolve()
         callingAgent(exec.agent, 'lab_plan_devices')
         return jsonValue(devices.listDevices()) as JsonValue[]
       },
@@ -126,7 +127,6 @@ export function apply(ctx: Context): void {
 
 function jsonValue(value: unknown): JsonValue {
   const serialized = JSON.stringify(value)
-  if (serialized === undefined) throw new Error('planning result is not JSON serializable')
   return JSON.parse(serialized) as JsonValue
 }
 
@@ -197,6 +197,12 @@ function parseSkillDraft(value: unknown, path: string) {
     status: literal(object.status, `${path}.status`, ['DRAFT'] as const),
     name: string(object.name, `${path}.name`),
     purpose: string(object.purpose, `${path}.purpose`),
+    applicability: array(object.applicability, `${path}.applicability`).map((item, index) => string(item, `${path}.applicability[${index}]`)),
+    inputs: array(object.inputs, `${path}.inputs`).map((item, index) => string(item, `${path}.inputs[${index}]`)),
+    outputs: array(object.outputs, `${path}.outputs`).map((item, index) => string(item, `${path}.outputs[${index}]`)),
+    parameterConstraints: stringRecord(object.parameterConstraints, `${path}.parameterConstraints`),
+    completionConditions: array(object.completionConditions, `${path}.completionConditions`).map((item, index) => string(item, `${path}.completionConditions[${index}]`)),
+    failurePolicy: literal(object.failurePolicy, `${path}.failurePolicy`, ['BLOCK', 'STOP', 'REPLAN'] as const),
     citations: array(object.citations, `${path}.citations`).map((item, index) => brandId<'CitationId'>(string(item, `${path}.citations[${index}]`))),
     operations: array(object.operations, `${path}.operations`).map((item, index) => {
       const operation = record(item, `${path}.operations[${index}]`)
@@ -207,6 +213,11 @@ function parseSkillDraft(value: unknown, path: string) {
       }
     }),
   }
+}
+
+function stringRecord(value: unknown, path: string): Readonly<Record<string, string>> {
+  const object = record(value, path)
+  return Object.fromEntries(Object.entries(object).map(([key, item]) => [key, string(item, `${path}.${key}`)]))
 }
 
 function parameterRecord(value: unknown, path: string): Readonly<Record<string, PlanParameter>> {
@@ -253,12 +264,7 @@ function array(value: unknown, path: string): unknown[] {
   return value
 }
 
-function stringRecord(value: unknown, path: string): Readonly<Record<string, string>> {
-  const object = record(value, path)
-  return Object.fromEntries(Object.entries(object).map(([key, item]) => [key, string(item, `${path}.${key}`)]))
-}
-
 function literal<const T extends readonly string[]>(value: unknown, path: string, values: T): T[number] {
   if (typeof value !== 'string' || !values.includes(value)) throw new Error(`${path} must be one of ${values.join(', ')}`)
-  return value as T[number]
+  return value
 }
