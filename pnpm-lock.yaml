@@ -1350,6 +1350,12 @@ importers:
       '@deepseek-ai/dsh-client-ui-jobs':
         specifier: workspace:^
         version: link:../../client/ui-jobs
+      '@deepseek-ai/dsh-client-ui-lab-knowledge-workspace':
+        specifier: workspace:^
+        version: link:../../client/ui-lab-knowledge-workspace
+      '@deepseek-ai/dsh-client-ui-lab-workbench':
+        specifier: workspace:^
+        version: link:../../client/ui-lab-workbench
       '@deepseek-ai/dsh-client-ui-layout':
         specifier: workspace:^
         version: link:../../client/ui-layout
