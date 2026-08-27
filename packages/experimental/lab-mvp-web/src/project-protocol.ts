@@ -10,6 +10,7 @@ export type LabProjectConversationCommand = { readonly sessionId?: SessionId } &
   | { readonly command: 'project-list' }
   | { readonly command: 'project-open'; readonly projectId: LabProjectId }
   | { readonly command: 'project-scope-update'; readonly projectId: LabProjectId; readonly sources: readonly LabProjectSourceSelection[]; readonly deviceIds: readonly DeviceId[] }
+  | { readonly command: 'project-session-create'; readonly projectId: LabProjectId; readonly title?: string }
   | { readonly command: 'project-session-associate'; readonly projectId: LabProjectId; readonly targetSessionId: SessionId; readonly title?: string }
   | { readonly command: 'project-session-rename'; readonly projectId: LabProjectId; readonly targetSessionId: SessionId; readonly title: string }
   | { readonly command: 'project-context'; readonly projectId: LabProjectId }
@@ -22,63 +23,73 @@ export type LabProjectConversationResult =
   | { readonly kind: 'project'; readonly value: unknown }
   | { readonly kind: 'project-context'; readonly value: unknown }
 
-/** Parse one unknown JSON value into a project/conversation command. */
+/** Parse one unknown JSON value into a project/conversation command.
+ * @param value - unknown JSON value at the Web boundary.
+ * @returns - validated project/conversation command.
+ */
 export function parseLabProjectConversationCommand(value: unknown): LabProjectConversationCommand {
   const object = record(value, 'command')
   const command = literal(object.command, 'command.command', [
     'project-create', 'project-list', 'project-open', 'project-scope-update',
+    'project-session-create',
     'project-session-associate', 'project-session-rename', 'project-context',
     'project-planning-context',
   ] as const)
   const sessionId = object.sessionId === undefined ? undefined : brandId<'SessionId'>(nonBlankString(object.sessionId, 'command.sessionId'))
   const parsed = (() => {
     switch (command) {
-    case 'project-create':
-      return {
-        command,
-        projectId: projectId(object.projectId, 'command.projectId'),
-        name: nonBlankString(object.name, 'command.name'),
-        ...object.description === undefined ? {} : { description: stringValue(object.description, 'command.description') },
-      }
-    case 'project-list':
-      return { command }
-    case 'project-open':
-      return { command, projectId: projectId(object.projectId, 'command.projectId') }
-    case 'project-scope-update':
-      return {
-        command,
-        projectId: projectId(object.projectId, 'command.projectId'),
-        sources: array(object.sources, 'command.sources').map((item, index) => {
-          const source = record(item, `command.sources[${index}]`)
-          return {
-            documentId: brandId<'KnowledgeDocumentId'>(nonBlankString(source.documentId, `command.sources[${index}].documentId`)),
-            versionId: brandId<'KnowledgeDocumentVersionId'>(nonBlankString(source.versionId, `command.sources[${index}].versionId`)),
-          }
-        }),
-        deviceIds: stringArray(object.deviceIds, 'command.deviceIds').map(item => brandId<'DeviceId'>(item)),
-      }
-    case 'project-session-associate':
-      return {
-        command,
-        projectId: projectId(object.projectId, 'command.projectId'),
-        targetSessionId: sessionIdValue(object.targetSessionId, 'command.targetSessionId'),
-        ...object.title === undefined ? {} : { title: nonBlankString(object.title, 'command.title') },
-      }
-    case 'project-session-rename':
-      return {
-        command,
-        projectId: projectId(object.projectId, 'command.projectId'),
-        targetSessionId: sessionIdValue(object.targetSessionId, 'command.targetSessionId'),
-        title: nonBlankString(object.title, 'command.title'),
-      }
-    case 'project-context':
-      return { command, projectId: projectId(object.projectId, 'command.projectId') }
-    case 'project-planning-context':
-      return {
-        command,
-        projectId: projectId(object.projectId, 'command.projectId'),
-        request: parseExperimentRequest(object.request, 'command.request'),
-      }
+      case 'project-create':
+        return {
+          command,
+          projectId: projectId(object.projectId, 'command.projectId'),
+          name: nonBlankString(object.name, 'command.name'),
+          ...object.description === undefined ? {} : { description: stringValue(object.description, 'command.description') },
+        }
+      case 'project-list':
+        return { command }
+      case 'project-open':
+        return { command, projectId: projectId(object.projectId, 'command.projectId') }
+      case 'project-scope-update':
+        return {
+          command,
+          projectId: projectId(object.projectId, 'command.projectId'),
+          sources: array(object.sources, 'command.sources').map((item, index) => {
+            const source = record(item, `command.sources[${index}]`)
+            return {
+              documentId: brandId<'KnowledgeDocumentId'>(nonBlankString(source.documentId, `command.sources[${index}].documentId`)),
+              versionId: brandId<'KnowledgeDocumentVersionId'>(nonBlankString(source.versionId, `command.sources[${index}].versionId`)),
+            }
+          }),
+          deviceIds: stringArray(object.deviceIds, 'command.deviceIds').map(item => brandId<'DeviceId'>(item)),
+        }
+      case 'project-session-create':
+        return {
+          command,
+          projectId: projectId(object.projectId, 'command.projectId'),
+          ...object.title === undefined ? {} : { title: nonBlankString(object.title, 'command.title') },
+        }
+      case 'project-session-associate':
+        return {
+          command,
+          projectId: projectId(object.projectId, 'command.projectId'),
+          targetSessionId: sessionIdValue(object.targetSessionId, 'command.targetSessionId'),
+          ...object.title === undefined ? {} : { title: nonBlankString(object.title, 'command.title') },
+        }
+      case 'project-session-rename':
+        return {
+          command,
+          projectId: projectId(object.projectId, 'command.projectId'),
+          targetSessionId: sessionIdValue(object.targetSessionId, 'command.targetSessionId'),
+          title: nonBlankString(object.title, 'command.title'),
+        }
+      case 'project-context':
+        return { command, projectId: projectId(object.projectId, 'command.projectId') }
+      case 'project-planning-context':
+        return {
+          command,
+          projectId: projectId(object.projectId, 'command.projectId'),
+          request: parseExperimentRequest(object.request, 'command.request'),
+        }
     }
   })()
   return sessionId === undefined ? parsed : { ...parsed, sessionId }

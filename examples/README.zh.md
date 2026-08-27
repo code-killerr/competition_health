@@ -14,7 +14,7 @@
 
 ## lab-agent
 
-叠加在 Headless Agent 上的实验自动化开发入口，用于测试知识库录入/召回、事实确认和 Lab Skill 发现。详见[实验自动化开发 Agent 参考](lab-agent/README.zh.md)。
+叠加在 Headless Agent 上的实验自动化开发入口，用于测试带引用 Knowledge 检索、项目范围规划和 Lab Skill 提案。详见[实验自动化开发 Agent 参考](lab-agent/README.zh.md)。
 
 ## jsonrpc-agent
 

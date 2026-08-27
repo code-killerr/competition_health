@@ -11,7 +11,7 @@
 | `lab-domain/` | 实验领域 id、状态、校验规则和 Session 事件类型 | — |
 | `lab-knowledge/` | 实验知识库 Service Definition 与 Provider 接缝 | `ctx.labKnowledge` |
 | `lab-knowledge-local/` | 面向本地知识检索的 Provider-owned SQLite/FTS5 实现 | — |
-| `tool-lab-knowledge/` | 按 Agent 作用域提供知识录入、检索、冲突和确认工具 | — |
+| `tool-lab-knowledge/` | 按 Agent 作用域提供只读 Knowledge 状态、检索和冲突工具 | — |
 | `lab-planning/` | 声明式规划上下文与提案 Service Definition | `ctx.labPlanning` |
 | `lab-planning-local/` | 带引用规划上下文和确定性提案校验的本地 Provider | — |
 | `tool-lab-planning/` | 按 Agent 作用域提供规划上下文、设备能力和提案工具 | — |

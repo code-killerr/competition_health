@@ -90,27 +90,41 @@ export class KnowledgeService extends Service {
     return this.requireProvider().search(request)
   }
 
-  /** 创建一个 SOP 草案。 */
+  /** Create a SOP draft.
+   * @param request - SOP draft creation request.
+   * @returns - created SOP draft.
+   */
   createSopDraft(request: CreateSopDraftRequest): Promise<SopDraftResult> {
     return this.requireProvider().createSopDraft(request)
   }
 
-  /** 读取一个 SOP 草案。 */
+  /** Read a SOP draft.
+   * @param draftId - draft identifier to read.
+   * @returns - requested draft, when it exists.
+   */
   getSopDraft(draftId: KnowledgeSopDraftId): Promise<SopDraftResult | undefined> {
     return this.requireProvider().getSopDraft(draftId)
   }
 
-  /** 列出所有 SOP 草案。 */
+  /** List all SOP drafts.
+   * @returns - all SOP drafts.
+   */
   listSopDrafts(): Promise<readonly SopDraftResult[]> {
     return this.requireProvider().listSopDrafts()
   }
 
-  /** 更新一个 SOP 草案，并在无阻塞时提交审核。 */
+  /** Update a SOP draft and submit it for review when unblocked.
+   * @param request - updated SOP draft fields.
+   * @returns - updated SOP draft.
+   */
   updateSopDraft(request: UpdateSopDraftRequest): Promise<SopDraftResult> {
     return this.requireProvider().updateSopDraft(request)
   }
 
-  /** 发布一个已审核 SOP 草案。 */
+  /** Publish an approved SOP draft.
+   * @param request - publication request.
+   * @returns - published SOP draft.
+   */
   publishSopDraft(request: PublishSopDraftRequest): Promise<SopDraftResult> {
     return this.requireProvider().publishSopDraft(request)
   }

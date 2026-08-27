@@ -12,16 +12,6 @@ export const name = 'tool-lab-knowledge'
 /** 复用 Harness Agent、工具注册表和实验 Knowledge Service。 */
 export const inject = ['agents', 'tools', 'labKnowledge']
 
-const IMPORT_OUTPUT_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    documentId: { type: 'string', required: true },
-    versionId: { type: 'string', required: true },
-    status: { type: 'string', required: true, enum: ['QUEUED', 'PARSING', 'INDEXING', 'READY', 'FAILED'] },
-  },
-} as const
-
 const STATUS_OUTPUT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -64,15 +54,6 @@ const CONFLICT_SCHEMA = {
   },
 } as const
 
-const CONFIRM_OUTPUT_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    citationId: { type: 'string', required: true },
-    confirmed: { type: 'boolean', required: true, const: true },
-  },
-} as const
-
 /** 声明一个 JSON 输出，让 Harness 负责标准化模型可见结果。 */
 function jsonOutput<const S extends ValueSchemaSpec>(schema: S): {
   schema: S
@@ -86,7 +67,7 @@ function jsonOutput<const S extends ValueSchemaSpec>(schema: S): {
 
 /** 确保调用来自一个已发布的 Agent scope。 */
 function callingAgent(agent: Agent | undefined, toolName: string): Agent {
-  if (agent === undefined) throw new Error(`${toolName} requires a calling Agent`)
+  if (agent === undefined) throw new Error(toolName + ' requires a calling Agent')
   return agent
 }
 
@@ -96,24 +77,10 @@ function install(agent: Agent, knowledge: KnowledgeService): () => void {
   const register = (disposer: () => unknown): void => { disposers.push(disposer) }
   try {
     register(agent.ctx.tools.register(defineTool({
-      name: 'lab_knowledge_import',
-      description: 'Register a local CSV, text, or PDF source in the laboratory knowledge base and return its immutable version status.',
-      parameters: {
-        path: { type: 'string', required: true, description: 'Absolute path of the source file.' },
-      },
-      output: jsonOutput(IMPORT_OUTPUT_SCHEMA),
-      async execute(args, exec) {
-        callingAgent(exec.agent, 'lab_knowledge_import')
-        const result = await knowledge.importDocument({ source: { kind: 'path', path: args.path } })
-        return { documentId: result.documentId, versionId: result.versionId, status: result.status }
-      },
-    })))
-
-    register(agent.ctx.tools.register(defineTool({
       name: 'lab_knowledge_status',
       description: 'Read the parse and index status of one laboratory knowledge document version.',
       parameters: {
-        document_id: { type: 'string', required: true, description: 'Knowledge document id returned by lab_knowledge_import.' },
+        document_id: { type: 'string', required: true, description: 'Knowledge document id.' },
         version_id: { type: 'string', description: 'Optional immutable document version id.' },
       },
       output: jsonOutput(STATUS_OUTPUT_SCHEMA),
@@ -166,7 +133,8 @@ function install(agent: Agent, knowledge: KnowledgeService): () => void {
           ...result.kind === undefined ? {} : { kind: result.kind },
           ...result.page === undefined ? {} : { page: result.page },
           ...result.titlePath === undefined ? {} : { titlePath: [...result.titlePath] },
-        }))      },
+        }))
+      },
     })))
 
     register(agent.ctx.tools.register(defineTool({
@@ -177,32 +145,6 @@ function install(agent: Agent, knowledge: KnowledgeService): () => void {
       async execute(_args, exec) {
         callingAgent(exec.agent, 'lab_knowledge_conflicts')
         return (await knowledge.listConflicts()).map(conflict => ({ ...conflict, citationIds: [...conflict.citationIds] }))
-      },
-    })))
-
-    register(agent.ctx.tools.register(defineTool({
-      name: 'lab_knowledge_confirm',
-      description: 'Confirm one cited knowledge fact with an accountable reviewer and optional note.',
-      parameters: {
-        citation_id: { type: 'string', required: true, description: 'Citation id returned by lab_knowledge_search.' },
-        confirmed_by: { type: 'string', required: true, description: 'Reviewer identity.' },
-        note: { type: 'string', description: 'Optional review note.' },
-      },
-      output: jsonOutput(CONFIRM_OUTPUT_SCHEMA),
-      async execute(args, exec) {
-        const caller = callingAgent(exec.agent, 'lab_knowledge_confirm')
-        await knowledge.confirmFact({
-          citationId: brandId<'CitationId'>(args.citation_id),
-          confirmedBy: args.confirmed_by,
-          ...args.note === undefined ? {} : { note: args.note },
-        })
-        caller.session.append('lab/knowledge/confirmed', {
-          version: 1,
-          citationId: brandId<'CitationId'>(args.citation_id),
-          confirmedBy: args.confirmed_by,
-          ...args.note === undefined ? {} : { note: args.note },
-        })
-        return { citationId: args.citation_id, confirmed: true }
       },
     })))
   } catch (error) {

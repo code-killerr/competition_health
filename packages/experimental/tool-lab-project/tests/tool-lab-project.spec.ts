@@ -71,6 +71,9 @@ describe('tool-lab-project', () => {
     await projects.associateSession({ projectId: project, sessionId: agent.session.id, associatedBy: agent.session.id })
 
     const result = await execute(ctx, agent, 'lab_project_context', { project_id: project })
+    const inferred = await execute(ctx, agent, 'lab_project_context', {})
+    expect(inferred.isError).toBe(false)
+    expect(JSON.parse(text(inferred))).toMatchObject({ project: { projectId: project } })
     expect(result.isError).toBe(false)
     expect(JSON.parse(text(result))).toMatchObject({
       project: {
@@ -108,5 +111,17 @@ describe('tool-lab-project', () => {
       confirmed: true,
       experimentId: 'experiment-1',
     })
+  })
+
+  it('returns a stable cross-project reference error to the Agent', async () => {
+    const { ctx, projects, agent } = await setup()
+    const owner = brandId<'LabProjectId'>('project-owner')
+    const other = brandId<'LabProjectId'>('project-other')
+    await projects.create({ projectId: owner, name: 'Owner project', createdBy: agent.session.id })
+    await projects.create({ projectId: other, name: 'Other project', createdBy: agent.session.id })
+    await projects.associateSession({ projectId: owner, sessionId: agent.session.id, associatedBy: agent.session.id })
+    const result = await execute(ctx, agent, 'lab_project_context', { project_id: other })
+    expect(result.isError).toBe(true)
+    expect(result.error).toMatchObject({ info: { name: 'HarnessError', code: 'CROSS_PROJECT_REFERENCE' } })
   })
 })

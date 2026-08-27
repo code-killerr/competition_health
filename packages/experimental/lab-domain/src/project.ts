@@ -121,7 +121,11 @@ export interface LabProjectContext {
   readonly sharedFacts: readonly LabProjectFact[]
 }
 
-/** Rebuild the latest evidence projection for each project/reference pair. */
+/** Rebuild the latest evidence projection for each project/reference pair.
+ * @param events - Session events containing evidence projection records.
+ * @param projectId - optional project filter.
+ * @returns - latest evidence projection for each project/reference pair.
+ */
 export function rebuildProjectEvidence(
   events: readonly SessionEvent[],
   projectId?: LabProjectId,

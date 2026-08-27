@@ -260,6 +260,7 @@
       "@deepseek-ai/dsh-experimental-lab-knowledge": ["./packages/experimental/lab-knowledge/src"],
       "@deepseek-ai/dsh-experimental-lab-knowledge-local": ["./packages/experimental/lab-knowledge-local/src"],
       "@deepseek-ai/dsh-experimental-tool-lab-knowledge": ["./packages/experimental/tool-lab-knowledge/src"],
+      "@deepseek-ai/dsh-experimental-tool-lab-project": ["./packages/experimental/tool-lab-project/src"],
       "@deepseek-ai/dsh-experimental-lab-planning": ["./packages/experimental/lab-planning/src"],
       "@deepseek-ai/dsh-experimental-lab-planning-local": ["./packages/experimental/lab-planning-local/src"],
       "@deepseek-ai/dsh-experimental-tool-lab-planning": ["./packages/experimental/tool-lab-planning/src"],

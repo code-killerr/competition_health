@@ -23,6 +23,7 @@ export type LabWebErrorCode =
   | 'METHOD_NOT_ALLOWED'
   | 'PAYLOAD_TOO_LARGE'
   | 'DOMAIN_ERROR'
+  | 'CROSS_PROJECT_REFERENCE'
   | 'PROVIDER_UNAVAILABLE'
   | 'INTERNAL_ERROR'
 
@@ -65,7 +66,10 @@ export type LabWebCommand = { readonly sessionId?: SessionId } & (
   | { readonly command: 'run-report'; readonly runId: RunId }
 )
 
-/** 将未知 JSON 值解析为已验证的实验 Web 命令。 */
+/** Parse one unknown JSON value into a Web command.
+ * @param value - unknown JSON value at the Web boundary.
+ * @returns - validated Web command.
+ */
 export function parseLabWebCommand(value: unknown): LabWebCommand {
   const object = record(value, 'command')
   const command = literal(object.command, 'command.command', [
@@ -77,75 +81,75 @@ export function parseLabWebCommand(value: unknown): LabWebCommand {
   const sessionId = object.sessionId === undefined ? undefined : brandId<'SessionId'>(nonBlankString(object.sessionId, 'command.sessionId'))
   const parsed = (() => {
     switch (command) {
-    case 'snapshot':
-      return { command, experimentId: experimentId(object.experimentId, 'command.experimentId') }
-    case 'knowledge-import':
-      return {
-        command,
-        name: nonBlankString(object.name, 'command.name'),
-        bytes: decodeBase64(object.bytesBase64, 'command.bytesBase64'),
-        metadata: optionalStringRecord(object.metadata, 'command.metadata') ?? {},
-      }
-    case 'knowledge-search':
-      return { command, request: parseSearchRequest(object.request, 'command.request') }
-    case 'knowledge-sop-create':
-      return { command, title: nonBlankString(object.title, 'command.title'), steps: parseSopSteps(object.steps, 'command.steps') }
-    case 'knowledge-sop-get':
-      return { command, draftId: brandId<'KnowledgeSopDraftId'>(nonBlankString(object.draftId, 'command.draftId')) }
-    case 'knowledge-sop-list':
-      return { command }
-    case 'knowledge-sop-update':
-      return { command, draftId: brandId<'KnowledgeSopDraftId'>(nonBlankString(object.draftId, 'command.draftId')), title: nonBlankString(object.title, 'command.title'), steps: parseSopSteps(object.steps, 'command.steps') }
-    case 'knowledge-sop-publish':
-      return { command, draftId: brandId<'KnowledgeSopDraftId'>(nonBlankString(object.draftId, 'command.draftId')), publishedBy: nonBlankString(object.publishedBy, 'command.publishedBy') }
-    case 'experiment-create':
-      return { command, request: parseExperimentRequest(object.request, 'command.request') }
-    case 'planning-context':
-      return { command, request: parseExperimentRequest(object.request, 'command.request') }
-    case 'plan-propose':
-      return { command, input: parsePlanProposalInput(object.input, 'command.input') }
-    case 'plan-validate':
-      return { command, planId: planId(object.planId, 'command.planId') }
-    case 'plan-approve':
-      return {
-        command,
-        experimentId: experimentId(object.experimentId, 'command.experimentId'),
-        planId: planId(object.planId, 'command.planId'),
-        approvedBy: nonBlankString(object.approvedBy, 'command.approvedBy'),
-      }
-    case 'plan-reject':
-      return { command, planId: planId(object.planId, 'command.planId'), reason: nonBlankString(object.reason, 'command.reason') }
-    case 'skill-validate':
-      return { command, revisionId: brandId<'SkillRevisionId'>(nonBlankString(object.revisionId, 'command.revisionId')) }
-    case 'skill-approve':
-      return {
-        command,
-        revisionId: brandId<'SkillRevisionId'>(nonBlankString(object.revisionId, 'command.revisionId')),
-        approvedBy: nonBlankString(object.approvedBy, 'command.approvedBy'),
-      }
-    case 'skill-activate':
-      return { command, revisionId: brandId<'SkillRevisionId'>(nonBlankString(object.revisionId, 'command.revisionId')) }
-    case 'run-start':
-      return {
-        command,
-        experimentId: experimentId(object.experimentId, 'command.experimentId'),
-        planId: planId(object.planId, 'command.planId'),
-      }
-    case 'run-step':
-      return { command, runId: runId(object.runId, 'command.runId') }
-    case 'run-confirm':
-      return {
-        command,
-        runId: runId(object.runId, 'command.runId'),
-        evidence: stringArray(object.evidence, 'command.evidence'),
-        confirmedBy: nonBlankString(object.confirmedBy, 'command.confirmedBy'),
-        ...object.stepId === undefined ? {} : { stepId: planStepId(object.stepId, 'command.stepId') },
-        ...object.operationId === undefined ? {} : { operationId: operationId(object.operationId, 'command.operationId') },
-      }
-    case 'run-stop':
-      return { command, runId: runId(object.runId, 'command.runId'), requestedBy: nonBlankString(object.requestedBy, 'command.requestedBy') }
-    case 'run-report':
-      return { command, runId: runId(object.runId, 'command.runId') }
+      case 'snapshot':
+        return { command, experimentId: experimentId(object.experimentId, 'command.experimentId') }
+      case 'knowledge-import':
+        return {
+          command,
+          name: nonBlankString(object.name, 'command.name'),
+          bytes: decodeBase64(object.bytesBase64, 'command.bytesBase64'),
+          metadata: optionalStringRecord(object.metadata, 'command.metadata') ?? {},
+        }
+      case 'knowledge-search':
+        return { command, request: parseSearchRequest(object.request, 'command.request') }
+      case 'knowledge-sop-create':
+        return { command, title: nonBlankString(object.title, 'command.title'), steps: parseSopSteps(object.steps, 'command.steps') }
+      case 'knowledge-sop-get':
+        return { command, draftId: brandId<'KnowledgeSopDraftId'>(nonBlankString(object.draftId, 'command.draftId')) }
+      case 'knowledge-sop-list':
+        return { command }
+      case 'knowledge-sop-update':
+        return { command, draftId: brandId<'KnowledgeSopDraftId'>(nonBlankString(object.draftId, 'command.draftId')), title: nonBlankString(object.title, 'command.title'), steps: parseSopSteps(object.steps, 'command.steps') }
+      case 'knowledge-sop-publish':
+        return { command, draftId: brandId<'KnowledgeSopDraftId'>(nonBlankString(object.draftId, 'command.draftId')), publishedBy: nonBlankString(object.publishedBy, 'command.publishedBy') }
+      case 'experiment-create':
+        return { command, request: parseExperimentRequest(object.request, 'command.request') }
+      case 'planning-context':
+        return { command, request: parseExperimentRequest(object.request, 'command.request') }
+      case 'plan-propose':
+        return { command, input: parsePlanProposalInput(object.input, 'command.input') }
+      case 'plan-validate':
+        return { command, planId: planId(object.planId, 'command.planId') }
+      case 'plan-approve':
+        return {
+          command,
+          experimentId: experimentId(object.experimentId, 'command.experimentId'),
+          planId: planId(object.planId, 'command.planId'),
+          approvedBy: nonBlankString(object.approvedBy, 'command.approvedBy'),
+        }
+      case 'plan-reject':
+        return { command, planId: planId(object.planId, 'command.planId'), reason: nonBlankString(object.reason, 'command.reason') }
+      case 'skill-validate':
+        return { command, revisionId: brandId<'SkillRevisionId'>(nonBlankString(object.revisionId, 'command.revisionId')) }
+      case 'skill-approve':
+        return {
+          command,
+          revisionId: brandId<'SkillRevisionId'>(nonBlankString(object.revisionId, 'command.revisionId')),
+          approvedBy: nonBlankString(object.approvedBy, 'command.approvedBy'),
+        }
+      case 'skill-activate':
+        return { command, revisionId: brandId<'SkillRevisionId'>(nonBlankString(object.revisionId, 'command.revisionId')) }
+      case 'run-start':
+        return {
+          command,
+          experimentId: experimentId(object.experimentId, 'command.experimentId'),
+          planId: planId(object.planId, 'command.planId'),
+        }
+      case 'run-step':
+        return { command, runId: runId(object.runId, 'command.runId') }
+      case 'run-confirm':
+        return {
+          command,
+          runId: runId(object.runId, 'command.runId'),
+          evidence: stringArray(object.evidence, 'command.evidence'),
+          confirmedBy: nonBlankString(object.confirmedBy, 'command.confirmedBy'),
+          ...object.stepId === undefined ? {} : { stepId: planStepId(object.stepId, 'command.stepId') },
+          ...object.operationId === undefined ? {} : { operationId: operationId(object.operationId, 'command.operationId') },
+        }
+      case 'run-stop':
+        return { command, runId: runId(object.runId, 'command.runId'), requestedBy: nonBlankString(object.requestedBy, 'command.requestedBy') }
+      case 'run-report':
+        return { command, runId: runId(object.runId, 'command.runId') }
     }
   })()
   return sessionId === undefined ? parsed : { ...parsed, sessionId }

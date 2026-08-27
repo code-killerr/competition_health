@@ -10,16 +10,15 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { LabWorkbench } from './LabWorkbench.tsx'
 import { LabNavigation } from './LabNavigation.tsx'
 import {
+  LabApiError,
   sendLabProjectCommand,
   sendLabCommand,
-  textToBase64,
   toSnapshot,
   type LabCommand,
   type LabExperimentRequest,
   type LabPlan,
   type LabProjectCommand,
   type LabProjectView,
-  type LabSopDraft,
   type LabSkillDraft,
 } from './api.ts'
 import { en, zh, type LabWorkbenchKey } from './locales.ts'
@@ -64,7 +63,7 @@ export function apply(ctx: ClientContext): void {
           applyResult(actions, command, result.value)
           if (command.command !== 'snapshot' && command.command !== 'knowledge-search') await refresh(latestExperimentId)
         } catch (error) {
-          actions.setError(error instanceof Error ? error.message : String(error))
+          actions.setError(formatError(error))
         } finally {
           actions.setPending(undefined)
         }
@@ -75,112 +74,63 @@ export function apply(ctx: ClientContext): void {
         await run('snapshot', { command: 'snapshot', experimentId })
       }
 
-      const importSource = async (name: string, content: string, title: string): Promise<void> => {
-        await run('knowledge-import', {
-          command: 'knowledge-import',
-          name,
-          bytesBase64: textToBase64(content),
-          ...title.trim() === '' ? {} : { metadata: { title: title.trim() } },
-        })
-        await refresh(latestExperimentId)
-      }
 
-      const importFile = async (file: File): Promise<void> => {
-        const bytes = new Uint8Array(await file.arrayBuffer())
-        await run('knowledge-import', {
-          command: 'knowledge-import',
-          name: file.name,
-          bytesBase64: bytesToBase64(bytes),
-          metadata: { sourceType: file.type || 'application/octet-stream' },
-        })
-        await refresh(latestExperimentId)
-      }
-
-      const createSop = (title: string, citationId: string, instruction: string): Promise<void> => run('knowledge-sop-create', {
-        command: 'knowledge-sop-create',
-        title,
-        steps: [{ order: 1, title, instruction, requiredInputs: [], completionCriteria: [], citations: [citationId], missingFields: [] }],
-      })
-
-      const reviewSop = (draft: LabSopDraft): Promise<void> => {
-        if (draft.draftId === undefined) return Promise.reject(new Error('当前没有可审核的 SOP 草案'))
-        return run('knowledge-sop-update', {
-          command: 'knowledge-sop-update',
-          draftId: draft.draftId,
-          title: draft.title ?? '',
-          steps: (draft.steps ?? []).map(step => ({
-            order: step.order ?? 0,
-            title: step.title ?? '',
-            instruction: step.instruction ?? '',
-            requiredInputs: step.requiredInputs ?? [],
-            completionCriteria: step.completionCriteria ?? [],
-            citations: step.citations ?? [],
-            missingFields: step.missingFields ?? [],
-          })),
-        })
-      }
-
-      const publishSop = (draftId: string): Promise<void> => run('knowledge-sop-publish', { command: 'knowledge-sop-publish', draftId, publishedBy: 'workbench-reviewer' })
-
-      const projectRun = async (label: string, command: LabProjectCommand): Promise<void> => {
+      const projectRun = async (label: string, command: LabProjectCommand): Promise<unknown> => {
         actions.setPending(label)
         actions.setError(undefined)
         try {
           const result = await sendLabProjectCommand(withProjectSession(command))
           if (Array.isArray(result.value)) {
             actions.setProjectViews(result.value.map(toProjectView))
+            return result.value
           } else {
             const view = toProjectView(result.value)
             actions.setProjectView(view)
             actions.setSelectedSourceKeysText(view.sources.map(source => `${String(source.documentId ?? '')}:${String(source.versionId ?? '')}`).join('\\n'))
             actions.setSelectedDeviceIdsText(view.devices.map(device => String(device.deviceId ?? device.id ?? '')).filter(value => value !== '').join(', '))
+            return result.value
           }
         } catch (error) {
-          actions.setError(error instanceof Error ? error.message : String(error))
+          actions.setError(formatError(error))
         } finally {
           actions.setPending(undefined)
         }
       }
 
-      const listProjects = (): Promise<void> => projectRun('project-list', { command: 'project-list' })
-      const openProject = (projectId: string): Promise<void> => projectRun('project-open', { command: 'project-open', projectId })
-      const createProject = (projectId: string, name: string): Promise<void> => projectRun('project-create', { command: 'project-create', projectId, name })
-      const updateProjectScope = (
+      const listProjects = async (): Promise<void> => { await projectRun('project-list', { command: 'project-list' }) }
+      const openSession = (targetSessionId: string): void => { ctx.sessions.open(targetSessionId as SessionId) }
+      const createSession = async (projectId: string, title?: string): Promise<void> => {
+        const value = await projectRun('project-session-create', {
+          command: 'project-session-create',
+          projectId,
+          ...title === undefined ? {} : { title },
+        })
+        if (value === undefined || Array.isArray(value)) return
+        const sessions = toProjectView(value).sessions
+        const created = sessions.at(-1)
+        if (created !== undefined && typeof created.sessionId === 'string') openSession(created.sessionId)
+      }
+      const openProject = async (projectId: string): Promise<void> => { await projectRun('project-open', { command: 'project-open', projectId }) }
+      const createProject = async (projectId: string, name: string): Promise<void> => { await projectRun('project-create', { command: 'project-create', projectId, name }) }
+      const updateProjectScope = async (
         projectId: string,
         sources: readonly { readonly documentId: string; readonly versionId: string }[],
         deviceIds: readonly string[],
-      ): Promise<void> => projectRun('project-scope-update', { command: 'project-scope-update', projectId, sources, deviceIds })
-      const associateSession = (projectId: string, targetSessionId: string, title?: string): Promise<void> => projectRun('project-session-associate', {
+      ): Promise<void> => { await projectRun('project-scope-update', { command: 'project-scope-update', projectId, sources, deviceIds }) }
+      const associateSession = async (projectId: string, targetSessionId: string, title?: string): Promise<void> => { await projectRun('project-session-associate', {
         command: 'project-session-associate',
         projectId,
         targetSessionId,
         ...title === undefined ? {} : { title },
-      })
-      const renameSession = (projectId: string, targetSessionId: string, title: string): Promise<void> => projectRun('project-session-rename', {
+      }) }
+      const renameSession = async (projectId: string, targetSessionId: string, title: string): Promise<void> => { await projectRun('project-session-rename', {
         command: 'project-session-rename',
         projectId,
         targetSessionId,
         title,
-      })
+      }) }
 
 
-      const search = async (query: string, experimentId: string): Promise<void> => {
-        latestExperimentId = experimentId
-        actions.setPending('knowledge-search')
-        actions.setError(undefined)
-        try {
-          const result = await sendLabCommand(withSession({ command: 'knowledge-search', request: { query, experimentId } }))
-          const value = asRecord(result.value)
-          actions.setSearch(
-            Array.isArray(value.results) ? value.results as never[] : [],
-            Array.isArray(value.conflicts) ? value.conflicts as never[] : [],
-          )
-        } catch (error) {
-          actions.setError(error instanceof Error ? error.message : String(error))
-        } finally {
-          actions.setPending(undefined)
-        }
-      }
 
       const requestAction = async (label: string, request: LabExperimentRequest, command: LabCommand): Promise<void> => {
         latestExperimentId = request.experimentId
@@ -190,47 +140,30 @@ export function apply(ctx: ClientContext): void {
       const createExperiment = (request: LabExperimentRequest): Promise<void> => requestAction('experiment-create', request, { command: 'experiment-create', request })
       const buildContext = (request: LabExperimentRequest): Promise<void> => requestAction('planning-context', request, { command: 'planning-context', request })
       const proposeLocalPlan = async (request: LabExperimentRequest, content: string): Promise<void> => {
+        let input: {
+          readonly request: LabExperimentRequest
+          readonly plan: LabPlan
+          readonly skillDrafts: LabSkillDraft[]
+        }
         try {
           const value = JSON.parse(content) as unknown
           const object = asRecord(value)
           if (!Array.isArray(object.skillDrafts) || !isRecord(object.plan)) throw new Error('本地计划 JSON 必须包含 plan 对象和 skillDrafts 数组')
-          await requestAction('plan-propose', request, {
-            command: 'plan-propose',
-            input: {
-              request,
-              plan: object.plan as LabPlan,
-              skillDrafts: object.skillDrafts as LabSkillDraft[],
-            },
-          })
+          input = {
+            request,
+            plan: object.plan as LabPlan,
+            skillDrafts: object.skillDrafts as LabSkillDraft[],
+          }
         } catch (error) {
-          actions.setError(error instanceof Error ? error.message : String(error))
+          const message = error instanceof Error ? error.message : String(error)
+          actions.setError(formatError(new LabApiError('INVALID_OUTPUT', message)))
+          return
         }
+        await requestAction('plan-propose', request, {
+          command: 'plan-propose',
+          input,
+        })
       }
-
-      const agentPlan = async (projectId: string, request: LabExperimentRequest, submit: (text: string) => void): Promise<void> => {
-        latestExperimentId = request.experimentId
-        actions.setPending('agent-plan')
-        actions.setError(undefined)
-        try {
-          const contextResult = await sendLabProjectCommand(withProjectSession({ command: 'project-planning-context', projectId, request }))
-          if (contextResult.kind !== 'project-context') throw new Error('项目规划上下文返回了无效结果')
-          const context = asRecord(contextResult.value)
-          actions.setPlanningContext(asRecord(context.planningContext))
-          const prompt = [
-            '请为实验自动化工作台规划实验步骤。',
-            '只使用上面的项目规划上下文，调用 lab_project_plan_context 后调用 lab_plan_propose 提交结构化计划和 Skill 草案。',
-            '不要批准计划、激活 Skill、启动运行或执行设备。所有计划步骤必须包含引用、依赖、输入、输出和必要的人工确认。',
-            `实验请求 JSON：${JSON.stringify(request)}`,
-          ].join('\n')
-          submit(prompt)
-          actions.setNotice(zh.noticeAgent)
-        } catch (error) {
-          actions.setError(error instanceof Error ? error.message : String(error))
-        } finally {
-          actions.setPending(undefined)
-        }
-      }
-
       const validatePlan = (planId: string): Promise<void> => run('plan-validate', { command: 'plan-validate', planId })
       const approvePlan = (experimentId: string, planId: string, approvedBy: string): Promise<void> => run('plan-approve', { command: 'plan-approve', experimentId, planId, approvedBy })
       const validateSkill = (revisionId: string): Promise<void> => run('skill-validate', { command: 'skill-validate', revisionId })
@@ -250,21 +183,17 @@ export function apply(ctx: ClientContext): void {
 
       return {
         refresh,
-        importSource,
-        importFile,
         listProjects,
+        openSession,
+        createSession,
         openProject,
         createProject,
         updateProjectScope,
         associateSession,
         renameSession,
-        search,
-        createSop,
-        reviewSop,
-        publishSop,
         createExperiment,
         buildContext,
-        agentPlan,
+
         proposeLocalPlan,
         validatePlan,
         approvePlan,
@@ -292,22 +221,12 @@ export function apply(ctx: ClientContext): void {
 
 }
 
+function formatError(error: unknown): string {
+  return error instanceof LabApiError ? error.code + ': ' + error.message : error instanceof Error ? error.message : String(error)
+}
 function applyResult(actions: BoundActions<ReturnType<typeof createLabWorkbenchStore>>, command: LabCommand, value: unknown): void {
   if (command.command === 'snapshot' || command.command === 'experiment-create') {
     actions.setSnapshot(toSnapshot(value))
-    return
-  }
-  if (command.command === 'knowledge-search') {
-    const object = asRecord(value)
-    actions.setSearch(
-      Array.isArray(object.results) ? object.results as never[] : [],
-      Array.isArray(object.conflicts) ? object.conflicts as never[] : [],
-    )
-    return
-  }
-  if (command.command.startsWith('knowledge-sop-')) {
-    const object = asRecord(value)
-    if (isRecord(object.draft)) actions.setSopDraft(object.draft as LabSopDraft)
     return
   }
   if (command.command === 'planning-context') {
@@ -341,10 +260,4 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function splitLines(value: string): readonly string[] {
   return value.split(/\r?\n/).map(item => item.trim()).filter(item => item !== '')
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary)
 }

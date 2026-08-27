@@ -4,8 +4,10 @@ import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-run
 import type { LabConflict, LabKnowledgeItem, LabPlanReview, LabProjectView, LabRun, LabSearchResult, LabSnapshot } from './api.ts'
 import type { LabSopDraft } from './api.ts'
 
+/** Visible stages in the laboratory workbench. */
 export type LabStage = 'knowledge' | 'request' | 'plan' | 'execution' | 'report' | 'devices' | 'projects'
 
+/** Mutable workbench fields and read-only projections. */
 export interface LabWorkbenchState {
   projectId: string
   projectName: string
@@ -73,7 +75,9 @@ type LabWorkbenchActions = {
   setNotice: (draft: LabWorkbenchState, value: string | undefined) => void
 }
 
-/** 创建一个工作台槽位专用状态句柄。 */
+/** Create a workbench slot state handle.
+ * @returns - store handle for the workbench state and actions.
+ */
 export function createLabWorkbenchStore(): EngineStoreHandle<LabWorkbenchState, LabWorkbenchActions> {
   return defineStore({
     init: (): LabWorkbenchState => ({
@@ -147,22 +151,34 @@ export function createLabWorkbenchStore(): EngineStoreHandle<LabWorkbenchState, 
   })
 }
 
-/** 从快照读取第一个可操作计划，供按钮和状态提示共用。 */
+/** Read the first actionable plan identifier from a snapshot.
+ * @param snapshot - optional workbench snapshot.
+ * @returns - first plan identifier, when one is available.
+ */
 export function firstPlanId(snapshot: LabSnapshot | undefined): string | undefined {
   return snapshot?.planReviews.find(review => review.plan.planId !== undefined)?.plan.planId
 }
 
-/** 仅保留展示所需的计划视图，避免组件直接依赖服务对象。 */
+/** Read the plan review projections from a snapshot.
+ * @param snapshot - optional workbench snapshot.
+ * @returns - plan reviews projected for display.
+ */
 export function planReviews(snapshot: LabSnapshot | undefined): readonly LabPlanReview[] {
   return snapshot?.planReviews ?? []
 }
 
-/** 当前运行视图的安全读取。 */
+/** Read the current run projection from a snapshot.
+ * @param snapshot - optional workbench snapshot.
+ * @returns - current run projection, when one exists.
+ */
 export function runView(snapshot: LabSnapshot | undefined): LabRun | undefined {
   return snapshot?.run
 }
 
-/** 当前知识导入状态的安全读取。 */
+/** Read Knowledge import projections from a snapshot.
+ * @param snapshot - optional workbench snapshot.
+ * @returns - Knowledge import records.
+ */
 export function knowledgeItems(snapshot: LabSnapshot | undefined): readonly LabKnowledgeItem[] {
   return snapshot?.knowledge ?? []
 }

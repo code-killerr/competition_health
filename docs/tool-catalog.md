@@ -15,9 +15,10 @@ This table connects model-visible tool names to the plugin package and service s
 
 | Tool package | Model-visible names | Requires | Writes / affects | Shipped aliases | Deployment note |
 | --- | --- | --- | --- | --- | --- |
-| `@deepseek-ai/dsh-experimental-tool-lab-knowledge` | `lab_knowledge_confirm`, `lab_knowledge_conflicts`, `lab_knowledge_import`, `lab_knowledge_search`, `lab_knowledge_status` | `ctx.tools`, `ctx.agents`, `ctx.labKnowledge` | `tool/call`, `tool/result`, `lab knowledge events` | - | The catalog boots the local Knowledge Provider in memory and exposes the scoped knowledge tools through one synthetic Agent. |
+| `@deepseek-ai/dsh-experimental-tool-lab-knowledge` | `lab_knowledge_conflicts`, `lab_knowledge_search`, `lab_knowledge_status` | `ctx.tools`, `ctx.agents`, `ctx.labKnowledge` | `tool/call`, `tool/result`, `lab knowledge events` | - | The catalog boots the local Knowledge Provider in memory and exposes the scoped knowledge tools through one synthetic Agent. |
 | `@deepseek-ai/dsh-experimental-tool-lab-planning` | `lab_plan_context`, `lab_plan_devices`, `lab_plan_propose`, `lab_skill_activate`, `lab_skill_approve`, `lab_skill_validate` | `ctx.tools`, `ctx.agents`, `ctx.labPlanning`, `ctx.labDevices` | `tool/call`, `tool/result`, `lab planning events` | - | The catalog boots the local Planning, Knowledge, Skill, and Mock Device Providers and exposes the scoped planning tools through one synthetic Agent. |
-| `@deepseek-ai/dsh-experimental-tool-lab` | `lab_experiment_create`, `lab_knowledge_confirm`, `lab_knowledge_conflicts`, `lab_knowledge_import`, `lab_knowledge_search`, `lab_knowledge_status`, `lab_plan_approve`, `lab_plan_context`, `lab_plan_devices`, `lab_plan_propose`, `lab_plan_reject`, `lab_run_confirm`, `lab_run_report`, `lab_run_start`, `lab_run_step`, `lab_run_stop`, `lab_skill_activate`, `lab_skill_approve`, `lab_skill_validate` | `ctx.tools`, `ctx.agents`, `ctx.labRuntime`, `the composed local lab providers` | `tool/call`, `tool/result`, `experiment planning and controlled-run events` | - | The catalog boots the complete local laboratory bundle in memory and exposes the aggregate scoped experiment tools through one synthetic Agent. |
+| `@deepseek-ai/dsh-experimental-tool-lab-project` | `lab_project_context`, `lab_project_plan_context` | `ctx.tools`, `ctx.agents`, `ctx.labProjects`, `ctx.labKnowledge`, `ctx.labDevices` | `tool/call`, `tool/result` | - | The catalog boots the local project and Knowledge capabilities and exposes read-only project context tools through one synthetic Agent. |
+| `@deepseek-ai/dsh-experimental-tool-lab` | `lab_experiment_create`, `lab_knowledge_conflicts`, `lab_knowledge_search`, `lab_knowledge_status`, `lab_plan_approve`, `lab_plan_context`, `lab_plan_devices`, `lab_plan_propose`, `lab_plan_reject`, `lab_run_confirm`, `lab_run_report`, `lab_run_start`, `lab_run_step`, `lab_run_stop`, `lab_skill_activate`, `lab_skill_approve`, `lab_skill_validate` | `ctx.tools`, `ctx.agents`, `ctx.labRuntime`, `the composed local lab providers` | `tool/call`, `tool/result`, `experiment planning and controlled-run events` | - | The catalog boots the complete local laboratory bundle in memory and exposes the aggregate scoped experiment tools through one synthetic Agent. |
 | `@deepseek-ai/dsh-tool-ask-user` | `ask_user_question` | `ctx.tools`, `ctx.userQuestions` | `tool/call`, `tool/result after a UI/provider answers the question` | - | ask_user_question pauses the tool call until the active UI provider returns a human answer. |
 | `@deepseek-ai/dsh-tools` | `run_code` | `ctx.tools`, `ctx.codeRuntime (execution time)`, `ctx.systemPrompt` | `tool/call`, `one tool/code-dispatch-start + tool/code-dispatch pair per bridged sub-call`, `tool/result` | - | Owned by the tool registry as a reserved transport outside filterable capability layers under `mode: code` / `mode: both` (see the Code Mode Agent Note). Under `code` it is the registry's only wire contribution; the other visible capabilities are declared in a generated SDK section in the loaded runtime's language, and a program calls them through bindings scheduled under the native concurrency contract (submission-ordered starts and policy; concurrency-safe bodies overlap up to `maxParallelSubCalls`) that re-enter the complete guarded tool pipeline and link each nested execution to this outer result. |
 | `@deepseek-ai/dsh-plan-mode` | `exit_plan_mode` | `ctx.tools`, `ctx.systemPrompt`, `ctx.userQuestions (execution time, opportunistic)` | `tool/call`, `plan/mode inactive on an approved review`, `tool/result` | - | exit_plan_mode stays in the model-facing schema while planning is inactive so transitions add no tool-catalog churn on top of the plan-policy change. Its execute path rejects calls outside plan mode; in plan mode it presents the plan over the user-questions seam (approve / keep planning with feedback), and approval logs plan mode inactive at the step boundary. |
@@ -49,36 +50,6 @@ This table connects model-visible tool names to the plugin package and service s
 
 ## `@deepseek-ai/dsh-experimental-tool-lab-knowledge`
 
-### `lab_knowledge_confirm`
-
-Confirm one cited knowledge fact with an accountable reviewer and optional note.
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "citation_id": {
-      "type": "string",
-      "description": "Citation id returned by lab_knowledge_search."
-    },
-    "confirmed_by": {
-      "type": "string",
-      "description": "Reviewer identity."
-    },
-    "note": {
-      "type": "string",
-      "description": "Optional review note."
-    }
-  },
-  "required": [
-    "citation_id",
-    "confirmed_by"
-  ]
-}
-```
-
-Source: [`packages/experimental/tool-lab-knowledge/src/index.ts`](../packages/experimental/tool-lab-knowledge/src/index.ts)
-
 ### `lab_knowledge_conflicts`
 
 List knowledge conflicts that require human review before a laboratory plan can rely on them.
@@ -87,27 +58,6 @@ List knowledge conflicts that require human review before a laboratory plan can 
 {
   "type": "object",
   "properties": {}
-}
-```
-
-Source: [`packages/experimental/tool-lab-knowledge/src/index.ts`](../packages/experimental/tool-lab-knowledge/src/index.ts)
-
-### `lab_knowledge_import`
-
-Register a local CSV, text, or PDF source in the laboratory knowledge base and return its immutable version status.
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "path": {
-      "type": "string",
-      "description": "Absolute path of the source file."
-    }
-  },
-  "required": [
-    "path"
-  ]
 }
 ```
 
@@ -166,7 +116,7 @@ Read the parse and index status of one laboratory knowledge document version.
   "properties": {
     "document_id": {
       "type": "string",
-      "description": "Knowledge document id returned by lab_knowledge_import."
+      "description": "Knowledge document id."
     },
     "version_id": {
       "type": "string",
@@ -320,6 +270,71 @@ Source: [`packages/experimental/tool-lab-planning/src/index.ts`](../packages/exp
 
 The catalog boots the local Planning, Knowledge, Skill, and Mock Device Providers and exposes the scoped planning tools through one synthetic Agent.
 
+<a id="deepseek-aidsh-experimental-tool-lab-project"></a>
+
+## `@deepseek-ai/dsh-experimental-tool-lab-project`
+
+### `lab_project_context`
+
+Read the current Agent Session project scope, selected devices, and explicitly published shared facts. This never changes project state.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "Optional opaque project id; omitted values resolve from the current Session association."
+    }
+  }
+}
+```
+
+Source: [`packages/experimental/tool-lab-project/src/index.ts`](../packages/experimental/tool-lab-project/src/index.ts)
+
+### `lab_project_plan_context`
+
+Retrieve confirmed citations and devices limited to the current Session project scope for planning. Unapproved Session state is excluded.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "Optional opaque project id; omitted values resolve from the current Session association."
+    },
+    "experiment_id": {
+      "type": "string",
+      "description": "Opaque experiment id."
+    },
+    "objective": {
+      "type": "string",
+      "description": "Evidence-oriented planning objective."
+    },
+    "unresolved": {
+      "type": "array",
+      "description": "Missing inputs to preserve in the planning context.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum number of cited results."
+    }
+  },
+  "required": [
+    "experiment_id",
+    "objective"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab-project/src/index.ts`](../packages/experimental/tool-lab-project/src/index.ts)
+
+The catalog boots the local project and Knowledge capabilities and exposes read-only project context tools through one synthetic Agent.
+
 <a id="deepseek-aidsh-experimental-tool-lab"></a>
 
 ## `@deepseek-ai/dsh-experimental-tool-lab`
@@ -358,36 +373,6 @@ Register an experiment request before planning. This records the request but nev
 
 Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
 
-### `lab_knowledge_confirm`
-
-Confirm one cited knowledge fact with an accountable reviewer and optional note.
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "citation_id": {
-      "type": "string",
-      "description": "Citation id returned by lab_knowledge_search."
-    },
-    "confirmed_by": {
-      "type": "string",
-      "description": "Reviewer identity."
-    },
-    "note": {
-      "type": "string",
-      "description": "Optional review note."
-    }
-  },
-  "required": [
-    "citation_id",
-    "confirmed_by"
-  ]
-}
-```
-
-Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
-
 ### `lab_knowledge_conflicts`
 
 List knowledge conflicts that require human review before a laboratory plan can rely on them.
@@ -396,27 +381,6 @@ List knowledge conflicts that require human review before a laboratory plan can 
 {
   "type": "object",
   "properties": {}
-}
-```
-
-Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
-
-### `lab_knowledge_import`
-
-Register a local CSV, text, or PDF source in the laboratory knowledge base and return its immutable version status.
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "path": {
-      "type": "string",
-      "description": "Absolute path of the source file."
-    }
-  },
-  "required": [
-    "path"
-  ]
 }
 ```
 
@@ -475,7 +439,7 @@ Read the parse and index status of one laboratory knowledge document version.
   "properties": {
     "document_id": {
       "type": "string",
-      "description": "Knowledge document id returned by lab_knowledge_import."
+      "description": "Knowledge document id."
     },
     "version_id": {
       "type": "string",

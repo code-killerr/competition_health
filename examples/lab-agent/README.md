@@ -16,12 +16,12 @@ pnpm run build
 Start the laboratory development composition:
 
 ```
-pnpm dsh --profile headless --patch examples/lab-agent/cordis.patch.yml "Use lab_knowledge_import to import the requested source, search the experiment objective, approve the plan, and execute the controlled run"
+pnpm dsh --profile headless --patch examples/lab-agent/cordis.patch.yml "Retrieve cited laboratory context and propose a draft plan; leave approval and execution to the project workspace"
 ```
 
-The overlay mounts the laboratory Service Definitions, local Knowledge, Planning, Lab Skill, Mock Device, and Runtime Providers, the Agent-scoped Knowledge, Planning, and Runtime tools, and the read-only Web Consumer. The default database is .lab-data/knowledge.sqlite under the current working directory. Sources are imported by path through the tool; they are not bundled as runtime seed data.
+The overlay mounts the laboratory Service Definitions, local Knowledge, Planning, Lab Skill, Mock Device, and Runtime Providers, Agent-scoped read-only Knowledge, Planning, Runtime, and project-context tools, the read-only Web Consumer, and the existing `ask_user_question` clarification Consumer. Its question and answer remain in the current Session evidence. Knowledge source ingestion and SOP curation remain owned by the separately contributed Knowledge workspace; this Agent line does not expose a Knowledge write workflow.
 
-The composition exercises knowledge ingestion, cited retrieval, conflicts and fact confirmation, planning context, structured plan and Skill proposals, deterministic validation, plan approval, ExecutionGraph locking, human confirmation, controlled Mock Device execution, Session observations, and reports. Production devices, durable Runtime recovery, and result validators remain later increments.
+The composition exercises cited retrieval, conflicts, project-scoped planning context, structured plan and Skill proposals, deterministic validation, and bounded reports. Plan approval, Skill activation, execution, and step confirmation remain explicit project-workspace actions. Production devices, durable Runtime recovery, and result validators remain later increments.
 
 Running the Agent requires DEEPSEEK_API_KEY, supplied through the git-ignored project-root .env or the environment.
 

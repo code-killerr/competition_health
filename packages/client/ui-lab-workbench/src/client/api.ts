@@ -16,6 +16,7 @@ export interface LabExperimentRequest {
   readonly unresolved: readonly string[]
 }
 
+/** Read-only Knowledge document status projected into the Harness workbench. */
 export interface LabKnowledgeItem {
   readonly documentId?: string
   readonly versionId?: string
@@ -25,6 +26,7 @@ export interface LabKnowledgeItem {
   readonly [key: string]: unknown
 }
 
+/** One cited result projected from the Knowledge capability. */
 export interface LabSearchResult {
   readonly citationId?: string
   readonly score?: number
@@ -34,6 +36,7 @@ export interface LabSearchResult {
   readonly [key: string]: unknown
 }
 
+/** A SOP step projected for read-only review. */
 export interface LabSopStep {
   readonly stepId?: string
   readonly order?: number
@@ -45,6 +48,7 @@ export interface LabSopStep {
   readonly missingFields?: readonly string[]
 }
 
+/** A SOP draft projected for read-only review. */
 export interface LabSopDraft {
   readonly draftId?: string
   readonly title?: string
@@ -55,12 +59,14 @@ export interface LabSopDraft {
   readonly updatedBy?: string
 }
 
+/** A Knowledge conflict projected for read-only review. */
 export interface LabConflict {
   readonly conflictId?: string
   readonly status?: string
   readonly [key: string]: unknown
 }
 
+/** A device status projected into the Harness workbench. */
 export interface LabDevice {
   readonly id?: string
   readonly name?: string
@@ -73,6 +79,7 @@ export interface LabDevice {
   readonly [key: string]: unknown
 }
 
+/** A plan step projected into the Harness workbench. */
 export interface LabPlanStep {
   readonly stepId?: string
   readonly title?: string
@@ -85,6 +92,7 @@ export interface LabPlanStep {
   readonly [key: string]: unknown
 }
 
+/** An experiment plan projected into the Harness workbench. */
 export interface LabPlan {
   readonly planId?: string
   readonly experimentId?: string
@@ -98,6 +106,7 @@ export interface LabPlan {
   readonly [key: string]: unknown
 }
 
+/** A Skill revision projected alongside a plan review. */
 export interface LabSkillRevision {
   readonly skillId?: string
   readonly revisionId?: string
@@ -107,6 +116,7 @@ export interface LabSkillRevision {
   readonly [key: string]: unknown
 }
 
+/** A proposed Skill draft submitted with a plan proposal. */
 export interface LabSkillDraft {
   readonly skillId: string
   readonly revisionId: string
@@ -127,12 +137,14 @@ export interface LabSkillDraft {
   }[]
 }
 
+/** The plan proposal payload sent to the Web Facade. */
 export interface LabPlanProposalInput {
   readonly request: LabExperimentRequest
   readonly plan: LabPlan
   readonly skillDrafts: readonly LabSkillDraft[]
 }
 
+/** Deterministic plan or Skill validation output. */
 export interface LabValidation {
   readonly valid?: boolean
   readonly issues?: readonly {
@@ -143,6 +155,7 @@ export interface LabValidation {
   readonly [key: string]: unknown
 }
 
+/** A plan review with validation and planning context. */
 export interface LabPlanReview {
   readonly plan: LabPlan
   readonly skillRevisions?: readonly LabSkillRevision[]
@@ -151,6 +164,7 @@ export interface LabPlanReview {
   readonly [key: string]: unknown
 }
 
+/** A controlled run projected into the Harness workbench. */
 export interface LabRun {
   readonly runId?: string
   readonly planId?: string
@@ -160,8 +174,16 @@ export interface LabRun {
   readonly [key: string]: unknown
 }
 
+/** Public availability state for the Knowledge capability. */
+export interface LabKnowledgeCapability {
+  readonly state: 'available' | 'unavailable'
+  readonly reason?: string
+}
+
+/** The read-only state snapshot rendered by the Harness workbench. */
 export interface LabSnapshot {
   readonly knowledge: readonly LabKnowledgeItem[]
+  readonly knowledgeCapability?: LabKnowledgeCapability
   readonly devices: readonly LabDevice[]
   readonly planningContext?: Readonly<Record<string, unknown>>
   readonly planReviews: readonly LabPlanReview[]
@@ -185,11 +207,13 @@ export type LabProjectCommand = { readonly sessionId?: string } & (
   | { readonly command: 'project-create'; readonly projectId: string; readonly name: string; readonly description?: string }
   | { readonly command: 'project-open'; readonly projectId: string }
   | { readonly command: 'project-scope-update'; readonly projectId: string; readonly sources: readonly { readonly documentId: string; readonly versionId: string }[]; readonly deviceIds: readonly string[] }
+  | { readonly command: 'project-session-create'; readonly projectId: string; readonly title?: string }
   | { readonly command: 'project-session-associate'; readonly projectId: string; readonly targetSessionId: string; readonly title?: string }
   | { readonly command: 'project-session-rename'; readonly projectId: string; readonly targetSessionId: string; readonly title: string }
   | { readonly command: 'project-context'; readonly projectId: string }
   | { readonly command: 'project-planning-context'; readonly projectId: string; readonly request: LabExperimentRequest }
 )
+/** A command sent to the general laboratory Web Facade. */
 export type LabCommand = { readonly sessionId?: string } & (
   | { readonly command: 'snapshot'; readonly experimentId: string }
   | { readonly command: 'knowledge-import'; readonly name: string; readonly bytesBase64: string; readonly metadata?: Readonly<Record<string, string>> }
@@ -214,6 +238,7 @@ export type LabCommand = { readonly sessionId?: string } & (
   | { readonly command: 'run-report'; readonly runId: string }
 )
 
+/** Result envelope returned by the laboratory Web Facade. */
 export interface LabCommandResult {
   readonly kind: string
   readonly value: unknown
@@ -237,7 +262,11 @@ export class LabApiError extends Error {
   }
 }
 
-/** 发送一个已类型化的实验命令。 */
+/** Send a typed laboratory command.
+ * @param command - command DTO sent to the Web Facade.
+ * @param signal - optional cancellation signal for the request.
+ * @returns - parsed command result.
+ */
 export async function sendLabCommand(command: LabCommand, signal?: AbortSignal): Promise<LabCommandResult> {
   const response = await fetch('/api/lab', {
     method: 'POST',
@@ -249,7 +278,7 @@ export async function sendLabCommand(command: LabCommand, signal?: AbortSignal):
   try {
     body = await response.json() as LabSuccessEnvelope | LabErrorEnvelope
   } catch {
-    throw new LabApiError('INVALID_JSON', `实验 API 返回了无法解析的响应（HTTP ${String(response.status)}）`, response.status)
+    throw new LabApiError('INVALID_JSON', '实验 API 返回了无法解析的响应（HTTP ' + String(response.status) + '）', response.status)
   }
   if (!body.ok) {
     throw new LabApiError(body.error?.code ?? 'INTERNAL_ERROR', body.error?.message ?? '实验 API 请求失败', response.status)
@@ -260,14 +289,19 @@ export async function sendLabCommand(command: LabCommand, signal?: AbortSignal):
   return body.result
 }
 
-/** 将服务快照安全投影为浏览器工作台所需的字段。 */
+/** Project an unknown service value into a safe workbench snapshot.
+ * @param value - unknown response value returned by the Web Facade.
+ * @returns - safe workbench snapshot projection.
+ */
 export function toSnapshot(value: unknown): LabSnapshot {
   const object = record(value)
   const planningContext = recordOrUndefined(object.planningContext)
   const run = recordOrUndefined(object.run)
   const report = recordOrUndefined(object.report)
+  const knowledgeCapability = parseKnowledgeCapability(object.knowledgeCapability)
   return {
     knowledge: array(object.knowledge) as LabKnowledgeItem[],
+    knowledgeCapability,
     devices: array(object.devices) as LabDevice[],
     ...planningContext === undefined ? {} : { planningContext },
     planReviews: array(object.planReviews).map((item) => {
@@ -286,7 +320,10 @@ export function toSnapshot(value: unknown): LabSnapshot {
   }
 }
 
-/** 将字节文本编码为 Web Consumer 协议使用的 Base64。 */
+/** Encode text as Base64 for the Web Consumer protocol.
+ * @param value - text to encode as UTF-8 bytes.
+ * @returns - Base64 representation of the encoded bytes.
+ */
 export function textToBase64(value: string): string {
   const bytes = new TextEncoder().encode(value)
   let binary = ''
@@ -304,11 +341,26 @@ function recordOrUndefined(value: unknown): Record<string, unknown> | undefined 
   return value as Record<string, unknown>
 }
 
+function parseKnowledgeCapability(value: unknown): LabKnowledgeCapability {
+  const object = recordOrUndefined(value)
+  if (object?.state === 'available') return { state: 'available' }
+  if (object?.state === 'unavailable') {
+    return typeof object.reason === 'string' && object.reason.trim() !== ''
+      ? { state: 'unavailable', reason: object.reason }
+      : { state: 'unavailable' }
+  }
+  return { state: 'unavailable', reason: 'Knowledge capability status is unavailable' }
+}
+
 function array(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
 
-/** Send a project-scoped command through the same Web Facade route. */
+/** Send a project-scoped command through the shared Web Facade route.
+ * @param command - project command DTO sent to the Web Facade.
+ * @param signal - optional cancellation signal for the request.
+ * @returns - parsed command result.
+ */
 export async function sendLabProjectCommand(command: LabProjectCommand, signal?: AbortSignal): Promise<LabCommandResult> {
   const response = await fetch('/api/lab', {
     method: 'POST',
@@ -320,13 +372,13 @@ export async function sendLabProjectCommand(command: LabProjectCommand, signal?:
   try {
     body = await response.json() as LabSuccessEnvelope | LabErrorEnvelope
   } catch {
-    throw new LabApiError('INVALID_JSON', `ʵ�� API �������޷���������Ӧ��HTTP ${String(response.status)}��`, response.status)
+    throw new LabApiError('INVALID_JSON', `实验 API 返回了无法解析的响应（HTTP ${String(response.status)}）`, response.status)
   }
   if (!body.ok) {
-    throw new LabApiError(body.error?.code ?? 'INTERNAL_ERROR', body.error?.message ?? 'ʵ�� API ����ʧ��', response.status)
+    throw new LabApiError(body.error?.code ?? 'INTERNAL_ERROR', body.error?.message ?? '实验 API 请求失败', response.status)
   }
   if (body.result === undefined || typeof body.result.kind !== 'string') {
-    throw new LabApiError('INVALID_RESPONSE', 'ʵ�� API ����ȱ�ٽ������', response.status)
+    throw new LabApiError('INVALID_RESPONSE', '实验 API 返回缺少结果类型', response.status)
   }
   return body.result
 }

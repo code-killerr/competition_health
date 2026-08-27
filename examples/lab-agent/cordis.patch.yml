@@ -1,5 +1,5 @@
 # 实验自动化开发 overlay：叠加在既有 headless profile 上，不修改默认 profile。
-# 数据库使用当前工作目录下的开发文件，原始资料仍由 lab_knowledge_import 按路径导入。
+# Agent 只消费带引用的 Knowledge 结果；资料录入和 SOP 管理由独立 Knowledge 工作台负责。
 - insert:
     - id: lab-mvp
       name: '@deepseek-ai/dsh-experimental-lab-mvp'
@@ -11,6 +11,9 @@
               name: development dispenser
               capabilities:
                 - dispense
+
+    - id: tool-ask-user
+      name: '@deepseek-ai/dsh-tool-ask-user'
 
     - id: tool-lab
       name: '@deepseek-ai/dsh-experimental-tool-lab'

@@ -46,17 +46,15 @@ function text(result: Awaited<ReturnType<typeof execute>>): string {
 }
 
 describe('tool-lab-knowledge', () => {
-  it('registers only in Agent scope and completes search/confirmation through ctx.labKnowledge', async () => {
+  it('registers only read-only retrieval tools in Agent scope', async () => {
     const { ctx, agent } = await setup()
     const scope = scopeOf(agent.ctx)
     if (scope === undefined) throw new Error('expected Agent scope')
     const assembly = await ctx.systemPrompt.assemble({ scope })
     expect(assembly.tools.map(tool => tool.name)).toEqual(expect.arrayContaining([
-      'lab_knowledge_import',
       'lab_knowledge_status',
       'lab_knowledge_search',
       'lab_knowledge_conflicts',
-      'lab_knowledge_confirm',
     ]))
 
     await ctx.labKnowledge.importDocument({
@@ -64,9 +62,7 @@ describe('tool-lab-knowledge', () => {
     })
     const search = await execute(ctx, agent, 'lab_knowledge_search', { query: 'alpha' })
     expect(search.isError).toBe(false)
-    const citationId = (JSON.parse(text(search)) as Array<{ citationId: string }>)[0]!.citationId
-    const confirm = await execute(ctx, agent, 'lab_knowledge_confirm', { citation_id: citationId, confirmed_by: 'reviewer' })
-    expect(confirm.isError).toBe(false)
-    expect(JSON.parse(text(confirm))).toEqual({ citationId, confirmed: true })
+    const results = JSON.parse(text(search)) as Array<{ citationId: string }>
+    expect(results).toEqual(expect.arrayContaining([expect.objectContaining({ citationId: expect.any(String) })]))
   })
 })

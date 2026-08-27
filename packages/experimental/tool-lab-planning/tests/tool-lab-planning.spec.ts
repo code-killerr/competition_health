@@ -137,4 +137,83 @@ describe('tool-lab-planning', () => {
       expect.objectContaining({ type: 'lab/plan/proposed' }),
     ]))
   })
+
+  it('rejects a plan citation that is outside the current retrieval context', async () => {
+    const { ctx, agent } = await setup()
+    const result = await execute(ctx, agent, 'lab_plan_propose', {
+      request: {
+        experimentId: 'experiment-invalid-citation',
+        objective: 'unmatched objective',
+        samples: [],
+        constraints: [],
+        expectedOutputs: ['result'],
+        unresolved: [],
+      },
+      plan: {
+        planId: 'plan-invalid-citation',
+        experimentId: 'experiment-invalid-citation',
+        revision: 1,
+        status: 'DRAFT',
+        objective: 'unmatched objective',
+        citations: ['citation-not-retrieved'],
+        assumptions: [],
+        unresolved: [],
+        steps: [],
+      },
+      skill_drafts: [],
+    })
+
+    expect(result.isError).toBe(false)
+    expect(JSON.parse(text(result))).toMatchObject({
+      validation: {
+        valid: false,
+        issues: expect.arrayContaining([expect.objectContaining({ code: 'CITATION_UNKNOWN' })]),
+      },
+    })
+
+    expect(agent.session.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'lab/plan/proposed',
+        data: expect.objectContaining({ planId: 'plan-invalid-citation', citationIds: ['citation-not-retrieved'] }),
+      }),
+    ]))
+  })
+  it('returns a stable citation-required issue for an uncited plan', async () => {
+    const { ctx, agent } = await setup()
+    const result = await execute(ctx, agent, 'lab_plan_propose', {
+      request: {
+        experimentId: 'experiment-uncited',
+        objective: 'uncited objective',
+        samples: [],
+        constraints: [],
+        expectedOutputs: ['result'],
+        unresolved: [],
+      },
+      plan: {
+        planId: 'plan-uncited',
+        experimentId: 'experiment-uncited',
+        revision: 1,
+        status: 'DRAFT',
+        objective: 'uncited objective',
+        citations: [],
+        assumptions: [],
+        unresolved: [],
+        steps: [],
+      },
+      skill_drafts: [],
+    })
+    expect(result.isError).toBe(false)
+    expect(JSON.parse(text(result))).toMatchObject({
+      validation: {
+        valid: false,
+        issues: expect.arrayContaining([expect.objectContaining({ code: 'CITATION_REQUIRED' })]),
+      },
+    })
+    expect(agent.session.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'lab/plan/proposed',
+        data: expect.objectContaining({ planId: 'plan-uncited', citationIds: [] }),
+      }),
+    ]))
+  })
 })

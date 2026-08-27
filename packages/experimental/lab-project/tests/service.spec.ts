@@ -2,7 +2,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { brandId, rebuildProjectEvidence } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { describe, expect, it } from 'vitest'
-import { InMemoryLabProjectStore, LabProjectService } from '../src/index.ts'
+import { FakeLabKnowledgeConsumer, InMemoryLabProjectStore, LabProjectService } from '../src/index.ts'
 
 const projectId = (value: string) => brandId<'LabProjectId'>(value)
 const sessionId = (value: string) => brandId<'SessionId'>(value)
@@ -121,5 +121,14 @@ describe('LabProjectService', () => {
     const second = new LabProjectService(new Context(), () => 301)
     await second.attach(store)
     await expect(second.open(project)).resolves.toMatchObject({ project: { name: 'Persisted project' } })
+  })
+  it('does not return Knowledge records while its capability is unavailable', async () => {
+    const consumer = new FakeLabKnowledgeConsumer({
+      capability: { state: 'unavailable', reason: 'parallel Knowledge workspace is loading' },
+    })
+    await expect(consumer.listImportStatuses()).resolves.toEqual([])
+    await expect(consumer.search({ query: 'calibration' })).resolves.toEqual([])
+    await expect(consumer.listConflicts()).resolves.toEqual([])
+    await expect(consumer.listPublishedSops?.()).resolves.toEqual([])
   })
 })

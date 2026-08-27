@@ -1,6 +1,6 @@
 # 实验自动化 Web 原型的 opt-in patch；不改变默认 Web profile。
-# lab-mvp 提供实验 Service、知识库、规划、Skill、Mock Device、Runtime 和 /api/lab。
-# ui-lab-workbench 只注册浏览器 overlay，浏览器不直接访问 Provider 或数据库。
+# lab-mvp 提供实验 Service、项目/Session、规划、Skill、Mock Device、Runtime 和 /api/lab。
+# ui-lab-workbench 注册 Harness 原生 dsh.client 工作区贡献；浏览器不直接访问 Provider 或数据库，Knowledge 写入由独立工作区负责。
 - insert:
     - id: lab-mvp
       name: '@deepseek-ai/dsh-experimental-lab-mvp'
@@ -13,6 +13,9 @@
               name: development dispenser
               capabilities:
                 - dispense
+
+    - id: tool-ask-user
+      name: '@deepseek-ai/dsh-tool-ask-user'
 
     - id: tool-lab
       name: '@deepseek-ai/dsh-experimental-tool-lab'

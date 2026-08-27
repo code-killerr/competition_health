@@ -3,7 +3,7 @@
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsLocale, PropsStore, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import { useEffect, useMemo, type ReactNode } from 'react'
-import type { LabExperimentRequest, LabSopDraft } from './api.ts'
+import type { LabExperimentRequest } from './api.ts'
 import type { LabStage, LabWorkbenchState } from './store.ts'
 import { firstPlanId, planReviews, runView } from './store.ts'
 import type { createLabWorkbenchStore } from './store.ts'
@@ -12,21 +12,20 @@ import css from './LabWorkbench.module.css'
 /** 工作台注册层提供的异步操作。 */
 export interface LabWorkbenchInjected {
   refresh: (experimentId: string) => Promise<void>
-  importSource: (name: string, content: string, title: string) => Promise<void>
-  importFile: (file: File) => Promise<void>
-  search: (query: string, experimentId: string) => Promise<void>
-  createSop: (title: string, citationId: string, instruction: string) => Promise<void>
-  reviewSop: (draft: LabSopDraft) => Promise<void>
-  publishSop: (draftId: string) => Promise<void>
   listProjects: () => Promise<void>
   openProject: (projectId: string) => Promise<void>
   createProject: (projectId: string, name: string) => Promise<void>
-  updateProjectScope: (projectId: string, sources: readonly { readonly documentId: string; readonly versionId: string }[], deviceIds: readonly string[]) => Promise<void>
+  openSession: (sessionId: string) => void
+  createSession: (projectId: string, title?: string) => Promise<void>
+  updateProjectScope: (
+    projectId: string,
+    sources: readonly { readonly documentId: string; readonly versionId: string }[],
+    deviceIds: readonly string[],
+  ) => Promise<void>
   associateSession: (projectId: string, sessionId: string, title?: string) => Promise<void>
   renameSession: (projectId: string, sessionId: string, title: string) => Promise<void>
   createExperiment: (request: LabExperimentRequest) => Promise<void>
   buildContext: (request: LabExperimentRequest) => Promise<void>
-  agentPlan: (projectId: string, request: LabExperimentRequest, submit: (text: string) => void) => Promise<void>
   proposeLocalPlan: (request: LabExperimentRequest, content: string) => Promise<void>
   validatePlan: (planId: string) => Promise<void>
   approvePlan: (experimentId: string, planId: string, approvedBy: string) => Promise<void>
@@ -78,14 +77,7 @@ export function LabWorkbench(props: LabWorkbenchProps): JSX.Element {
 
   return (
     <section className={css.backdrop} data-lab-workbench aria-label={props.t('title')}>
-      <aside className={css.sidebar}>
-        <div className={css.brand}>
-          <span className={css.brandMark} aria-hidden="true">L</span>
-          <div>
-            <h1>{props.t('title')}</h1>
-            <p>{props.t('subtitle')}</p>
-          </div>
-        </div>
+      <main className={css.content}>
         <nav className={css.nav} aria-label={props.t('stageHint')}>
           {(Object.keys(labels) as LabStage[]).map(stage => (
             <button
@@ -99,28 +91,19 @@ export function LabWorkbench(props: LabWorkbenchProps): JSX.Element {
             </button>
           ))}
         </nav>
-        <div className={css.sidebarFooter}>
-          <span className={css.statusDot} data-active={busy || undefined} />
-          <span>{busy ? props.t('pending') : props.t('ready')}</span>
-          <button type="button" className={css.sidebarRefresh} onClick={() => { void props.refresh(state.experimentId) }} disabled={busy}>
-            {props.t('refresh')}
-          </button>
-        </div>
-      </aside>
-
-      <main className={css.content}>
         <header className={css.header}>
           <div>
+            <h1 className={css.title}>{props.t('title')}</h1>
             <span className={css.eyebrow}>{labels[state.stage]}</span>
             <h2>{state.experimentId || props.t('experimentId')}</h2>
           </div>
           <label className={css.compactField}>
             <span>{props.t('experimentId')}</span>
-            <input value={state.experimentId} onChange={event => { props.actions.setExperimentId(event.currentTarget.value) }} />
+            <input value={state.experimentId} onChange={(event) => { props.actions.setExperimentId(event.currentTarget.value) }} />
           </label>
           <label className={css.compactField}>
             <span>{props.t('projectId')}</span>
-            <input value={state.projectId} onChange={event => { props.actions.setProjectId(event.currentTarget.value) }} />
+            <input value={state.projectId} onChange={(event) => { props.actions.setProjectId(event.currentTarget.value) }} />
           </label>
         </header>
 
@@ -145,7 +128,7 @@ export function LabWorkbench(props: LabWorkbenchProps): JSX.Element {
 type StageProps = { readonly props: LabWorkbenchProps; readonly state: LabWorkbenchState; readonly busy: boolean }
 
 function DeviceStage({ props, state, busy }: StageProps): JSX.Element {
-  const sourceSelections = splitComma(state.selectedSourceKeysText).map(value => {
+  const sourceSelections = splitComma(state.selectedSourceKeysText).map((value) => {
     const separator = value.indexOf(':')
     return {
       documentId: separator < 0 ? value : value.slice(0, separator),
@@ -161,7 +144,7 @@ function DeviceStage({ props, state, busy }: StageProps): JSX.Element {
           <span>{props.t('selectedSources')}</span>
           <textarea
             value={state.selectedSourceKeysText}
-            onChange={event => { props.actions.setSelectedSourceKeysText(event.currentTarget.value) }}
+            onChange={(event) => { props.actions.setSelectedSourceKeysText(event.currentTarget.value) }}
             rows={3}
             placeholder="document-id:version-id"
           />
@@ -170,7 +153,7 @@ function DeviceStage({ props, state, busy }: StageProps): JSX.Element {
           <span>{props.t('selectedDevices')}</span>
           <input
             value={state.selectedDeviceIdsText}
-            onChange={event => { props.actions.setSelectedDeviceIdsText(event.currentTarget.value) }}
+            onChange={(event) => { props.actions.setSelectedDeviceIdsText(event.currentTarget.value) }}
             placeholder="device-1, device-2"
           />
         </label>
@@ -211,7 +194,7 @@ function ProjectStage({ props, state, busy }: StageProps): JSX.Element {
       <Panel title={props.t('projects')} hint={props.t('stageHint')}>
         <label className={css.field}>
           <span>{props.t('projectName')}</span>
-          <input value={state.projectName} onChange={event => { props.actions.setProjectName(event.currentTarget.value) }} />
+          <input value={state.projectName} onChange={(event) => { props.actions.setProjectName(event.currentTarget.value) }} />
         </label>
         <div className={css.buttonRow}>
           <ActionButton disabled={busy} onClick={() => { void props.listProjects() }}>{props.t('listProjects')}</ActionButton>
@@ -233,9 +216,12 @@ function ProjectStage({ props, state, busy }: StageProps): JSX.Element {
       <Panel title={props.t('projectSessions')} hint={props.t('stageHint')}>
         <label className={css.field}>
           <span>{props.t('sessionTitle')}</span>
-          <input value={state.sessionTitle} onChange={event => { props.actions.setSessionTitle(event.currentTarget.value) }} />
+          <input value={state.sessionTitle} onChange={(event) => { props.actions.setSessionTitle(event.currentTarget.value) }} />
         </label>
         <div className={css.buttonRow}>
+          <ActionButton disabled={busy || projectId === ''} onClick={() => { void props.createSession(projectId, sessionTitle === '' ? undefined : sessionTitle) }}>
+            {props.t('createSession')}
+          </ActionButton>
           <ActionButton disabled={busy || projectId === '' || sessionId.trim() === ''} onClick={() => { void props.associateSession(projectId, sessionId, sessionTitle === '' ? undefined : sessionTitle) }}>
             {props.t('associateSession')}
           </ActionButton>
@@ -244,40 +230,31 @@ function ProjectStage({ props, state, busy }: StageProps): JSX.Element {
           </ActionButton>
         </div>
         <StatusList items={state.projectView?.sessions ?? []} empty={props.t('empty')} renderItem={(session, index) => (
-          <div key={String(session.sessionId ?? index)} className={css.listRow}>
+          <button key={String(session.sessionId ?? index)} type="button" className={css.listRow} onClick={() => {
+            if (typeof session.sessionId === 'string') props.openSession(session.sessionId)
+          }}>
             <span>{String(session.title ?? session.sessionId ?? props.t('sessionTitle'))}</span>
             <StatusBadge value={session.status} />
-          </div>
+          </button>
         )} />
       </Panel>
     </div>
   )
 }
 
-function KnowledgeStage({ props, state, busy }: StageProps): JSX.Element {
-  const firstCitation = state.searchResults.find(result => result.citationId !== undefined && result.excerpt !== undefined)
-  const draft = state.sopDraft
+function KnowledgeStage({ props, state }: StageProps): JSX.Element {
   return (
     <div className={css.stageGrid}>
-      <Panel title={props.t('importSource')} hint={props.t('sourceText')}>
-        <label className={css.field}>
-          <span>{props.t('sourceName')}</span>
-          <input value={state.sourceName} onChange={event => { props.actions.setSourceName(event.currentTarget.value) }} placeholder="protocol.pdf / protocol.csv" />
-        </label>
-        <label className={css.field}>
-          <span>{props.t('sourceText')}</span>
-          <textarea value={state.sourceText} onChange={event => { props.actions.setSourceText(event.currentTarget.value) }} rows={9} />
-        </label>
-        <label className={css.field}>
-          <span>{props.t('fileInput')}</span>
-          <input type="file" accept=".pdf,.csv,.tsv,.txt,.md" onChange={event => {
-            const file = event.currentTarget.files?.[0]
-            if (file !== undefined) void props.importFile(file)
-          }} />
-        </label>
-        <ActionButton disabled={busy || state.sourceName.trim() === '' || state.sourceText.trim() === ''} onClick={() => { void props.importSource(state.sourceName, state.sourceText, state.sourceName) }}>
-          {props.t('importSource')}
-        </ActionButton>
+      <Panel title={props.t('knowledge')} hint={props.t('knowledgeWorkspaceNotice')}>
+        <p className={css.description}>{props.t('knowledgeWorkspaceNotice')}</p>
+        <div className={css.statusLine}>
+          <StatusBadge value={state.snapshot?.knowledgeCapability?.state ?? 'unavailable'} />
+          <span>
+            {state.snapshot?.knowledgeCapability?.state === 'available'
+              ? props.t('capabilityAvailable')
+              : state.snapshot?.knowledgeCapability?.reason ?? props.t('capabilityUnavailable')}
+          </span>
+        </div>
         <StatusList items={state.snapshot?.knowledge ?? []} empty={props.t('empty')} renderItem={(item, index) => (
           <div key={String(item.versionId ?? item.documentId ?? index)} className={css.listRow}>
             <span>{String(item.sourceName ?? item.documentId ?? props.t('sourceName'))}</span>
@@ -285,14 +262,7 @@ function KnowledgeStage({ props, state, busy }: StageProps): JSX.Element {
           </div>
         )} />
       </Panel>
-      <Panel title={props.t('search')} hint={props.t('citations')}>
-        <label className={css.field}>
-          <span>{props.t('query')}</span>
-          <input value={state.query} onChange={event => { props.actions.setQuery(event.currentTarget.value) }} />
-        </label>
-        <ActionButton disabled={busy || state.query.trim() === ''} onClick={() => { void props.search(state.query, state.experimentId) }}>
-          {props.t('search')}
-        </ActionButton>
+      <Panel title={props.t('citations')} hint={props.t('readOnly')}>
         <ResultList results={state.searchResults} empty={props.t('empty')} />
         <div className={css.subheading}>{props.t('conflicts')}</div>
         <StatusList items={state.conflicts} empty={props.t('empty')} renderItem={(item, index) => (
@@ -302,66 +272,49 @@ function KnowledgeStage({ props, state, busy }: StageProps): JSX.Element {
           </div>
         )} />
       </Panel>
-      <Panel title={props.t('sop')} hint={props.t('sopHint')}>
-        <label className={css.field}>
-          <span>{props.t('sopTitle')}</span>
-          <input value={state.sopTitle} onChange={event => { props.actions.setSopTitle(event.currentTarget.value) }} />
-        </label>
-        <ActionButton
-          disabled={busy || state.sopTitle.trim() === '' || firstCitation === undefined}
-          onClick={() => {
-            if (firstCitation !== undefined) void props.createSop(state.sopTitle, firstCitation.citationId!, firstCitation.excerpt!)
-          }}
-        >
-          {props.t('createSop')}
-        </ActionButton>
-        {draft === undefined ? <EmptyState text={props.t('empty')} /> : (
-          <>
-            <div className={css.subheading}>{String(draft.status ?? '—')} · {String(draft.title ?? '—')}</div>
-            {draft.blockers === undefined || draft.blockers.length === 0
-              ? <EmptyState text={props.t('empty')} />
-              : <div className={css.list}>{draft.blockers.map(blocker => <div key={blocker} className={css.listRow}><span>{blocker}</span></div>)}</div>}
-            <div className={css.buttonRow}>
-              <ActionButton disabled={busy || draft.draftId === undefined || draft.status === 'PUBLISHED'} onClick={() => { void props.reviewSop(draft) }}>
-                {props.t('reviewSop')}
-              </ActionButton>
-              <ActionButton emphasis="amber" disabled={busy || draft.draftId === undefined || draft.status !== 'REVIEWED'} onClick={() => {
-                if (draft.draftId !== undefined) void props.publishSop(draft.draftId)
-              }}>
-                {props.t('publishSop')}
-              </ActionButton>
-            </div>
-          </>
-        )}
+      <Panel title={props.t('scope')} hint={props.t('selectedSources')}>
+        <StatusList items={state.projectView?.sources ?? []} empty={props.t('empty')} renderItem={(source, index) => (
+          <div key={String(source.versionId ?? index)} className={css.listRow}>
+            <span>{String(source.documentId ?? props.t('sourceName'))}:{String(source.versionId ?? '—')}</span>
+            <StatusBadge value={source.status} />
+          </div>
+        )} />
       </Panel>
     </div>
   )
 }
-
 function RequestStage({ props, state, request, busy }: StageProps & { readonly request: LabExperimentRequest }): JSX.Element {
   return (
     <div className={css.stageGrid}>
       <Panel title={props.t('request')} hint={props.t('stageHint')}>
+        <p className={css.description}>{props.t('conversationNotice')}</p>
         <label className={css.field}>
           <span>{props.t('objective')}</span>
-          <textarea value={state.objective} onChange={event => { props.actions.setObjective(event.currentTarget.value) }} rows={5} />
+          <textarea value={state.objective} onChange={(event) => { props.actions.setObjective(event.currentTarget.value) }} rows={5} />
         </label>
         <label className={css.field}>
           <span>{props.t('sample')}</span>
-          <input value={state.sampleName} onChange={event => { props.actions.setSampleName(event.currentTarget.value) }} />
+          <input value={state.sampleName} onChange={(event) => { props.actions.setSampleName(event.currentTarget.value) }} />
         </label>
         <label className={css.field}>
           <span>{props.t('expectedOutputs')}</span>
-          <textarea value={state.expectedOutputsText} onChange={event => { props.actions.setExpectedOutputsText(event.currentTarget.value) }} rows={4} />
+          <textarea
+            value={state.expectedOutputsText}
+            onChange={(event) => { props.actions.setExpectedOutputsText(event.currentTarget.value) }}
+            rows={4}
+          />
         </label>
         <label className={css.field}>
           <span>{props.t('constraints')}</span>
-          <textarea value={state.constraintsText} onChange={event => { props.actions.setConstraintsText(event.currentTarget.value) }} rows={3} />
+          <textarea
+            value={state.constraintsText}
+            onChange={(event) => { props.actions.setConstraintsText(event.currentTarget.value) }}
+            rows={3}
+          />
         </label>
         <div className={css.buttonRow}>
           <ActionButton disabled={busy || request.objective === ''} onClick={() => { void props.createExperiment(request) }}>{props.t('createExperiment')}</ActionButton>
           <ActionButton disabled={busy || request.objective === ''} onClick={() => { void props.buildContext(request) }}>{props.t('buildContext')}</ActionButton>
-          <ActionButton emphasis="amber" disabled={busy || request.objective === ''} onClick={() => { void props.agentPlan(state.projectId, request, text => { props.inputActions.setDraft(text); props.inputActions.submit() }) }}>{props.t('agentPlan')}</ActionButton>
         </div>
       </Panel>
       <Panel title={props.t('citations')} hint={props.t('noPlan')}>
@@ -378,7 +331,11 @@ function PlanStage({ props, state, reviews, activePlanId, busy }: StageProps & {
       <Panel title={props.t('localDemo')} hint={props.t('jsonHint')}>
         <label className={css.field}>
           <span>{props.t('localPlanJson')}</span>
-          <textarea value={state.localPlanText} onChange={event => { props.actions.setLocalPlanText(event.currentTarget.value) }} rows={8} />
+          <textarea
+            value={state.localPlanText}
+            onChange={(event) => { props.actions.setLocalPlanText(event.currentTarget.value) }}
+            rows={8}
+          />
         </label>
         <ActionButton disabled={busy || state.localPlanText.trim() === '' || state.objective.trim() === ''} onClick={() => { void props.proposeLocalPlan(buildRequest(state), state.localPlanText) }}>
           {props.t('submitLocalPlan')}
@@ -386,12 +343,15 @@ function PlanStage({ props, state, reviews, activePlanId, busy }: StageProps & {
       </Panel>
       <Panel title={props.t('plan')} hint={props.t('noPlan')}>
         {reviews.length === 0 && <EmptyState text={props.t('noPlan')} />}
-        {reviews.map(review => {
+        {reviews.map((review) => {
           const planId = review.plan.planId ?? 'unknown-plan'
           return (
             <button key={planId} type="button" className={planId === activePlanId ? css.planCardActive : css.planCard} onClick={() => { props.actions.setActivePlan(planId) }}>
               <span className={css.cardTitle}>{String(review.plan.objective ?? planId)}</span>
               <span className={css.cardMeta}>{planId} · revision {String(review.plan.revision ?? '?')}</span>
+              <span className={css.cardMeta}>{props.t('citations')}: {(review.plan.citations ?? []).join(', ') || props.t('empty')}</span>
+              <span className={css.cardMeta}>{props.t('assumptions')}: {(review.plan.assumptions ?? []).join(', ') || props.t('empty')}</span>
+              <span className={css.cardMeta}>{props.t('unresolvedInputs')}: {(review.plan.unresolved ?? []).join(', ') || props.t('empty')}</span>
               <StatusBadge value={review.plan.status} />
             </button>
           )
@@ -404,7 +364,7 @@ function PlanStage({ props, state, reviews, activePlanId, busy }: StageProps & {
         )}
         <label className={css.field}>
           <span>{props.t('reviewer')}</span>
-          <input value={state.reviewer} onChange={event => { props.actions.setReviewer(event.currentTarget.value) }} />
+          <input value={state.reviewer} onChange={(event) => { props.actions.setReviewer(event.currentTarget.value) }} />
         </label>
       </Panel>
       <Panel title={props.t('steps')} hint={props.t('citations')}>
@@ -457,11 +417,15 @@ function ExecutionStage({ props, state, run, runId, planId, busy }: StageProps &
         </div>
         <label className={css.field}>
           <span>{props.t('evidence')}</span>
-          <textarea value={state.evidenceText} onChange={event => { props.actions.setEvidenceText(event.currentTarget.value) }} rows={5} />
+          <textarea
+            value={state.evidenceText}
+            onChange={(event) => { props.actions.setEvidenceText(event.currentTarget.value) }}
+            rows={5}
+          />
         </label>
         <label className={css.field}>
           <span>{props.t('requestedBy')}</span>
-          <input value={state.requestedBy} onChange={event => { props.actions.setRequestedBy(event.currentTarget.value) }} />
+          <input value={state.requestedBy} onChange={(event) => { props.actions.setRequestedBy(event.currentTarget.value) }} />
         </label>
       </Panel>
       <Panel title={props.t('devices')} hint={props.t('status')}>
@@ -491,7 +455,15 @@ function ReportStage({ props, state, run, runId, busy }: StageProps & { readonly
 }
 
 function Panel(props: { readonly title: string; readonly hint: string; readonly children: ReactNode }): JSX.Element {
-  return <section className={css.panel}><div className={css.panelHeader}><h3>{props.title}</h3><span>{props.hint}</span></div>{props.children}</section>
+  return (
+    <section className={css.panel}>
+      <div className={css.panelHeader}>
+        <h3>{props.title}</h3>
+        <span>{props.hint}</span>
+      </div>
+      {props.children}
+    </section>
+  )
 }
 
 function ActionButton(props: { readonly children: ReactNode; readonly onClick: () => void; readonly disabled?: boolean; readonly emphasis?: 'amber' }): JSX.Element {
@@ -502,7 +474,11 @@ function StatusBadge(props: { readonly value?: unknown }): JSX.Element {
   return <span className={css.badge}>{String(props.value ?? '—')}</span>
 }
 
-function StatusList<T extends object>(props: { readonly items: readonly T[]; readonly empty: string; readonly renderItem: (item: T, index: number) => ReactNode }): JSX.Element {
+function StatusList<T extends object>(props: {
+  readonly items: readonly T[]
+  readonly empty: string
+  readonly renderItem: (item: T, index: number) => ReactNode
+}): JSX.Element {
   return props.items.length === 0 ? <EmptyState text={props.empty} /> : <div className={css.list}>{props.items.map(props.renderItem)}</div>
 }
 
@@ -521,7 +497,8 @@ function ResultList(props: { readonly results: readonly import('./api.ts').LabSe
 }
 
 function JsonPreview(props: { readonly value?: unknown; readonly empty: string }): JSX.Element {
-  return props.value === undefined ? <EmptyState text={props.empty} /> : <pre className={css.json}>{JSON.stringify(props.value, null, 2)}</pre>
+  if (props.value === undefined) return <EmptyState text={props.empty} />
+  return <pre className={css.json}>{JSON.stringify(props.value, null, 2)}</pre>
 }
 
 function EmptyState(props: { readonly text: string }): JSX.Element {

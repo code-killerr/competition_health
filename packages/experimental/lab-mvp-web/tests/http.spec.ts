@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
 import { Context } from '@deepseek-ai/cordis'
 import { LabProviderUnavailableError } from '@deepseek-ai/dsh-experimental-lab-domain'
+import { LabProjectReferenceError } from '@deepseek-ai/dsh-experimental-lab-project'
 import type { WebRoute, WebServer } from '@deepseek-ai/dsh-host-webserver'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { LabMvpWebService } from '../src/index.ts'
@@ -65,6 +66,16 @@ describe('lab Web HTTP Consumer', () => {
     await routes[0]!.handler(fakeRequest('POST', JSON.stringify({ command: 'snapshot', experimentId: 'experiment-1' })), response.response)
     expect(response.state.status).toBe(503)
     expect(JSON.parse(response.state.body ?? '')).toMatchObject({ ok: false, error: { code: 'PROVIDER_UNAVAILABLE' } })
+  })
+  it('maps a cross-project reference to a stable domain response', async () => {
+    const routes: WebRoute[] = []
+    const dispatch = vi.fn().mockRejectedValue(new LabProjectReferenceError('session belongs to another project'))
+    const ctx = setupContext(routes, dispatch)
+    await mount(ctx)
+    const response = fakeResponse()
+    await routes[0]!.handler(fakeRequest('POST', JSON.stringify({ command: 'snapshot', experimentId: 'experiment-1' })), response.response)
+    expect(response.state.status).toBe(409)
+    expect(JSON.parse(response.state.body ?? '')).toMatchObject({ ok: false, error: { code: 'CROSS_PROJECT_REFERENCE' } })
   })
 })
 

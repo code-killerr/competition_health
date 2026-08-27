@@ -1,2 +1,6 @@
-2026-08-26-lab-web-workbench-consumer-topology.md: 92b107e224b861bdf4fc0fcd105a891c5bb022b9
-2026-08-26-lab-web-workbench-consumer-topology.zh.md: 7061b79af651e96ce827a29478d2589ae8c99321
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-26-lab-web-workbench-consumer-topology.md
+2026-08-26-lab-web-workbench-consumer-topology.md: 328b85f8a6c59cafe38dfab8c65d004623435782
+2026-08-26-lab-web-workbench-consumer-topology.zh.md: 20d67c5e8e251772db316bfdec7a4335d2770ed3

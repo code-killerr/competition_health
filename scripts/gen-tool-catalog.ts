@@ -63,6 +63,7 @@ import * as ToolTeam from '@deepseek-ai/dsh-experimental-tool-agent-team'
 import * as LabMvp from '@deepseek-ai/dsh-experimental-lab-mvp'
 import * as ToolLab from '@deepseek-ai/dsh-experimental-tool-lab'
 import * as ToolLabKnowledge from '@deepseek-ai/dsh-experimental-tool-lab-knowledge'
+import * as ToolLabProject from '@deepseek-ai/dsh-experimental-tool-lab-project'
 import * as ToolLabPlanning from '@deepseek-ai/dsh-experimental-tool-lab-planning'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
@@ -239,6 +240,20 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     scope: ctx => catalogChildScopes.get(ctx) as Agent,
     note: 'The catalog boots the local Planning, Knowledge, Skill, and Mock Device Providers and exposes the scoped planning tools through one synthetic Agent.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-experimental-tool-lab-project',
+    dir: 'tool-lab-project',
+    source: 'packages/experimental/tool-lab-project/src/index.ts',
+    requires: ['ctx.tools', 'ctx.agents', 'ctx.labProjects', 'ctx.labKnowledge', 'ctx.labDevices'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(LabMvp, { knowledgePath: ':memory:', device: { devices: [] } })
+      await ctx.plugin(AgentRegistry)
+      await mountCatalogAgentScope(ctx, agentCtx => agentCtx.plugin(ToolLabProject), ['tools', 'systemPrompt', 'agents', 'labProjects', 'labKnowledge', 'labDevices'])
+    },
+    scope: ctx => catalogChildScopes.get(ctx) as Agent,
+    note: 'The catalog boots the local project and Knowledge capabilities and exposes read-only project context tools through one synthetic Agent.',
   },
   {
     pkg: '@deepseek-ai/dsh-experimental-tool-lab',

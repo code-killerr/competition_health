@@ -34,17 +34,24 @@ export class LabExperimentCacheService extends Service {
     super(ctx, 'labExperimentCache')
   }
 
-  /** 写入一份可由 Session 事件重建的实验缓存投影。 */
+  /** Write an experiment cache projection that can be rebuilt from Session events.
+   * @param projection - rebuildable experiment cache projection.
+   */
   project(projection: ExperimentCacheProjection): Promise<void> {
     return this.store.put(projection)
   }
 
-  /** 读取最近一次已投影的实验缓存，供组合冒烟测试和后续恢复入口使用。 */
+  /** Read the latest projected experiment cache.
+   * @param experimentId - experiment whose projection is requested.
+   * @returns - latest projection, when one has been stored.
+   */
   get(experimentId: ExperimentId): ExperimentCacheProjection | undefined {
     return this.store.get(experimentId)
   }
 
-  /** 为组合插件绑定本进程唯一的 Storage 投影写入器。 */
+  /** Bind the process-local Storage projection writer.
+   * @param store - storage adapter used for cache projections.
+   */
   attach(store: ExperimentCacheStore): void {
     this.store = store
   }

@@ -14,7 +14,7 @@ A non-interactive agent that accepts one task, runs it, and emits a selected mac
 
 ## lab-agent
 
-An opt-in laboratory automation development overlay over the Headless Agent for testing knowledge ingestion/retrieval, fact confirmation, and laboratory Skill discovery. See the [laboratory automation development Agent reference](lab-agent/README.md).
+An opt-in laboratory automation development overlay over the Headless Agent for testing cited Knowledge retrieval, project-scoped planning, and laboratory Skill proposals. See the [laboratory automation development Agent reference](lab-agent/README.md).
 
 ## jsonrpc-agent
 

@@ -16,12 +16,12 @@ pnpm run build
 启动实验开发组合：
 
 ```
-pnpm dsh --profile headless --patch examples/lab-agent/cordis.patch.yml "Use lab_knowledge_import to import the requested source, search the experiment objective, approve the plan, and execute the controlled run"
+pnpm dsh --profile headless --patch examples/lab-agent/cordis.patch.yml "Retrieve cited laboratory context and propose a draft plan; leave approval and execution to the project workspace"
 ```
 
-本 overlay 会挂载实验领域 Service、本地 Knowledge、Planning、Lab Skill、Mock Device 和 Runtime Provider、Agent 作用域的 Knowledge、Planning 和 Runtime 工具，以及只读 Web Consumer。知识库默认写入当前工作目录下的 .lab-data/knowledge.sqlite，原始文件通过工具按路径导入，资料不会自动成为内置种子数据。
+本 overlay 会挂载实验领域 Service、本地 Knowledge、Planning、Lab Skill、Mock Device 和 Runtime Provider、Agent 作用域的只读 Knowledge/Planning/Runtime/项目上下文工具、只读 Web Consumer，以及现有的 `ask_user_question` 澄清 Consumer。问题和答案会保留在当前 Session 证据中。Knowledge 资料录入和 SOP 管理由独立贡献的 Knowledge 工作台负责；当前 Agent 组合不提供 Knowledge 写入流程。
 
-当前可验证知识录入、带引用检索、冲突和事实确认、规划上下文、结构化计划和 Skill 草案、确定性校验、计划批准、ExecutionGraph 锁定、人工确认、受控 Mock Device 执行、Session 观察结果和报告。生产设备、持久化 Runtime 恢复和结果校验器属于后续增量。
+当前可验证带引用检索、冲突、项目范围规划上下文、结构化计划和 Skill 草案、确定性校验以及有界报告。计划批准、Skill 激活、运行和步骤确认仍由项目工作台显式执行。生产设备、持久化 Runtime 恢复和结果校验器属于后续增量。
 
 运行 Agent 需要 DEEPSEEK_API_KEY，可放在项目根目录的 git 忽略 .env 或通过环境变量提供。
 

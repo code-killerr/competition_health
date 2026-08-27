@@ -100,8 +100,14 @@ function isProjectCommand(value: unknown): boolean {
 function classifyError(error: unknown): { readonly status: number; readonly code: LabWebErrorCode; readonly message: string } {
   if (error instanceof HttpCommandError) return error
   if (error instanceof LabProviderUnavailableError) return { status: 503, code: 'PROVIDER_UNAVAILABLE', message: error.message }
+  if (error instanceof Error && errorCode(error) === 'CROSS_PROJECT_REFERENCE') return { status: 409, code: 'CROSS_PROJECT_REFERENCE', message: error.message }
   if (error instanceof Error) return { status: 409, code: 'DOMAIN_ERROR', message: error.message }
   return { status: 500, code: 'INTERNAL_ERROR', message: '实验 Web Consumer 发生未知错误' }
+}
+
+function errorCode(error: Error): string | undefined {
+  const code = (error as Error & { readonly code?: unknown }).code
+  return typeof code === 'string' ? code : undefined
 }
 
 function sendError(res: ServerResponse, status: number, code: LabWebErrorCode, message: string): void {

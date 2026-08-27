@@ -2,17 +2,17 @@
 
 English | [中文](README.zh.md)
 
-Agent-scoped model tools over `ctx.labKnowledge`. The plugin reuses the Harness agent lifecycle and registers tools with `agent.ctx.tools.register()` for every existing or subsequently created Agent.
+Agent-scoped read-only model tools over ctx.labKnowledge. The plugin reuses the Harness Agent lifecycle and registers tools with agent.ctx.tools.register() for every existing or subsequently created Agent.
 
 ## Tools
 
-- `lab_knowledge_import` registers a local source path and returns its immutable document/version status.
-- `lab_knowledge_status` reads parsing and indexing status.
-- `lab_knowledge_search` returns cited excerpts with version, location, score, and confirmation state.
-- `lab_knowledge_conflicts` lists conflicts requiring review.
-- `lab_knowledge_confirm` records accountable human confirmation for a citation.
+- lab_knowledge_status reads parsing and indexing status.
+- lab_knowledge_search returns cited excerpts with version, location, score, and confirmation state.
+- lab_knowledge_conflicts lists conflicts requiring review.
 
-The package does not select a model, provider, preset, API key, or session implementation. Those remain owned by DeepSeek Harness configuration. It also does not execute document parsers, scripts, devices, or arbitrary model output.
+Source ingestion, fact confirmation, SOP curation, parsing, and retrieval ownership remain with the separate Knowledge workspace and its public Service/Facade. This Consumer only exposes the read-only records needed for laboratory planning.
+
+The package does not select a model, provider, preset, API key, or session implementation. Those remain owned by DeepSeek Harness configuration. It does not execute document parsers, scripts, devices, or arbitrary model output.
 
 ## Model Experience
 
@@ -20,17 +20,16 @@ The package does not select a model, provider, preset, API key, or session imple
 
 #### What the model sees
 
-The model sees approved plans, controlled run states, and bounded observations through the package typed service or `lab_*` tools.
+The model sees cited excerpts, immutable source/version identities, confirmation state, and open conflicts through the read-only lab_knowledge_* tools.
 
 #### Token effect
 
-Only requested plan fields, current-step status, and bounded evidence are returned; local storage details remain host-side.
+Only requested citation fields and bounded status data are returned; local storage details remain host-side.
 
 #### KV Cache effect
 
-Stable experiment, plan, Skill revision, and run identifiers keep repeated step results compact and prefix-friendly.
+Stable source, version, citation, and conflict identifiers keep repeated retrieval results compact and prefix-friendly.
 
 ## Known Limitations and Deferred Work
 
-- This experimental package provides local typed contracts and does not claim production persistence, recovery, or hardware integration.
 - This experimental package provides local typed contracts and does not claim production persistence, recovery, or hardware integration.

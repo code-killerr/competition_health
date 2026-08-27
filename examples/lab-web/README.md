@@ -18,7 +18,7 @@ Start the composition:
 pnpm dsh --profile web --patch examples/lab-web/cordis.patch.yml --no-open
 ```
 
-Open the printed local URL. Import [`fixtures/minimal-source.txt`](fixtures/minimal-source.txt) through the Knowledge stage, search for `bench`, and enter an experiment request. The Agent planning button reuses the current DeepSeek Harness session and requires `DEEPSEEK_API_KEY`.
+Open the printed local URL. The Knowledge stage is a read-only projection of capability status, source/version identities, citations, and conflicts. When the separately contributed Knowledge workspace is available, use its typed import flow; it does not send a source file as an ordinary Agent message. Submit the request through the Harness conversation composer; the Agent resolves the current Session project association and requires `DEEPSEEK_API_KEY` for model-backed planning. The existing `ask_user_question` Consumer remains available for clarification, with its question and answer recorded in the current Session.
 
 For a keyless planning path, build the planning context, copy a citation ID from the retrieval result, replace `REPLACE_WITH_CITATION_ID` in [`fixtures/minimal-plan.template.json`](fixtures/minimal-plan.template.json), and paste the JSON into the Plan stage's local demo field. The page keeps Skill validation, human approval, activation, plan approval, step confirmation, stop, and report actions explicit.
 

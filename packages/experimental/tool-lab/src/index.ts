@@ -20,6 +20,17 @@ export const name = 'tool-lab'
 export const inject = ['agents', 'tools', 'labRuntime', 'labPlanning', 'labSkills']
 
 const JSON_SCHEMA = { type: 'json' } as const
+const HUMAN_ACTION_TOOLS = new Set([
+  'lab_plan_approve',
+  'lab_plan_reject',
+  'lab_skill_approve',
+  'lab_skill_activate',
+  'lab_run_start',
+  'lab_run_step',
+  'lab_run_confirm',
+
+  'lab_run_stop',
+])
 
 function jsonOutput<const S extends ValueSchemaSpec>(schema: S): {
   schema: S
@@ -53,8 +64,8 @@ function install(
   const register = (disposer: () => unknown): void => { disposers.push(disposer) }
   try {
     register(agent.ctx.on('tools/pre-execute', (exec, next): Promise<PreToolDecision> => {
-      if (exec.name !== 'lab_plan_approve' || agent.ctx.get('approval') === undefined) return next()
-      return Promise.resolve({ kind: 'ask', reason: 'A human must approve this laboratory plan revision before it is recorded.' })
+      if (!HUMAN_ACTION_TOOLS.has(exec.name)) return next()
+      return Promise.resolve({ kind: 'deny', reason: 'This laboratory action requires an explicit human action in the project workspace.' })
     }))
     register(agent.ctx.tools.register(defineTool({
       name: 'lab_experiment_create',

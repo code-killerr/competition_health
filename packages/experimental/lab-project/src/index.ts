@@ -171,6 +171,16 @@ export interface PublishLabProjectFactRequest {
   readonly publishedBy: SessionId
 }
 
+/** Stable error for a Session reference that crosses project ownership. */
+export class LabProjectReferenceError extends Error {
+  /** Stable Web and tool error code. */
+  readonly code = 'CROSS_PROJECT_REFERENCE' as const
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'LabProjectReferenceError'
+  }
+}
 /** Durable project/session association and scope service. */
 export class LabProjectService extends Service {
   private state: LabProjectState = emptyState()
@@ -187,14 +197,19 @@ export class LabProjectService extends Service {
     this.clock = clock
   }
 
-  /** Attach the existing Storage/SQLite domain and restore its state. */
+  /** Attach the existing Storage/SQLite domain and restore its state.
+   * @param store - durable project state store.
+   */
   async attach(store: LabProjectStore): Promise<void> {
     this.store = store
-    this.ready = this.store.load().then(state => { this.state = cloneState(state) })
+    this.ready = this.store.load().then((state) => { this.state = cloneState(state) })
     await this.ready
   }
 
-  /** Create an empty active project. */
+  /** Create an empty active project.
+   * @param request - project creation request.
+   * @returns - created project view.
+   */
   async create(request: CreateLabProjectRequest): Promise<LabProjectView> {
     await this.ready
     const name = nonBlank(request.name, 'project name')
@@ -219,19 +234,28 @@ export class LabProjectService extends Service {
     return this.view(project.projectId)
   }
 
-  /** List active and archived projects in creation order. */
+  /** List active and archived projects in creation order.
+   * @returns - project views in creation order.
+   */
   async list(): Promise<readonly LabProjectView[]> {
     await this.ready
     return this.state.projects.map(project => this.view(project.projectId))
   }
 
-  /** Open one project with its explicit scope and Session rows. */
+  /** Open one project with its explicit scope and Session rows.
+   * @param projectId - project identifier to open.
+   * @returns - project view.
+   */
   async open(projectId: LabProjectId): Promise<LabProjectView> {
     await this.ready
     return this.view(projectId)
   }
 
-  /** Replace a project's selected source versions and devices. */
+  /** Replace a project selected source versions and devices.
+   * @param projectId - project identifier to update.
+   * @param request - replacement scope.
+   * @returns - updated project view.
+   */
   async updateScope(projectId: LabProjectId, request: UpdateLabProjectScopeRequest): Promise<LabProjectView> {
     await this.ready
     const project = this.requireProject(projectId)
@@ -259,13 +283,16 @@ export class LabProjectService extends Service {
     return this.view(project.projectId)
   }
 
-  /** Associate one distinct Harness Session with a project. */
+  /** Associate one distinct Harness Session with a project.
+   * @param request - project/session association request.
+   * @returns - updated project view.
+   */
   async associateSession(request: AssociateLabProjectSessionRequest): Promise<LabProjectView> {
     await this.ready
     this.requireProject(request.projectId)
     const existing = this.state.sessions.find(session => session.sessionId === request.sessionId)
     if (existing !== undefined) {
-      if (existing.projectId !== request.projectId) throw new Error(`session "${request.sessionId}" already belongs to another project`)
+      if (existing.projectId !== request.projectId) throw new LabProjectReferenceError(`session "${request.sessionId}" already belongs to another project`)
       return this.view(request.projectId)
     }
     const order = this.state.sessions
@@ -293,7 +320,13 @@ export class LabProjectService extends Service {
     return this.view(request.projectId)
   }
 
-  /** Rename a project Session without changing Harness Session messages. */
+  /** Rename a project Session without changing Harness Session messages.
+   * @param projectId - project identifier.
+   * @param sessionId - associated Session identifier.
+   * @param title - new non-blank title.
+   * @param renamedBy - Session recording the rename.
+   * @returns - updated project view.
+   */
   async renameSession(projectId: LabProjectId, sessionId: SessionId, title: string, renamedBy: SessionId): Promise<LabProjectView> {
     await this.ready
     this.requireSession(projectId, sessionId)
@@ -310,7 +343,11 @@ export class LabProjectService extends Service {
     return this.view(projectId)
   }
 
-  /** Return explicit project scope and approved/shared facts for one Session. */
+  /** Return explicit project scope and approved shared facts for a Session.
+   * @param projectId - project identifier.
+   * @param sessionId - optional associated Session identifier.
+   * @returns - project context for the Session.
+   */
   async context(projectId: LabProjectId, sessionId?: SessionId): Promise<LabProjectContext> {
     await this.ready
     if (sessionId !== undefined) this.requireSession(projectId, sessionId)
@@ -324,7 +361,10 @@ export class LabProjectService extends Service {
     }
   }
 
-  /** Publish one explicitly approved fact for later Sessions. */
+  /** Publish one explicitly approved fact for later Sessions.
+   * @param request - project fact publication request.
+   * @returns - updated project view.
+   */
   async publishFact(request: PublishLabProjectFactRequest): Promise<LabProjectView> {
     await this.ready
     this.requireProject(request.projectId)
@@ -354,7 +394,10 @@ export class LabProjectService extends Service {
     return this.view(request.projectId)
   }
 
-  /** Project one proposal, approval, run or report into the rebuildable cache. */
+  /** Project one proposal, approval, run or report into the rebuildable cache.
+   * @param projection - rebuildable project evidence projection.
+   * @returns - updated project view.
+   */
   async projectEvidence(projection: LabProjectEvidenceProjection): Promise<LabProjectView> {
     await this.ready
     this.requireProject(projection.projectId)
@@ -374,15 +417,20 @@ export class LabProjectService extends Service {
     return this.view(projection.projectId)
   }
 
-  /** Read audit records for recovery and diagnostics. */
+  /** Read audit records for recovery and diagnostics.
+   * @param projectId - project identifier.
+   * @returns - project audit records.
+   */
   async listAudits(projectId: LabProjectId): Promise<readonly LabProjectAudit[]> {
     await this.ready
     this.requireProject(projectId)
     return this.state.audits.filter(audit => audit.projectId === projectId).map(clone)
   }
 
-  /** Assert that a Session is explicitly associated with a project. */
-  /** Return the project owning a Session, when the Session has been associated. */
+  /** Return the project owning a Session, when the Session has been associated.
+   * @param sessionId - Session identifier to resolve.
+   * @returns - owning project, when the Session is associated.
+   */
   async projectForSession(sessionId: SessionId): Promise<LabProject | undefined> {
     await this.ready
     const association = this.state.sessions.find(session => session.sessionId === sessionId)
@@ -390,6 +438,10 @@ export class LabProjectService extends Service {
     return clone(this.requireProject(association.projectId))
   }
 
+  /** Assert that a Session is explicitly associated with a project.
+   * @param projectId - expected project identifier.
+   * @param sessionId - Session identifier to check.
+   */
   async assertSession(projectId: LabProjectId, sessionId: SessionId): Promise<void> {
     await this.ready
     this.requireSession(projectId, sessionId)
@@ -404,7 +456,7 @@ export class LabProjectService extends Service {
   private requireSession(projectId: LabProjectId, sessionId: SessionId): LabProjectSession {
     const session = this.state.sessions.find(item => item.sessionId === sessionId)
     if (session === undefined) throw new Error(`session "${sessionId}" is not associated with a project`)
-    if (session.projectId !== projectId) throw new Error(`session "${sessionId}" belongs to another project`)
+    if (session.projectId !== projectId) throw new LabProjectReferenceError(`session "${sessionId}" belongs to another project`)
     return session
   }
 
@@ -414,7 +466,10 @@ export class LabProjectService extends Service {
       project: clone(project),
       sources: this.state.sources.filter(source => source.projectId === projectId).map(clone),
       devices: this.state.devices.filter(device => device.projectId === projectId).map(clone),
-      sessions: this.state.sessions.filter(session => session.projectId === projectId).sort((left, right) => left.order - right.order).map(clone),
+      sessions: this.state.sessions
+        .filter(session => session.projectId === projectId)
+        .sort((left, right) => left.order - right.order)
+        .map(clone),
       sharedFacts: this.state.facts.filter(fact => fact.projectId === projectId).map(clone),
       evidence: this.state.evidence.filter(item => item.projectId === projectId).map(clone),
     }
@@ -497,7 +552,11 @@ function encodeState(state: LabProjectState): StoredProjectState {
     sources: state.sources.map(source => ({ ...source })),
     devices: state.devices.map(device => ({ ...device })),
     sessions: state.sessions.map(session => ({ ...session })),
-    facts: state.facts.map(fact => ({ ...fact, citationIds: [...fact.citationIds], ...fact.sourceSessionId === undefined ? {} : { sourceSessionId: fact.sourceSessionId } })),
+    facts: state.facts.map(fact => ({
+      ...fact,
+      citationIds: [...fact.citationIds],
+      ...fact.sourceSessionId === undefined ? {} : { sourceSessionId: fact.sourceSessionId },
+    })),
     audits: state.audits.map(audit => ({ ...audit, details: { ...audit.details } })),
     evidence: state.evidence.map(item => ({ ...item })),
   }
@@ -520,7 +579,7 @@ function decodeState(state: StoredProjectState): LabProjectState {
       selectedBy: brandId<'SessionId'>(device.selectedBy),
     })),
     sessions: state.sessions.map(session => ({ ...session, projectId: brandId<'LabProjectId'>(session.projectId), sessionId: brandId<'SessionId'>(session.sessionId), status: session.status as LabProjectSessionStatus })),
-    facts: state.facts.map(fact => {
+    facts: state.facts.map((fact) => {
       const sourceSessionId = fact.sourceSessionId
       return {
         factId: brandId<'LabProjectFactId'>(fact.factId),

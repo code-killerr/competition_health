@@ -2,12 +2,13 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { brandId, type KnowledgeSearchResult } from '@deepseek-ai/dsh-experimental-lab-domain'
+import { brandId, type KnowledgeSearchResult, type LabProjectId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { LabDeviceService } from '@deepseek-ai/dsh-experimental-lab-device'
 import type { KnowledgeService } from '@deepseek-ai/dsh-experimental-lab-knowledge'
-import { createLabKnowledgeConsumer } from '@deepseek-ai/dsh-experimental-lab-project'
+import { createLabKnowledgeConsumer, LabProjectReferenceError } from '@deepseek-ai/dsh-experimental-lab-project'
 import type { LabProjectService } from '@deepseek-ai/dsh-experimental-lab-project'
 import type { JsonValue } from '@deepseek-ai/dsh-session'
+import { HarnessError } from '@deepseek-ai/dsh-llm'
 import { defineTool, type InferValue, type ValueSchemaSpec } from '@deepseek-ai/dsh-tools'
 
 /** Cordis plugin name. */
@@ -43,6 +44,37 @@ function projectId(value: unknown): ReturnType<typeof brandId<'LabProjectId'>> {
   return brandId<'LabProjectId'>(value.trim())
 }
 
+async function resolveProjectId(
+  value: unknown,
+  caller: Agent,
+  projects: LabProjectService,
+  toolName: string,
+): Promise<LabProjectId> {
+  const id = value === undefined
+    ? (await projects.projectForSession(caller.session.id))?.projectId
+    : projectId(value)
+  if (id === undefined) throw new Error(toolName + ' requires a project associated with the current Session')
+  try
+  {
+    await projects.assertSession(id, caller.session.id)
+  } catch (error) {
+    preserveProjectError(error)
+  }
+  return id
+}
+
+function preserveProjectError(error: unknown): never {
+  if (error instanceof LabProjectReferenceError) throw new HarnessError(error.message, error.code, { cause: error })
+  throw error
+}
+
+async function readProjectContext(projects: LabProjectService, projectId: LabProjectId, sessionId: import('@deepseek-ai/dsh-session').SessionId) {
+  try {
+    return await projects.context(projectId, sessionId)
+  } catch (error) {
+    preserveProjectError(error)
+  }
+}
 function string(value: unknown, path: string): string {
   if (typeof value !== 'string' || value.trim() === '') throw new Error(`${path} must be a non-blank string`)
   return value.trim()
@@ -63,14 +95,16 @@ function install(agent: Agent, projects: LabProjectService, knowledge: Knowledge
       name: 'lab_project_context',
       description: 'Read the current Agent Session project scope, selected devices, and explicitly published shared facts. This never changes project state.',
       parameters: {
-        project_id: { type: 'string', required: true, description: 'Opaque laboratory project id.' },
+        project_id: { type: 'string', description: 'Optional opaque project id; omitted values resolve from the current Session association.' },
       },
       output: jsonOutput(JSON_SCHEMA),
       async execute(args, exec) {
         const caller = callingAgent(exec.agent, 'lab_project_context')
-        const id = projectId(args.project_id)
-        await projects.assertSession(id, caller.session.id)
-        return jsonValue({ project: await projects.context(id, caller.session.id), knowledgeCapability: await consumer.capability() })
+        const id = await resolveProjectId(args.project_id, caller, projects, 'lab_project_context')
+        return jsonValue({
+          project: await readProjectContext(projects, id, caller.session.id),
+          knowledgeCapability: await consumer.capability(),
+        })
       },
     })))
 
@@ -78,7 +112,7 @@ function install(agent: Agent, projects: LabProjectService, knowledge: Knowledge
       name: 'lab_project_plan_context',
       description: 'Retrieve confirmed citations and devices limited to the current Session project scope for planning. Unapproved Session state is excluded.',
       parameters: {
-        project_id: { type: 'string', required: true, description: 'Opaque laboratory project id.' },
+        project_id: { type: 'string', description: 'Optional opaque project id; omitted values resolve from the current Session association.' },
         experiment_id: { type: 'string', required: true, description: 'Opaque experiment id.' },
         objective: { type: 'string', required: true, description: 'Evidence-oriented planning objective.' },
         unresolved: { type: 'array', items: { type: 'string' }, description: 'Missing inputs to preserve in the planning context.' },
@@ -87,10 +121,10 @@ function install(agent: Agent, projects: LabProjectService, knowledge: Knowledge
       output: jsonOutput(JSON_SCHEMA),
       async execute(args, exec) {
         const caller = callingAgent(exec.agent, 'lab_project_plan_context')
-        const id = projectId(args.project_id)
+        const id = await resolveProjectId(args.project_id, caller, projects, 'lab_project_plan_context')
         const experimentId = brandId<'ExperimentId'>(string(args.experiment_id, 'experiment_id'))
         const objective = string(args.objective, 'objective')
-        const project = await projects.context(id, caller.session.id)
+        const project = await readProjectContext(projects, id, caller.session.id)
         const capability = await consumer.capability()
         let citations: readonly KnowledgeSearchResult[] = []
         const limit = optionalLimit(args.limit)

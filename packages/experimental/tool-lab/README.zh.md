@@ -1,12 +1,11 @@
 # @deepseek-ai/dsh-experimental-tool-lab
-
 [English](README.md) | 中文
 
-实验流程的 opt-in Agent Consumer。它将既有 Agent 作用域的 Knowledge、Planning 工具与 Runtime 工具组合在一起，不创建第二套工具注册表。
+实验流程的 opt-in Agent Consumer。它在既有 Agent 作用域中组合检索、规划、Skill 校验和受限报告工具，不创建第二套工具注册表。
 
-该 Consumer 将实验请求、计划批准、计划拒绝、运行状态、步骤观察、缓存投影和报告写入调用方 Agent Session。组合既有审批服务时，`lab_plan_approve` 会先经过 Harness 工具审批接缝再记录计划；`lab_plan_reject` 会记录原因和可选替代修订。计划批准可以携带不可变执行图输入；lab_run_step 一次推进一个受控步骤，绝不执行模型提供的脚本或 API 命令。
+面向 Agent 的工具可以提出计划并读取带引用的上下文。计划决策、Skill 批准或激活以及运行状态变更属于人工操作；tools/pre-execute 策略会稳定拒绝这些调用，并提示在项目工作台中完成操作。
 
-请在 Agent 作用域中与 lab-mvp 一起显式组合本包。它依赖既有 Agent、工具注册表、Knowledge、Planning 和 Runtime Service。
+请在 Agent 作用域中与 lab-mvp 一起显式组合本包。它依赖既有 Agent、工具注册表、Knowledge、Planning、Skill、Runtime 和实验缓存 Service。
 
 ## 模型体验
 
@@ -14,7 +13,7 @@
 
 #### 模型可见内容
 
-模型通过类型化 Service 或 `lab_*` 工具看到已批准计划、受控运行状态和受限观察结果。
+模型通过类型化 Service 或 lab_* 工具看到带引用的证据、规划上下文、结构化提案、Skill 校验结果和受限报告。人工控制的状态变更通过项目工作台提交。
 
 #### Token 影响
 
@@ -22,7 +21,7 @@
 
 #### KV Cache 影响
 
-稳定的实验、计划、Skill 修订和运行标识让重复步骤结果更紧凑，并保持前缀友好。
+稳定的实验、计划、Skill 修订和运行标识让重复结果更紧凑，并保持前缀友好。
 
 ## 已知限制与暂缓事项
 

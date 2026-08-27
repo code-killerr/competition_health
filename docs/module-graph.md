@@ -134,6 +134,7 @@ flowchart TD
     pkg_client_ui_goal["client-ui-goal"]
     pkg_client_ui_input_trigger["client-ui-input-trigger"]
     pkg_client_ui_jobs["client-ui-jobs"]
+    pkg_client_ui_lab_workbench["client-ui-lab-workbench"]
     pkg_client_ui_layout["client-ui-layout"]
     pkg_client_ui_message_feedback["client-ui-message-feedback"]
     pkg_client_ui_model_selection["client-ui-model-selection"]
@@ -195,7 +196,26 @@ flowchart TD
   end
   subgraph group_experimental["packages/experimental"]
     pkg_experimental_agent_team["experimental-agent-team"]
+    pkg_experimental_lab_cache["experimental-lab-cache"]
+    pkg_experimental_lab_device["experimental-lab-device"]
+    pkg_experimental_lab_device_mock["experimental-lab-device-mock"]
+    pkg_experimental_lab_domain["experimental-lab-domain"]
+    pkg_experimental_lab_knowledge["experimental-lab-knowledge"]
+    pkg_experimental_lab_knowledge_local["experimental-lab-knowledge-local"]
+    pkg_experimental_lab_mvp["experimental-lab-mvp"]
+    pkg_experimental_lab_mvp_web["experimental-lab-mvp-web"]
+    pkg_experimental_lab_planning["experimental-lab-planning"]
+    pkg_experimental_lab_planning_local["experimental-lab-planning-local"]
+    pkg_experimental_lab_project["experimental-lab-project"]
+    pkg_experimental_lab_runtime["experimental-lab-runtime"]
+    pkg_experimental_lab_runtime_local["experimental-lab-runtime-local"]
+    pkg_experimental_lab_skill["experimental-lab-skill"]
+    pkg_experimental_lab_skill_local["experimental-lab-skill-local"]
     pkg_experimental_tool_agent_team["experimental-tool-agent-team"]
+    pkg_experimental_tool_lab["experimental-tool-lab"]
+    pkg_experimental_tool_lab_knowledge["experimental-tool-lab-knowledge"]
+    pkg_experimental_tool_lab_planning["experimental-tool-lab-planning"]
+    pkg_experimental_tool_lab_project["experimental-tool-lab-project"]
   end
   subgraph group_extensions["packages/extensions"]
     pkg_client_ui_cordis["client-ui-cordis"]
@@ -351,6 +371,7 @@ flowchart TD
   pkg_code_runtime_python --> pkg_invariants
   pkg_e2b --> pkg_invariants
   pkg_sdk_jsonrpc_demo --> pkg_invariants
+  pkg_experimental_lab_mvp --> pkg_invariants
   pkg_host_directory_picker --> pkg_invariants
   pkg_host_directory_picker_browse --> pkg_invariants
   pkg_host_directory_picker_native --> pkg_invariants
@@ -479,6 +500,9 @@ flowchart TD
   pkg_code_runtime_worker_thread --> pkg_invariants
   pkg_code_runtime_worker_thread --> pkg_session
   pkg_code_runtime_worker_thread --> pkg_timeout
+  pkg_experimental_lab_domain --> pkg_brand
+  pkg_experimental_lab_domain --> pkg_invariants
+  pkg_experimental_lab_domain --> pkg_session
   pkg_persona --> pkg_invariants
   pkg_persona --> pkg_system_prompt
   pkg_sandbox --> pkg_invariants
@@ -529,6 +553,15 @@ flowchart TD
   pkg_time_context --> pkg_agent
   pkg_time_context --> pkg_invariants
   pkg_time_context --> pkg_session
+  pkg_experimental_lab_cache --> pkg_experimental_lab_domain
+  pkg_experimental_lab_device --> pkg_experimental_lab_domain
+  pkg_experimental_lab_device --> pkg_invariants
+  pkg_experimental_lab_knowledge --> pkg_experimental_lab_domain
+  pkg_experimental_lab_knowledge --> pkg_invariants
+  pkg_experimental_lab_runtime --> pkg_experimental_lab_domain
+  pkg_experimental_lab_runtime --> pkg_invariants
+  pkg_experimental_lab_skill --> pkg_experimental_lab_domain
+  pkg_experimental_lab_skill --> pkg_invariants
   pkg_message_feedback --> pkg_brand
   pkg_message_feedback --> pkg_invariants
   pkg_message_feedback --> pkg_llm
@@ -678,6 +711,29 @@ flowchart TD
   pkg_fs_e2b --> pkg_e2b
   pkg_fs_e2b --> pkg_fs
   pkg_fs_e2b --> pkg_invariants
+  pkg_experimental_lab_device_mock --> pkg_experimental_lab_device
+  pkg_experimental_lab_device_mock --> pkg_experimental_lab_domain
+  pkg_experimental_lab_device_mock --> pkg_invariants
+  pkg_experimental_lab_knowledge_local --> pkg_experimental_lab_domain
+  pkg_experimental_lab_knowledge_local --> pkg_experimental_lab_knowledge
+  pkg_experimental_lab_knowledge_local --> pkg_invariants
+  pkg_experimental_lab_planning --> pkg_experimental_lab_device
+  pkg_experimental_lab_planning --> pkg_experimental_lab_domain
+  pkg_experimental_lab_planning --> pkg_experimental_lab_knowledge
+  pkg_experimental_lab_planning --> pkg_experimental_lab_skill
+  pkg_experimental_lab_planning --> pkg_invariants
+  pkg_experimental_lab_project --> pkg_brand
+  pkg_experimental_lab_project --> pkg_experimental_lab_domain
+  pkg_experimental_lab_project --> pkg_experimental_lab_knowledge
+  pkg_experimental_lab_project --> pkg_session
+  pkg_experimental_lab_runtime_local --> pkg_experimental_lab_device
+  pkg_experimental_lab_runtime_local --> pkg_experimental_lab_domain
+  pkg_experimental_lab_runtime_local --> pkg_experimental_lab_runtime
+  pkg_experimental_lab_runtime_local --> pkg_invariants
+  pkg_experimental_lab_skill_local --> pkg_experimental_lab_domain
+  pkg_experimental_lab_skill_local --> pkg_experimental_lab_skill
+  pkg_experimental_lab_skill_local --> pkg_invariants
+  pkg_experimental_lab_skill_local --> pkg_skill
   pkg_command_feedback --> pkg_anonymous_user_id
   pkg_command_feedback --> pkg_commands
   pkg_command_feedback --> pkg_invariants
@@ -864,6 +920,47 @@ flowchart TD
   pkg_session_reference --> pkg_session
   pkg_session_reference --> pkg_session_query
   pkg_session_reference --> pkg_typert_protocol
+  pkg_experimental_lab_mvp_web --> pkg_experimental_lab_cache
+  pkg_experimental_lab_mvp_web --> pkg_experimental_lab_device
+  pkg_experimental_lab_mvp_web --> pkg_experimental_lab_knowledge
+  pkg_experimental_lab_mvp_web --> pkg_experimental_lab_planning
+  pkg_experimental_lab_mvp_web --> pkg_experimental_lab_project
+  pkg_experimental_lab_mvp_web --> pkg_experimental_lab_runtime
+  pkg_experimental_lab_mvp_web --> pkg_experimental_lab_skill
+  pkg_experimental_lab_mvp_web --> pkg_host_webserver
+  pkg_experimental_lab_mvp_web --> pkg_invariants
+  pkg_experimental_lab_mvp_web --> pkg_session
+  pkg_experimental_lab_planning_local --> pkg_experimental_lab_device
+  pkg_experimental_lab_planning_local --> pkg_experimental_lab_domain
+  pkg_experimental_lab_planning_local --> pkg_experimental_lab_knowledge
+  pkg_experimental_lab_planning_local --> pkg_experimental_lab_planning
+  pkg_experimental_lab_planning_local --> pkg_experimental_lab_skill
+  pkg_experimental_lab_planning_local --> pkg_invariants
+  pkg_experimental_tool_lab --> pkg_agent
+  pkg_experimental_tool_lab --> pkg_experimental_lab_domain
+  pkg_experimental_tool_lab --> pkg_experimental_lab_runtime
+  pkg_experimental_tool_lab --> pkg_invariants
+  pkg_experimental_tool_lab --> pkg_session
+  pkg_experimental_tool_lab --> pkg_tools
+  pkg_experimental_tool_lab_knowledge --> pkg_agent
+  pkg_experimental_tool_lab_knowledge --> pkg_experimental_lab_domain
+  pkg_experimental_tool_lab_knowledge --> pkg_experimental_lab_knowledge
+  pkg_experimental_tool_lab_knowledge --> pkg_invariants
+  pkg_experimental_tool_lab_knowledge --> pkg_tools
+  pkg_experimental_tool_lab_planning --> pkg_agent
+  pkg_experimental_tool_lab_planning --> pkg_experimental_lab_device
+  pkg_experimental_tool_lab_planning --> pkg_experimental_lab_domain
+  pkg_experimental_tool_lab_planning --> pkg_experimental_lab_planning
+  pkg_experimental_tool_lab_planning --> pkg_invariants
+  pkg_experimental_tool_lab_planning --> pkg_tools
+  pkg_experimental_tool_lab_project --> pkg_agent
+  pkg_experimental_tool_lab_project --> pkg_experimental_lab_device
+  pkg_experimental_tool_lab_project --> pkg_experimental_lab_domain
+  pkg_experimental_tool_lab_project --> pkg_experimental_lab_knowledge
+  pkg_experimental_tool_lab_project --> pkg_invariants
+  pkg_experimental_tool_lab_project --> pkg_llm
+  pkg_experimental_tool_lab_project --> pkg_session
+  pkg_experimental_tool_lab_project --> pkg_tools
   pkg_cordis_host_runner --> pkg_agent
   pkg_cordis_host_runner --> pkg_brand
   pkg_cordis_host_runner --> pkg_invariants
@@ -1419,6 +1516,14 @@ flowchart TD
   pkg_client_ui_directory_picker_native --> pkg_client_runtime
   pkg_client_ui_directory_picker_native --> pkg_client_ui_workspace
   pkg_client_ui_directory_picker_native --> pkg_invariants
+  pkg_client_ui_lab_workbench --> pkg_client_locale
+  pkg_client_ui_lab_workbench --> pkg_client_runtime
+  pkg_client_ui_lab_workbench --> pkg_client_ui_attachment
+  pkg_client_ui_lab_workbench --> pkg_client_ui_conversation
+  pkg_client_ui_lab_workbench --> pkg_client_ui_layout
+  pkg_client_ui_lab_workbench --> pkg_client_ui_sidebar
+  pkg_client_ui_lab_workbench --> pkg_client_ui_workspace
+  pkg_client_ui_lab_workbench --> pkg_invariants
   pkg_client_ui_model_selection --> pkg_api_remotes
   pkg_client_ui_model_selection --> pkg_client_connection
   pkg_client_ui_model_selection --> pkg_client_locale
@@ -1480,6 +1585,7 @@ flowchart TD
 | [`code-runtime-python`](../packages/code-runtime/code-runtime-python) | `code-runtime` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`e2b`](../packages/e2b/e2b) | `e2b` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`sdk-jsonrpc-demo`](../packages/examples/jsonrpc-demo) | `examples` | [`invariants`](../packages/runtime-diagnostics/invariants) |
+| [`experimental-lab-mvp`](../packages/experimental/lab-mvp) | `experimental` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`host-directory-picker`](../packages/host/directory-picker) | `host` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`host-directory-picker-browse`](../packages/host/directory-picker-browse) | `host` | [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`host-directory-picker-native`](../packages/host/directory-picker-native) | `host` | [`invariants`](../packages/runtime-diagnostics/invariants) |
@@ -1525,6 +1631,7 @@ flowchart TD
 | [`spill`](../packages/spill/spill) | `spill` | [`brand`](../packages/util/brand), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`session`](../packages/core/session) |
 | [`app-boot`](../packages/boot/app-boot) | `boot` | [`home-paths`](../packages/util/home-paths), [`invariants`](../packages/runtime-diagnostics/invariants), [`launch-environment`](../packages/util/launch-environment), [`system-prompt`](../packages/core/system-prompt) |
 | [`code-runtime-worker-thread`](../packages/code-runtime/code-runtime-worker-thread) | `code-runtime` | [`code-runtime`](../packages/code-runtime/code-runtime), [`invariants`](../packages/runtime-diagnostics/invariants), [`session`](../packages/core/session), [`timeout`](../packages/util/timeout) |
+| [`experimental-lab-domain`](../packages/experimental/lab-domain) | `experimental` | [`brand`](../packages/util/brand), [`invariants`](../packages/runtime-diagnostics/invariants), [`session`](../packages/core/session) |
 | [`persona`](../packages/preset/persona) | `preset` | [`invariants`](../packages/runtime-diagnostics/invariants), [`system-prompt`](../packages/core/system-prompt) |
 | [`sandbox`](../packages/sandbox/sandbox) | `sandbox` | [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`session`](../packages/core/session) |
 | [`session-persistence`](../packages/session/session-persistence) | `session` | [`brand`](../packages/util/brand), [`invariants`](../packages/runtime-diagnostics/invariants), [`session`](../packages/core/session), [`timeout`](../packages/util/timeout) |
@@ -1538,6 +1645,11 @@ flowchart TD
 | [`spill-local`](../packages/spill/spill-local) | `spill` | [`invariants`](../packages/runtime-diagnostics/invariants), [`spill`](../packages/spill/spill) |
 | [`file-reference`](../packages/context/file-reference) | `context` | [`agent`](../packages/core/agent), [`invariants`](../packages/runtime-diagnostics/invariants), [`typert-protocol`](../packages/typert/protocol) |
 | [`time-context`](../packages/context/time-context) | `context` | [`agent`](../packages/core/agent), [`invariants`](../packages/runtime-diagnostics/invariants), [`session`](../packages/core/session) |
+| [`experimental-lab-cache`](../packages/experimental/lab-cache) | `experimental` | [`experimental-lab-domain`](../packages/experimental/lab-domain) |
+| [`experimental-lab-device`](../packages/experimental/lab-device) | `experimental` | [`experimental-lab-domain`](../packages/experimental/lab-domain), [`invariants`](../packages/runtime-diagnostics/invariants) |
+| [`experimental-lab-knowledge`](../packages/experimental/lab-knowledge) | `experimental` | [`experimental-lab-domain`](../packages/experimental/lab-domain), [`invariants`](../packages/runtime-diagnostics/invariants) |
+| [`experimental-lab-runtime`](../packages/experimental/lab-runtime) | `experimental` | [`experimental-lab-domain`](../packages/experimental/lab-domain), [`invariants`](../packages/runtime-diagnostics/invariants) |
+| [`experimental-lab-skill`](../packages/experimental/lab-skill) | `experimental` | [`experimental-lab-domain`](../packages/experimental/lab-domain), [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`message-feedback`](../packages/feedback/message-feedback) | `feedback` | [`brand`](../packages/util/brand), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`storage-domain`](../packages/storage/storage-domain), [`typert-protocol`](../packages/typert/protocol) |
 | [`commands`](../packages/interaction/commands) | `interaction` | [`agent`](../packages/core/agent), [`attachment`](../packages/attachment/attachment), [`brand`](../packages/util/brand), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`scope`](../packages/core/scope), [`session`](../packages/core/session), [`typert-protocol`](../packages/typert/protocol) |
 | [`user-approval`](../packages/interaction/user-approval) | `interaction` | [`agent`](../packages/core/agent), [`brand`](../packages/util/brand), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`scope`](../packages/core/scope), [`session`](../packages/core/session), [`system-prompt`](../packages/core/system-prompt) |
@@ -1570,6 +1682,12 @@ flowchart TD
 | [`compaction`](../packages/compaction/compaction) | `compaction` | [`brand`](../packages/util/brand), [`commands`](../packages/interaction/commands), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`session`](../packages/core/session) |
 | [`tmux-context`](../packages/context/tmux-context) | `context` | [`agent`](../packages/core/agent), [`invariants`](../packages/runtime-diagnostics/invariants), [`session`](../packages/core/session), [`shell`](../packages/shell/shell) |
 | [`fs-e2b`](../packages/e2b/fs-e2b) | `e2b` | [`e2b`](../packages/e2b/e2b), [`fs`](../packages/fs/fs), [`invariants`](../packages/runtime-diagnostics/invariants) |
+| [`experimental-lab-device-mock`](../packages/experimental/lab-device-mock) | `experimental` | [`experimental-lab-device`](../packages/experimental/lab-device), [`experimental-lab-domain`](../packages/experimental/lab-domain), [`invariants`](../packages/runtime-diagnostics/invariants) |
+| [`experimental-lab-knowledge-local`](../packages/experimental/lab-knowledge-local) | `experimental` | [`experimental-lab-domain`](../packages/experimental/lab-domain), [`experimental-lab-knowledge`](../packages/experimental/lab-knowledge), [`invariants`](../packages/runtime-diagnostics/invariants) |
+| [`experimental-lab-planning`](../packages/experimental/lab-planning) | `experimental` | [`experimental-lab-device`](../packages/experimental/lab-device), [`experimental-lab-domain`](../packages/experimental/lab-domain), [`experimental-lab-knowledge`](../packages/experimental/lab-knowledge), [`experimental-lab-skill`](../packages/experimental/lab-skill), [`invariants`](../packages/runtime-diagnostics/invariants) |
+| [`experimental-lab-project`](../packages/experimental/lab-project) | `experimental` | [`brand`](../packages/util/brand), [`experimental-lab-domain`](../packages/experimental/lab-domain), [`experimental-lab-knowledge`](../packages/experimental/lab-knowledge), [`session`](../packages/core/session) |
+| [`experimental-lab-runtime-local`](../packages/experimental/lab-runtime-local) | `experimental` | [`experimental-lab-device`](../packages/experimental/lab-device), [`experimental-lab-domain`](../packages/experimental/lab-domain), [`experimental-lab-runtime`](../packages/experimental/lab-runtime), [`invariants`](../packages/runtime-diagnostics/invariants) |
+| [`experimental-lab-skill-local`](../packages/experimental/lab-skill-local) | `experimental` | [`experimental-lab-domain`](../packages/experimental/lab-domain), [`experimental-lab-skill`](../packages/experimental/lab-skill), [`invariants`](../packages/runtime-diagnostics/invariants), [`skill`](../packages/skill/skill) |
 | [`command-feedback`](../packages/feedback/command-feedback) | `feedback` | [`anonymous-user-id`](../packages/identity/anonymous-user-id), [`commands`](../packages/interaction/commands), [`invariants`](../packages/runtime-diagnostics/invariants), [`session`](../packages/core/session), [`session-telemetry`](../packages/session/session-telemetry) |
 | [`permission-presets`](../packages/interaction/permission-presets) | `interaction` | [`commands`](../packages/interaction/commands), [`invariants`](../packages/runtime-diagnostics/invariants), [`sandbox`](../packages/sandbox/sandbox), [`sandbox-policy`](../packages/sandbox/sandbox-policy), [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection), [`settings`](../packages/settings/settings), [`shell`](../packages/shell/shell), [`user-approval`](../packages/interaction/user-approval) |
 | [`jobs-local`](../packages/jobs/jobs-local) | `jobs` | [`agent`](../packages/core/agent), [`invariants`](../packages/runtime-diagnostics/invariants), [`jobs`](../packages/jobs/jobs), [`scope`](../packages/core/scope), [`timeout`](../packages/util/timeout) |
@@ -1599,6 +1717,12 @@ flowchart TD
 | [`agent-instructions`](../packages/context/agent-instructions) | `context` | [`agent`](../packages/core/agent), [`fs`](../packages/fs/fs), [`home-paths`](../packages/util/home-paths), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`tools`](../packages/core/tools) |
 | [`file-reference-local`](../packages/context/file-reference-local) | `context` | [`agent`](../packages/core/agent), [`file-reference`](../packages/context/file-reference), [`invariants`](../packages/runtime-diagnostics/invariants), [`system-prompt`](../packages/core/system-prompt), [`tools`](../packages/core/tools) |
 | [`session-reference`](../packages/context/session-reference) | `context` | [`agent`](../packages/core/agent), [`compaction`](../packages/compaction/compaction), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`output-retention`](../packages/util/output-retention), [`session`](../packages/core/session), [`session-query`](../packages/session-query/session-query), [`typert-protocol`](../packages/typert/protocol) |
+| [`experimental-lab-mvp-web`](../packages/experimental/lab-mvp-web) | `experimental` | [`experimental-lab-cache`](../packages/experimental/lab-cache), [`experimental-lab-device`](../packages/experimental/lab-device), [`experimental-lab-knowledge`](../packages/experimental/lab-knowledge), [`experimental-lab-planning`](../packages/experimental/lab-planning), [`experimental-lab-project`](../packages/experimental/lab-project), [`experimental-lab-runtime`](../packages/experimental/lab-runtime), [`experimental-lab-skill`](../packages/experimental/lab-skill), [`host-webserver`](../packages/host/webserver), [`invariants`](../packages/runtime-diagnostics/invariants), [`session`](../packages/core/session) |
+| [`experimental-lab-planning-local`](../packages/experimental/lab-planning-local) | `experimental` | [`experimental-lab-device`](../packages/experimental/lab-device), [`experimental-lab-domain`](../packages/experimental/lab-domain), [`experimental-lab-knowledge`](../packages/experimental/lab-knowledge), [`experimental-lab-planning`](../packages/experimental/lab-planning), [`experimental-lab-skill`](../packages/experimental/lab-skill), [`invariants`](../packages/runtime-diagnostics/invariants) |
+| [`experimental-tool-lab`](../packages/experimental/tool-lab) | `experimental` | [`agent`](../packages/core/agent), [`experimental-lab-domain`](../packages/experimental/lab-domain), [`experimental-lab-runtime`](../packages/experimental/lab-runtime), [`invariants`](../packages/runtime-diagnostics/invariants), [`session`](../packages/core/session), [`tools`](../packages/core/tools) |
+| [`experimental-tool-lab-knowledge`](../packages/experimental/tool-lab-knowledge) | `experimental` | [`agent`](../packages/core/agent), [`experimental-lab-domain`](../packages/experimental/lab-domain), [`experimental-lab-knowledge`](../packages/experimental/lab-knowledge), [`invariants`](../packages/runtime-diagnostics/invariants), [`tools`](../packages/core/tools) |
+| [`experimental-tool-lab-planning`](../packages/experimental/tool-lab-planning) | `experimental` | [`agent`](../packages/core/agent), [`experimental-lab-device`](../packages/experimental/lab-device), [`experimental-lab-domain`](../packages/experimental/lab-domain), [`experimental-lab-planning`](../packages/experimental/lab-planning), [`invariants`](../packages/runtime-diagnostics/invariants), [`tools`](../packages/core/tools) |
+| [`experimental-tool-lab-project`](../packages/experimental/tool-lab-project) | `experimental` | [`agent`](../packages/core/agent), [`experimental-lab-device`](../packages/experimental/lab-device), [`experimental-lab-domain`](../packages/experimental/lab-domain), [`experimental-lab-knowledge`](../packages/experimental/lab-knowledge), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`tools`](../packages/core/tools) |
 | [`cordis-host-runner`](../packages/extensions/cordis-host-runner) | `extensions` | [`agent`](../packages/core/agent), [`brand`](../packages/util/brand), [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`scope`](../packages/core/scope), [`session`](../packages/core/session), [`tools`](../packages/core/tools), [`typert-protocol`](../packages/typert/protocol) |
 | [`repeat-tool-reminder`](../packages/guard/repeat-tool-reminder) | `guard` | [`agent`](../packages/core/agent), [`invariants`](../packages/runtime-diagnostics/invariants), [`tools`](../packages/core/tools) |
 | [`tool-call-timeout-policy`](../packages/guard/timeout-policy) | `guard` | [`invariants`](../packages/runtime-diagnostics/invariants), [`llm`](../packages/llm/llm), [`timeout`](../packages/util/timeout), [`tools`](../packages/core/tools) |
@@ -1684,6 +1808,7 @@ flowchart TD
 | [`session-log-export`](../packages/session-query/session-log-export) | `session-query` | [`client-locale`](../packages/client/locale), [`client-runtime`](../packages/client/runtime), [`client-ui-commands`](../packages/client/ui-commands), [`client-ui-conversation`](../packages/client/ui-conversation), [`commands`](../packages/interaction/commands), [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`client-ui-directory-picker-browse`](../packages/client/ui-directory-picker-browse) | `client` | [`client-locale`](../packages/client/locale), [`client-runtime`](../packages/client/runtime), [`client-ui-workspace`](../packages/client/ui-workspace), [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`client-ui-directory-picker-native`](../packages/client/ui-directory-picker-native) | `client` | [`client-runtime`](../packages/client/runtime), [`client-ui-workspace`](../packages/client/ui-workspace), [`invariants`](../packages/runtime-diagnostics/invariants) |
+| [`client-ui-lab-workbench`](../packages/client/ui-lab-workbench) | `client` | [`client-locale`](../packages/client/locale), [`client-runtime`](../packages/client/runtime), [`client-ui-attachment`](../packages/client/ui-attachment), [`client-ui-conversation`](../packages/client/ui-conversation), [`client-ui-layout`](../packages/client/ui-layout), [`client-ui-sidebar`](../packages/client/ui-sidebar), [`client-ui-workspace`](../packages/client/ui-workspace), [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`client-ui-model-selection`](../packages/client/ui-model-selection) | `client` | [`api-remotes`](../packages/api/remotes), [`client-connection`](../packages/client/connection), [`client-locale`](../packages/client/locale), [`client-runtime`](../packages/client/runtime), [`client-ui-commands`](../packages/client/ui-commands), [`client-ui-conversation`](../packages/client/ui-conversation), [`client-ui-input-trigger`](../packages/client/ui-input-trigger), [`invariants`](../packages/runtime-diagnostics/invariants) |
 | [`client-ui-permission-presets`](../packages/client/ui-permission-presets) | `client` | [`api-remotes`](../packages/api/remotes), [`client-connection`](../packages/client/connection), [`client-locale`](../packages/client/locale), [`client-runtime`](../packages/client/runtime), [`client-ui-commands`](../packages/client/ui-commands), [`client-ui-input-trigger`](../packages/client/ui-input-trigger), [`client-ui-settings`](../packages/client/ui-settings), [`invariants`](../packages/runtime-diagnostics/invariants), [`permission-presets`](../packages/interaction/permission-presets) |
 | [`client-ui-skill`](../packages/client/ui-skill) | `client` | [`api-remotes`](../packages/api/remotes), [`client-connection`](../packages/client/connection), [`client-locale`](../packages/client/locale), [`client-runtime`](../packages/client/runtime), [`client-ui-input-trigger`](../packages/client/ui-input-trigger), [`client-ui-tool`](../packages/client/ui-tool), [`invariants`](../packages/runtime-diagnostics/invariants) |

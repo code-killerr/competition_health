@@ -11,7 +11,7 @@ This group contains prototypes and internal-only Cordis plugins that use the rep
 | `lab-domain/` | Shared laboratory domain ids, states, validation rules, and session event types | — |
 | `lab-knowledge/` | Laboratory Knowledge Service Definition and Provider seam | `ctx.labKnowledge` |
 | `lab-knowledge-local/` | Provider-owned SQLite/FTS5 implementation for local knowledge retrieval | — |
-| `tool-lab-knowledge/` | Agent-scoped knowledge ingestion, retrieval, conflict, and confirmation tools | — |
+| `tool-lab-knowledge/` | Agent-scoped read-only Knowledge status, retrieval, and conflict tools | — |
 | `lab-planning/` | Declarative planning context and proposal Service Definition | `ctx.labPlanning` |
 | `lab-planning-local/` | Local Provider for cited planning context and deterministic proposal validation | — |
 | `tool-lab-planning/` | Agent-scoped planning context, device capability, and proposal tools | — |

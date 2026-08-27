@@ -281,6 +281,8 @@
     { "path": "./packages/experimental/tool-agent-team" },
     { "path": "./packages/experimental/lab-domain" },
     { "path": "./packages/experimental/lab-cache" },
+    { "path": "./packages/experimental/lab-project" },
+    { "path": "./packages/experimental/tool-lab-project" },
     { "path": "./packages/experimental/lab-knowledge" },
     { "path": "./packages/experimental/lab-knowledge-local" },
     { "path": "./packages/experimental/tool-lab-knowledge" },

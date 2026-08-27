@@ -62,7 +62,10 @@ export class LabMvpWebService extends Service {
     }
   }
 
-  /** 执行一个已解析的 Web 命令，并返回可序列化的领域结果。 */
+  /** Execute a parsed Web command.
+   * @param command - parsed Web command.
+   * @returns - serializable command result.
+   */
   async dispatch(command: LabWebCommand): Promise<LabWebCommandResult> {
     switch (command.command) {
       case 'snapshot':
@@ -131,7 +134,10 @@ export class LabMvpWebService extends Service {
         return { kind: 'report', value: await this.reportRun(command) }
     }
   }
-  /** Execute one dedicated project/conversation command. */
+  /** Execute a dedicated project/conversation command.
+   * @param command - parsed project/conversation command.
+   * @returns - serializable project conversation result.
+   */
   async dispatchProject(command: LabProjectConversationCommand): Promise<LabProjectConversationResult> {
     const actor = command.sessionId ?? brandId<'SessionId'>('lab-web:anonymous')
     switch (command.command) {
@@ -167,6 +173,25 @@ export class LabMvpWebService extends Service {
           sources: command.sources,
           deviceIds: command.deviceIds,
           updatedBy: actor,
+        })
+        return { kind: 'project', value }
+      }
+      case 'project-session-create': {
+        await this.ctx.labProjects.open(command.projectId)
+        const sessions = this.ctx.get('sessions')
+        if (sessions === undefined) throw new Error('session service is unavailable for project Session creation')
+        const created = sessions.create()
+        const value = await this.ctx.labProjects.associateSession({
+          projectId: command.projectId,
+          sessionId: created.id,
+          ...command.title === undefined ? {} : { title: command.title },
+          associatedBy: actor,
+        })
+        this.sessionFor(command)?.append('lab/project/session-associated', {
+          version: 1,
+          projectId: command.projectId,
+          sessionId: created.id,
+          title: value.sessions.find(session => session.sessionId === created.id)?.title ?? 'Conversation',
         })
         return { kind: 'project', value }
       }
@@ -213,15 +238,16 @@ export class LabMvpWebService extends Service {
     sources: readonly { readonly documentId: string; readonly versionId: string }[],
     deviceIds: readonly string[],
   ): Promise<void> {
-    const consumer = this.knowledgeConsumer()
-    const capability = await consumer.capability()
-    if (capability.state !== 'available') throw new Error(`Knowledge capability unavailable: ${capability.reason ?? 'provider is unavailable'}`)
-    const statuses = await consumer.listImportStatuses()
-    const available = new Set(statuses.filter(status => status.status === 'READY').map(status => `${status.documentId}:${status.versionId}`))
-    for (const source of sources) {
-      if (!available.has(`${source.documentId}:${source.versionId}`)) throw new Error(`Knowledge source "${source.documentId}:${source.versionId}" is not READY`)
-    }
-    const devices = new Set(this.ctx.labDevices.listDevices().map(device => device.id))
+    if (sources.length > 0) {
+      const consumer = this.knowledgeConsumer()
+      const capability = await consumer.capability()
+      if (capability.state !== 'available') throw new Error(`Knowledge capability unavailable: ${capability.reason ?? 'provider is unavailable'}`)
+      const statuses = await consumer.listImportStatuses()
+      const available = new Set(statuses.filter(status => status.status === 'READY').map(status => `${status.documentId}:${status.versionId}`))
+      for (const source of sources) {
+        if (!available.has(`${source.documentId}:${source.versionId}`)) throw new Error(`Knowledge source "${source.documentId}:${source.versionId}" is not READY`)
+      }
+    }    const devices = new Set(this.ctx.labDevices.listDevices().map(device => device.id))
     for (const deviceId of deviceIds) {
       if (!devices.has(deviceId as DeviceId)) throw new Error(`device "${deviceId}" is not available`)
     }
@@ -388,7 +414,13 @@ export class LabMvpWebService extends Service {
   }
 
   private async confirmRunStep(command: Extract<LabWebCommand, { command: 'run-confirm' }>): Promise<RunView> {
-    const run = await this.ctx.labRuntime.confirmStep(command.runId, command.evidence, command.confirmedBy, command.stepId, command.operationId)
+    const run = await this.ctx.labRuntime.confirmStep(
+      command.runId,
+      command.evidence,
+      command.confirmedBy,
+      command.stepId,
+      command.operationId,
+    )
     await this.persistRun(command, run)
     return run
   }

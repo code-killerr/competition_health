@@ -43,7 +43,10 @@ export interface LabKnowledgeConsumer {
   listPublishedSops?(): Promise<readonly PublishedSopRecord[]>
 }
 
-/** Adapt the existing Knowledge Service/Facade without exposing its Provider or storage implementation. */
+/** Adapt the existing Knowledge Service or Facade without exposing its Provider or storage implementation.
+ * @param service - Knowledge facade to adapt.
+ * @returns - read-only Harness Knowledge consumer.
+ */
 export function createLabKnowledgeConsumer(service: KnowledgeFacade): LabKnowledgeConsumer {
   return {
     async capability() {
@@ -89,7 +92,7 @@ export class FakeLabKnowledgeConsumer implements LabKnowledgeConsumer {
 
   /** Return the fixture's import records in deterministic order. */
   listImportStatuses(): Promise<readonly ImportStatusResult[]> {
-    return Promise.resolve(clone(this.imports))
+    return Promise.resolve(this.status.state === 'available' ? clone(this.imports) : [])
   }
 
   /** Return fixture results narrowed by explicit document/version scope. */
@@ -113,7 +116,7 @@ export class FakeLabKnowledgeConsumer implements LabKnowledgeConsumer {
 
   /** Return published SOP records supplied by the fixture. */
   listPublishedSops(): Promise<readonly PublishedSopRecord[]> {
-    return Promise.resolve(clone(this.sops))
+    return Promise.resolve(this.status.state === 'available' ? clone(this.sops) : [])
   }
 }
 

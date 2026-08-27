@@ -18,7 +18,7 @@ pnpm run build
 pnpm dsh --profile web --patch examples/lab-web/cordis.patch.yml --no-open
 ```
 
-打开终端打印的本地地址。在“知识库”阶段录入 [`fixtures/minimal-source.txt`](fixtures/minimal-source.txt)，检索 `bench`，再填写实验需求。“调用当前 Agent 规划”会复用 DeepSeek Harness 当前会话，需要 `DEEPSEEK_API_KEY`。
+打开终端打印的本地地址。“知识库”阶段只展示能力状态、资料/版本标识、引用和冲突。独立贡献的 Knowledge 工作台可用后，应通过它的类型化录入流程提交资料；资料文件不会作为普通 Agent 消息发送。请通过 Harness 会话编辑器提交需求；Agent 会从当前 Session 的项目关联读取范围，模型规划需要 `DEEPSEEK_API_KEY`；澄清问题继续使用现有 `ask_user_question` Consumer，问题和答案会记录在当前 Session 中。
 
 如需无密钥规划路径，先构建规划上下文，从召回结果中复制 citation ID，替换 [`fixtures/minimal-plan.template.json`](fixtures/minimal-plan.template.json) 中的 `REPLACE_WITH_CITATION_ID`，再粘贴到“计划确认”阶段的本地演示输入框。页面会显式保留 Skill 校验、人工批准、激活、计划批准、步骤确认、停止和报告操作。
 
