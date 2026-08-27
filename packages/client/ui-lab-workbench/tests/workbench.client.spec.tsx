@@ -77,7 +77,7 @@ describe('实验工作台浏览器组件', () => {
     renderWorkbench()
     expect(screen.getByRole('heading', { name: zh.title })).toBeTruthy()
     expect(screen.getAllByText(zh.empty).length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: `02${zh.request}` })).toBeTruthy()
+    expect(screen.getByRole('button', { name: `02${zh.conversations}` })).toBeTruthy()
     cleanup()
     renderWorkbench('request')
     expect(screen.getByText(zh.objective)).toBeTruthy()
@@ -118,11 +118,10 @@ describe('实验工作台浏览器组件', () => {
     expect(screen.getByText(`${zh.assumptions}: temperature is stable`)).toBeTruthy()
     expect(screen.getByText(`${zh.unresolvedInputs}: operator confirmation`)).toBeTruthy()
   })
-  it('submits an explicit local plan document without generating content in the component', () => {
-    const content = JSON.stringify({ plan: {}, skillDrafts: [] })
-    const view = renderWorkbench('plan', content)
-    fireEvent.click(screen.getByRole('button', { name: zh.submitLocalPlan }))
-    expect(view.proposeLocalPlan).toHaveBeenCalledWith(expect.objectContaining({ objective: 'Controlled bench procedure' }), content)
+  it('generates a deterministic cited plan from a retrieved citation', () => {
+    const view = renderWorkbench('plan', '', undefined, true)
+    fireEvent.click(screen.getByRole('button', { name: zh.generatePlan }))
+    expect(view.proposeLocalPlan).toHaveBeenCalledWith(expect.objectContaining({ objective: 'Controlled bench procedure' }), expect.stringContaining('citation-1'))
   })
 
   it('shows citation identity and keeps stop/report actions behind the rendered run state', () => {

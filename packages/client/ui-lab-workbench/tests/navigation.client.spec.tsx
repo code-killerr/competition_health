@@ -13,8 +13,8 @@ describe('lab global navigation', () => {
     const t = (key: LocaleKeysOf<'labWorkbench'>): string => zh[key as LabWorkbenchKey] ?? key
     render(createElement(LabNavigation, { wide: true, t } as never))
 
-    expect(screen.getByRole('link', { name: zh.knowledge }).getAttribute('href')).toBe('#lab-knowledge')
-    expect(screen.getByRole('link', { name: zh.devices }).getAttribute('href')).toBe('#lab-devices')
-    expect(screen.getByRole('link', { name: zh.projects }).getAttribute('href')).toBe('#lab-projects')
+    expect(screen.getByRole('button', { name: zh.knowledge })).toBeTruthy()
+    expect(screen.getByRole('button', { name: zh.devices })).toBeTruthy()
+    expect(screen.getByRole('button', { name: zh.projects })).toBeTruthy()
   })
 })

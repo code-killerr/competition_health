@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-Opt-in Web composition for the first-stage laboratory prototype. It adds the existing laboratory Service bundle, the loopback `/api/lab` Consumer, and the `dsh.client` workbench overlay to the Web profile without changing the default roster.
+Opt-in Web composition for the lab showcase prototype. It assembles the existing lab Service bundle, loopback `/api/lab` Consumer, `dsh.client` workbench overlay, public Knowledge workspace and Project shell without changing the default Web roster.
 
 ## Run
 
@@ -12,14 +12,18 @@ Build the source and browser bundles first:
 pnpm run build
 ```
 
-Start the composition:
+Start the showcase:
 
 ```sh
 pnpm dsh --profile web --patch examples/lab-web/cordis.patch.yml --no-open
 ```
 
-Open the printed local URL. The Knowledge stage is a read-only projection of capability status, source/version identities, citations, and conflicts. When the separately contributed Knowledge workspace is available, use its typed import flow; it does not send a source file as an ordinary Agent message. Submit the request through the Harness conversation composer; the Agent resolves the current Session project association and requires `DEEPSEEK_API_KEY` for model-backed planning. The existing `ask_user_question` Consumer remains available for clarification, with its question and answer recorded in the current Session.
+Open the local URL printed by the command. Follow the showcase walkthrough in SHOWCASE.md for the five-to-ten-minute path. The application starts in a Project-oriented shell with Overview, Conversations, Experiments, Runs and Evidence pages; global Knowledge, Devices and Projects actions remain available in the sidebar. A Project is created by name, while its opaque ID stays an internal Host-backed value.
 
-For a keyless planning path, build the planning context, copy a citation ID from the retrieval result, replace `REPLACE_WITH_CITATION_ID` in [`fixtures/minimal-plan.template.json`](fixtures/minimal-plan.template.json), and paste the JSON into the Plan stage's local demo field. The page keeps Skill validation, human approval, activation, plan approval, step confirmation, stop, and report actions explicit.
+Use Knowledge to select a PDF, import it, wait for the version to reach `READY`, and add or remove the source from the current Project. Search the selected public Knowledge records, confirm a citation, and create, review and publish an SOP. The same citation is returned to the workbench so the Experiments page can generate a deterministic keyless Plan for human review.
 
-The fixture is development input only. No biological specimen, Space ATAC CSV, PDF, or fixed protocol is loaded by the runtime composition.
+Continue through the explicit gates in the Experiments, Runs and Evidence pages: validate the Skill, approve the Plan, start the Run, confirm its steps, stop when required, and inspect the resulting evidence/report. The UI labels deterministic demo behavior, unavailable capabilities and empty states instead of presenting them as production integrations.
+
+Model-backed planning is opt-in and requires `DEEPSEEK_API_KEY`. The keyless path uses the real Facade, Session and Project surfaces with deterministic Knowledge and Runtime providers. The fixture [`fixtures/minimal-plan.template.json`](fixtures/minimal-plan.template.json) remains available for lower-level development tests, but it is not required for the primary browser flow. Diagnostic JSON previews are retained for debugging and are not the main user workflow.
+
+These fixtures are development inputs only. The runtime composition does not load biological specimens, spatial ATAC CSV files, PDFs or fixed experimental protocols automatically.

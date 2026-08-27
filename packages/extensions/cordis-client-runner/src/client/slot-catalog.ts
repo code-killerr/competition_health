@@ -1137,6 +1137,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     declaredBy: 'an entry in \'conversation.session\' (client-ui-conversation), so it exists while that entry is mounted',
     occupants: [
       'client-ui-conversation ChatView id \'chat\'',
+      'client-ui-lab-workbench LabWorkbench id \'lab-workbench\'',
       'client-ui-trajectory TrajectoryView id \'trajectory\'',
     ],
     replaceRisk: 'none',
@@ -1173,6 +1174,39 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'details\', () => ctx.slots.register(\n      { name: \'details\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
     source: 'packages/client/ui-layout/src/client/index.ts:72',
+  },
+  {
+    key: 'lab.knowledge.workspace',
+    kind: 'single',
+    scope: 'session',
+    summary: '独立 Knowledge workspace 的公共挂载点。',
+    doc: '独立 Knowledge workspace 的公共挂载点。',
+    registerOptions: [],
+    ownerProps: [
+      '/** Public Project context passed into the Knowledge workspace slot. */\nexport interface LabKnowledgeWorkspaceOwnerProps {\n  readonly projectId?: string\n  readonly experimentId?: string\n  readonly selectedSources?: readonly { readonly documentId: string; readonly versionId: string }[]\n  readonly onSourceToggle?: (source: { readonly documentId: string; readonly versionId: string }) => void\n  readonly onCitationAvailable?: (citation: LabSearchResult) => void\n}',
+    ],
+    ownerPropsReferences: [
+      'LabSearchResult',
+    ],
+    standardProps: [
+      'useSessions: SnapshotSelectorHook<SessionListState>',
+      'useWorkspaces: SnapshotSelectorHook<import(\'./workspaces/service.ts\').WorkspaceListState>',
+      'useSession: SnapshotSelectorHook<ConversationSnapshot>',
+      'sessionId: SessionId',
+      'useProjection: UseProjection',
+      'useInput: SnapshotSelectorHook<InputState>',
+      'inputActions: InputActions',
+    ],
+    keyDomain: '',
+    hookContext: '',
+    slotInject: '',
+    declaredBy: 'an entry in \'conversation.view\' (client-ui-lab-workbench), so it exists while that entry is mounted',
+    occupants: [
+      'client-ui-lab-knowledge-workspace KnowledgeWorkspace',
+    ],
+    replaceRisk: 'shadows-shipped-ui',
+    example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'lab.knowledge.workspace\', () => ctx.slots.register(\n      { name: \'lab.knowledge.workspace\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
+    source: 'packages/client/ui-lab-workbench/src/client/index.ts:31',
   },
   {
     key: 'root',
@@ -1705,6 +1739,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     slotInject: '',
     declaredBy: 'an entry in \'sidebar\' (client-ui-sidebar), so it exists while that entry is mounted',
     occupants: [
+      'client-ui-lab-workbench LabNavigation id \'lab-navigation\'',
       'client-ui-cordis CordisPanel id \'cordis-panel\'',
     ],
     replaceRisk: 'none',

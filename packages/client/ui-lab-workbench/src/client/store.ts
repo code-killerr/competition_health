@@ -7,6 +7,9 @@ import type { LabSopDraft } from './api.ts'
 /** Visible stages in the laboratory workbench. */
 export type LabStage = 'knowledge' | 'request' | 'plan' | 'execution' | 'report' | 'devices' | 'projects'
 
+/** Product pages shown by the Project shell. */
+export type LabPage = 'overview' | 'conversations' | 'knowledge' | 'experiments' | 'runs' | 'evidence' | 'devices' | 'projects'
+
 /** Mutable workbench fields and read-only projections. */
 export interface LabWorkbenchState {
   projectId: string
@@ -16,6 +19,7 @@ export interface LabWorkbenchState {
   selectedSourceKeysText: string
   experimentId: string
   stage: LabStage
+  page: LabPage
   sourceName: string
   sourceText: string
   sopTitle: string
@@ -49,6 +53,7 @@ type LabWorkbenchActions = {
   setSelectedDeviceIdsText: (draft: LabWorkbenchState, value: string) => void
   setSelectedSourceKeysText: (draft: LabWorkbenchState, value: string) => void
   setStage: (draft: LabWorkbenchState, stage: LabStage) => void
+  setPage: (draft: LabWorkbenchState, page: LabPage) => void
   setExperimentId: (draft: LabWorkbenchState, value: string) => void
   setSourceName: (draft: LabWorkbenchState, value: string) => void
   setSourceText: (draft: LabWorkbenchState, value: string) => void
@@ -88,6 +93,7 @@ export function createLabWorkbenchStore(): EngineStoreHandle<LabWorkbenchState, 
       selectedSourceKeysText: '',
       experimentId: 'experiment-1',
       stage: 'knowledge',
+      page: 'knowledge',
       sourceName: '',
       sourceText: '',
       sopTitle: '',
@@ -119,7 +125,11 @@ export function createLabWorkbenchStore(): EngineStoreHandle<LabWorkbenchState, 
       setSessionTitle: (draft, value) => { draft.sessionTitle = value },
       setSelectedDeviceIdsText: (draft, value) => { draft.selectedDeviceIdsText = value },
       setSelectedSourceKeysText: (draft, value) => { draft.selectedSourceKeysText = value },
-      setStage: (draft, stage) => { draft.stage = stage },
+      setStage: (draft, stage) => {
+        draft.stage = stage
+        draft.page = pageFromStage(stage)
+      },
+      setPage: (draft, page) => { draft.page = page },
       setExperimentId: (draft, value) => { draft.experimentId = value },
       setSourceName: (draft, value) => { draft.sourceName = value },
       setSourceText: (draft, value) => { draft.sourceText = value },
@@ -149,6 +159,19 @@ export function createLabWorkbenchStore(): EngineStoreHandle<LabWorkbenchState, 
       setNotice: (draft, value) => { draft.notice = value },
     },
   })
+}
+
+/** Map the legacy stage vocabulary to its Project shell page. */
+function pageFromStage(stage: LabStage): LabPage {
+  switch (stage) {
+    case 'knowledge': return 'knowledge'
+    case 'request': return 'conversations'
+    case 'plan': return 'experiments'
+    case 'execution': return 'runs'
+    case 'report': return 'evidence'
+    case 'devices': return 'devices'
+    case 'projects': return 'projects'
+  }
 }
 
 /** Read the first actionable plan identifier from a snapshot.

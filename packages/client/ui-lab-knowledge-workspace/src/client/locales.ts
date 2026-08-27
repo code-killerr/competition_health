@@ -2,6 +2,10 @@
 
 export const zh = {
   title: 'Knowledge 工作区',
+  project: '当前项目',
+  noProject: '未选择项目',
+  addToProject: '加入项目',
+  removeFromProject: '移出项目',
   publicContract: '当前 MVP 公开 Knowledge',
   fileInput: '选择 PDF',
   importFile: '导入并解析',
@@ -40,6 +44,10 @@ export type LabKnowledgeWorkspaceKey = keyof typeof zh
 /** English locale strings for the Knowledge workspace. */
 export const en = {
   title: 'Knowledge workspace',
+  project: 'Current project',
+  noProject: 'No project selected',
+  addToProject: 'Add to project',
+  removeFromProject: 'Remove from project',
   publicContract: 'Current MVP public Knowledge',
   fileInput: 'Choose PDF',
   importFile: 'Import and parse',

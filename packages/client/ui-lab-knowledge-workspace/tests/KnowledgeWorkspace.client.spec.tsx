@@ -39,9 +39,14 @@ describe('Knowledge workspace browser flow', () => {
       return { ok: true, json: async () => ({ ok: true, result: { kind: payload.command, value } }) }
     }))
 
+    const onSourceToggle = vi.fn()
+    const onCitationAvailable = vi.fn()
     const props = {
       sessionId: 'session-1',
+      projectId: 'project-1',
       t: (key: keyof typeof zh): string => zh[key],
+      onSourceToggle,
+      onCitationAvailable,
     } as unknown as KnowledgeWorkspaceProps
     render(<KnowledgeWorkspace {...props} />)
 
@@ -50,10 +55,13 @@ describe('Knowledge workspace browser flow', () => {
     fireEvent.change(screen.getByLabelText(zh.fileInput), { target: { files: [file] } })
     fireEvent.click(screen.getByRole('button', { name: zh.importFile }))
     await waitFor(() => { expect(screen.getByText('READY')).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: zh.addToProject }))
+    expect(onSourceToggle).toHaveBeenCalledWith({ documentId: 'document-1', versionId: 'version-1' })
 
     fireEvent.change(screen.getByLabelText(zh.query), { target: { value: 'cited source' } })
     fireEvent.click(screen.getByRole('button', { name: zh.searchAction }))
     await waitFor(() => { expect(screen.getByText('citation-1')).toBeTruthy() })
+    expect(onCitationAvailable).toHaveBeenCalledWith(expect.objectContaining({ citationId: 'citation-1' }))
 
     fireEvent.click(screen.getByRole('button', { name: zh.createSop }))
     await waitFor(() => { expect(screen.getByText(/DRAFT/)).toBeTruthy() })

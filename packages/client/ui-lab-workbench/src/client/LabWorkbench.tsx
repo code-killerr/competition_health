@@ -3,8 +3,8 @@
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsLocale, PropsRenderSlots, PropsStore, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import { useEffect, useMemo, type ReactNode } from 'react'
-import type { LabExperimentRequest } from './api.ts'
-import type { LabStage, LabWorkbenchState } from './store.ts'
+import type { LabExperimentRequest, LabSearchResult } from './api.ts'
+import type { LabPage, LabWorkbenchState } from './store.ts'
 import { firstPlanId, planReviews, runView } from './store.ts'
 import type { createLabWorkbenchStore } from './store.ts'
 import css from './LabWorkbench.module.css'
@@ -14,7 +14,7 @@ export interface LabWorkbenchInjected {
   refresh: (experimentId: string) => Promise<void>
   listProjects: () => Promise<void>
   openProject: (projectId: string) => Promise<void>
-  createProject: (projectId: string, name: string) => Promise<void>
+  createProject: (name: string) => Promise<void>
   openSession: (sessionId: string) => void
   createSession: (projectId: string, title?: string) => Promise<void>
   updateProjectScope: (
@@ -39,6 +39,15 @@ export interface LabWorkbenchInjected {
   report: (runId: string) => Promise<void>
 }
 
+/** Public Project context passed into the Knowledge workspace slot. */
+export interface LabKnowledgeWorkspaceOwnerProps {
+  readonly projectId?: string
+  readonly experimentId?: string
+  readonly selectedSources?: readonly { readonly documentId: string; readonly versionId: string }[]
+  readonly onSourceToggle?: (source: { readonly documentId: string; readonly versionId: string }) => void
+  readonly onCitationAvailable?: (citation: LabSearchResult) => void
+}
+
 /** 工作台的完整槽位 props。 */
 export type LabWorkbenchProps =
   & ConvViewProps
@@ -51,20 +60,20 @@ export type LabWorkbenchProps =
 export function LabWorkbench(props: LabWorkbenchProps): JSX.Element {
   const state = props.useStore(snapshot => snapshot)
   useEffect(() => {
-    const applyHash = (): void => {
-      const stage = stageFromHash(window.location.hash)
-      if (stage !== undefined) props.actions.setStage(stage)
+    const applyNavigation = (event: Event): void => {
+      const page = (event as CustomEvent<unknown>).detail
+      if (isLabPage(page)) props.actions.setPage(page)
     }
-    window.addEventListener('hashchange', applyHash)
-    applyHash()
-    return () => { window.removeEventListener('hashchange', applyHash) }
+    window.addEventListener('lab:navigate', applyNavigation)
+    return () => { window.removeEventListener('lab:navigate', applyNavigation) }
   }, [props.actions])
-  const labels = useMemo<Record<LabStage, string>>(() => ({
+  const labels = useMemo<Record<LabPage, string>>(() => ({
+    overview: props.t('overview'),
+    conversations: props.t('conversations'),
     knowledge: props.t('knowledge'),
-    request: props.t('request'),
-    plan: props.t('plan'),
-    execution: props.t('execution'),
-    report: props.t('report'),
+    experiments: props.t('experiments'),
+    runs: props.t('runs'),
+    evidence: props.t('evidencePage'),
     devices: props.t('devices'),
     projects: props.t('projects'),
   }), [props.t])
@@ -79,33 +88,27 @@ export function LabWorkbench(props: LabWorkbenchProps): JSX.Element {
   return (
     <section className={css.backdrop} data-lab-workbench aria-label={props.t('title')}>
       <main className={css.content}>
-        <nav className={css.nav} aria-label={props.t('stageHint')}>
-          {(Object.keys(labels) as LabStage[]).map(stage => (
+        <nav className={css.nav} aria-label={props.t('projectNavigation')}>
+          {PROJECT_PAGES.map((page, index) => (
             <button
-              key={stage}
+              key={page}
               type="button"
-              className={stage === state.stage ? css.navItemActive : css.navItem}
-              onClick={() => { props.actions.setStage(stage) }}
+              className={page === state.page ? css.navItemActive : css.navItem}
+              onClick={() => { props.actions.setPage(page) }}
             >
-              <span className={css.navIndex}>{String((Object.keys(labels) as LabStage[]).indexOf(stage) + 1).padStart(2, '0')}</span>
-              <span>{labels[stage]}</span>
+              <span className={css.navIndex}>{String(index + 1).padStart(2, '0')}</span>
+              <span>{labels[page]}</span>
             </button>
           ))}
         </nav>
         <header className={css.header}>
           <div>
             <h1 className={css.title}>{props.t('title')}</h1>
-            <span className={css.eyebrow}>{labels[state.stage]}</span>
-            <h2>{state.experimentId || props.t('experimentId')}</h2>
+            <span className={css.eyebrow}>{labels[state.page]}</span>
+            <h2>{state.projectName || props.t('noProject')}</h2>
+            <div className={css.identity}>{state.projectId || props.t('projectNotSelected')} · {state.experimentId || props.t('experimentId')}</div>
           </div>
-          <label className={css.compactField}>
-            <span>{props.t('experimentId')}</span>
-            <input value={state.experimentId} onChange={(event) => { props.actions.setExperimentId(event.currentTarget.value) }} />
-          </label>
-          <label className={css.compactField}>
-            <span>{props.t('projectId')}</span>
-            <input value={state.projectId} onChange={(event) => { props.actions.setProjectId(event.currentTarget.value) }} />
-          </label>
+          <div className={css.contextPill}><span>{props.t('currentProject')}</span><strong>{state.projectName || props.t('projectNotSelected')}</strong></div>
         </header>
 
         {(state.error !== undefined || state.notice !== undefined) && (
@@ -114,19 +117,66 @@ export function LabWorkbench(props: LabWorkbenchProps): JSX.Element {
           </div>
         )}
 
-        {state.stage === 'knowledge' && <KnowledgeStage props={props} state={state} busy={busy} />}
-        {state.stage === 'devices' && <DeviceStage props={props} state={state} busy={busy} />}
-        {state.stage === 'projects' && <ProjectStage props={props} state={state} busy={busy} />}
-        {state.stage === 'request' && <RequestStage props={props} state={state} request={request} busy={busy} />}
-        {state.stage === 'plan' && <PlanStage props={props} state={state} reviews={reviews} {...activePlanId === undefined ? {} : { activePlanId }} busy={busy} />}
-        {state.stage === 'execution' && <ExecutionStage props={props} state={state} {...run === undefined ? {} : { run }} {...runId === undefined ? {} : { runId }} {...planId === undefined ? {} : { planId }} busy={busy} />}
-        {state.stage === 'report' && <ReportStage props={props} state={state} {...run === undefined ? {} : { run }} {...runId === undefined ? {} : { runId }} busy={busy} />}
+        {state.page === 'overview' && <OverviewStage props={props} state={state} busy={busy} onNavigate={(page) => { props.actions.setPage(page) }} />}
+        {state.page === 'knowledge' && <KnowledgeStage props={props} state={state} busy={busy} />}
+        {state.page === 'devices' && <DeviceStage props={props} state={state} busy={busy} />}
+        {state.page === 'projects' && <ProjectStage props={props} state={state} busy={busy} />}
+        {state.page === 'conversations' && <RequestStage props={props} state={state} request={request} busy={busy} />}
+        {state.page === 'experiments' && <div className={css.stageStack}><RequestStage props={props} state={state} request={request} busy={busy} /><PlanStage props={props} state={state} reviews={reviews} {...activePlanId === undefined ? {} : { activePlanId }} busy={busy} /></div>}
+        {state.page === 'runs' && <ExecutionStage props={props} state={state} {...run === undefined ? {} : { run }} {...runId === undefined ? {} : { runId }} {...planId === undefined ? {} : { planId }} busy={busy} />}
+        {state.page === 'evidence' && <ReportStage props={props} state={state} {...run === undefined ? {} : { run }} {...runId === undefined ? {} : { runId }} busy={busy} />}
       </main>
     </section>
   )
 }
 
 type StageProps = { readonly props: LabWorkbenchProps; readonly state: LabWorkbenchState; readonly busy: boolean }
+
+/** Project overview with the next human action kept visible. */
+function OverviewStage({ props, state, onNavigate }: StageProps & { readonly onNavigate: (page: LabPage) => void }): JSX.Element {
+  const planCount = planReviews(state.snapshot).length
+  const run = runView(state.snapshot)
+  return (
+    <div className={css.stageGrid}>
+      <Panel title={props.t('overview')} hint={props.t('demoMode')}>
+        <p className={css.description}>{props.t('overviewDescription')}</p>
+        <div className={css.summaryGrid}>
+          <SummaryValue label={props.t('knowledge')} value={String(state.projectView?.sources.length ?? 0)} />
+          <SummaryValue label={props.t('experiments')} value={String(planCount)} />
+          <SummaryValue label={props.t('runs')} value={run?.runStatus ?? props.t('notStarted')} />
+          <SummaryValue label={props.t('evidence')} value={String(state.projectView?.evidence.length ?? 0)} />
+        </div>
+      </Panel>
+      <Panel title={props.t('nextAction')} hint={props.t('humanGate')}>
+        <p className={css.description}>{nextAction(props, state)}</p>
+        <div className={css.buttonRow}>
+          <ActionButton onClick={() => { onNavigate(nextPage(state)) }}>{props.t('continueFlow')}</ActionButton>
+          <ActionButton onClick={() => { onNavigate('conversations') }}>{props.t('newExperiment')}</ActionButton>
+        </div>
+      </Panel>
+    </div>
+  )
+}
+
+function SummaryValue(props: { readonly label: string; readonly value: string }): JSX.Element {
+  return <div className={css.summaryValue}><span>{props.label}</span><strong>{props.value}</strong></div>
+}
+
+function nextPage(state: LabWorkbenchState): LabPage {
+  if (state.projectId.trim() === '' || state.projectView === undefined) return 'projects'
+  if (state.projectView?.sources.length === 0) return 'knowledge'
+  if (state.snapshot?.planReviews.length === 0) return 'experiments'
+  if (state.snapshot?.run === undefined) return 'runs'
+  return 'evidence'
+}
+
+function nextAction(props: LabWorkbenchProps, state: LabWorkbenchState): string {
+  if (state.projectId.trim() === '' || state.projectView === undefined) return props.t('createProjectPrompt')
+  if ((state.projectView?.sources.length ?? 0) === 0) return props.t('selectKnowledgePrompt')
+  if ((state.snapshot?.planReviews.length ?? 0) === 0) return props.t('createPlanPrompt')
+  if (state.snapshot?.run === undefined) return props.t('approveRunPrompt')
+  return props.t('inspectEvidencePrompt')
+}
 
 function DeviceStage({ props, state, busy }: StageProps): JSX.Element {
   const sourceSelections = splitComma(state.selectedSourceKeysText).map((value) => {
@@ -141,15 +191,15 @@ function DeviceStage({ props, state, busy }: StageProps): JSX.Element {
   return (
     <div className={css.stageGrid}>
       <Panel title={props.t('devices')} hint={props.t('scope')}>
-        <label className={css.field}>
+        <div className={css.field}>
           <span>{props.t('selectedSources')}</span>
-          <textarea
-            value={state.selectedSourceKeysText}
-            onChange={(event) => { props.actions.setSelectedSourceKeysText(event.currentTarget.value) }}
-            rows={3}
-            placeholder="document-id:version-id"
-          />
-        </label>
+          <StatusList items={parseSourceKeys(state.selectedSourceKeysText)} empty={props.t('noSourcesSelected')} renderItem={source => (
+            <div key={source.documentId + ':' + source.versionId} className={css.listRow}>
+              <span>{source.documentId}:{source.versionId}</span>
+              <StatusBadge value={props.t('selected')} />
+            </div>
+          )} />
+        </div>
         <label className={css.field}>
           <span>{props.t('selectedDevices')}</span>
           <input
@@ -200,7 +250,7 @@ function ProjectStage({ props, state, busy }: StageProps): JSX.Element {
         <div className={css.buttonRow}>
           <ActionButton disabled={busy} onClick={() => { void props.listProjects() }}>{props.t('listProjects')}</ActionButton>
           <ActionButton disabled={busy || projectId === ''} onClick={() => { void props.openProject(projectId) }}>{props.t('openProject')}</ActionButton>
-          <ActionButton disabled={busy || projectId === '' || state.projectName.trim() === ''} onClick={() => { void props.createProject(projectId, state.projectName.trim()) }}>{props.t('createProject')}</ActionButton>
+          <ActionButton disabled={busy || state.projectName.trim() === ''} onClick={() => { void props.createProject(state.projectName.trim()) }}>{props.t('createProject')}</ActionButton>
         </div>
         <StatusList items={state.projectViews} empty={props.t('empty')} renderItem={(view, index) => {
           const project = view.project ?? {}
@@ -244,10 +294,30 @@ function ProjectStage({ props, state, busy }: StageProps): JSX.Element {
 }
 
 function KnowledgeStage({ props, state }: StageProps): JSX.Element {
+  const selectedSources = parseSourceKeys(state.selectedSourceKeysText)
+  const toggleSource = (source: { readonly documentId: string; readonly versionId: string }): void => {
+    if (state.projectId.trim() === '') { props.actions.setError(props.t('projectRequired')); return }
+    const key = source.documentId + ':' + source.versionId
+    const next = selectedSources.some(item => item.documentId + ':' + item.versionId === key)
+      ? selectedSources.filter(item => item.documentId + ':' + item.versionId !== key)
+      : [...selectedSources, source]
+    props.actions.setSelectedSourceKeysText(next.map(item => item.documentId + ':' + item.versionId).join('\n'))
+    void props.updateProjectScope(state.projectId.trim(), next, splitComma(state.selectedDeviceIdsText))
+  }
+  const receiveCitation = (citation: LabSearchResult): void => {
+    const current = state.searchResults.filter(item => item.citationId !== citation.citationId)
+    props.actions.setSearch([...current, citation], state.conflicts)
+  }
   return (
     <div className={css.stageGrid}>
       <div className={css.workspaceSlot} data-lab-knowledge-slot>
-        {props.renderSlot('lab.knowledge.workspace', {})}
+        {typeof props.renderSlot === 'function' ? props.renderSlot('lab.knowledge.workspace', {
+          projectId: state.projectId,
+          experimentId: state.experimentId,
+          selectedSources,
+          onSourceToggle: toggleSource,
+          onCitationAvailable: receiveCitation,
+        }) : null}
       </div>
       <Panel title={props.t('knowledge')} hint={props.t('knowledgeWorkspaceNotice')}>
         <p className={css.description}>{props.t('knowledgeWorkspaceNotice')}</p>
@@ -332,18 +402,21 @@ function PlanStage({ props, state, reviews, activePlanId, busy }: StageProps & {
   const active = reviews.find(review => review.plan.planId === activePlanId)
   return (
     <div className={css.stageGrid}>
-      <Panel title={props.t('localDemo')} hint={props.t('jsonHint')}>
-        <label className={css.field}>
-          <span>{props.t('localPlanJson')}</span>
-          <textarea
-            value={state.localPlanText}
-            onChange={(event) => { props.actions.setLocalPlanText(event.currentTarget.value) }}
-            rows={8}
-          />
-        </label>
-        <ActionButton disabled={busy || state.localPlanText.trim() === '' || state.objective.trim() === ''} onClick={() => { void props.proposeLocalPlan(buildRequest(state), state.localPlanText) }}>
-          {props.t('submitLocalPlan')}
-        </ActionButton>
+      <Panel title={props.t('generatedPlan')} hint={props.t('deterministicDemo')}>
+        <p className={css.description}>{props.t('planGenerationNotice')}</p>
+        <StatusList items={state.searchResults} empty={props.t('noCitations')} renderItem={(citation, index) => (
+          <div key={String(citation.citationId ?? index)} className={css.listRow}>
+            <span>{String(citation.excerpt ?? citation.citationId ?? props.t('citations'))}</span>
+            <StatusBadge value={citation.confirmed === true ? props.t('confirmed') : props.t('pending')} />
+          </div>
+        )} />
+        <ActionButton disabled={busy || state.objective.trim() === '' || !state.searchResults.some(citation => typeof citation.citationId === 'string' && citation.citationId !== '')} onClick={() => {
+          const citation = state.searchResults.find(item => typeof item.citationId === 'string' && item.citationId !== '')
+          if (citation?.citationId === undefined) { props.actions.setError(props.t('citationRequired')); return }
+          const content = JSON.stringify(createLocalPlan(buildRequest(state), citation.citationId))
+          props.actions.setLocalPlanText(content)
+          void props.proposeLocalPlan(buildRequest(state), content)
+        }}>{props.t('generatePlan')}</ActionButton>
       </Panel>
       <Panel title={props.t('plan')} hint={props.t('noPlan')}>
         {reviews.length === 0 && <EmptyState text={props.t('noPlan')} />}
@@ -509,6 +582,29 @@ function EmptyState(props: { readonly text: string }): JSX.Element {
   return <div className={css.empty}>{props.text}</div>
 }
 
+/** Build the deterministic keyless plan submitted by the showcase button. */
+function createLocalPlan(request: LabExperimentRequest, citationId: string): {
+  readonly plan: Record<string, unknown>
+  readonly skillDrafts: readonly Record<string, unknown>[]
+} {
+  const stepId = 'step-record-output'
+  const revisionId = 'skill-local-demo-r1'
+  return {
+    plan: {
+      planId: 'plan-' + request.experimentId + '-local',
+      experimentId: request.experimentId,
+      revision: 1,
+      status: 'DRAFT',
+      objective: request.objective,
+      citations: [citationId],
+      assumptions: [],
+      unresolved: [],
+      steps: [{ stepId, title: 'Record the observed bench output', operationKind: 'human', operationResource: 'manual-record', requiresApproval: true, requiredInputs: [], citations: [citationId], expectedOutputs: ['observed output recorded'], skillRevisionId: revisionId }],
+    },
+    skillDrafts: [{ skillId: 'skill-local-demo', revisionId, status: 'DRAFT', name: 'manual-record', purpose: 'Record a human-observed output for a controlled bench procedure', applicability: [request.objective], inputs: [], outputs: ['observed output recorded'], parameterConstraints: {}, completionConditions: ['the observer records the output'], failurePolicy: 'BLOCK', citations: [citationId], operations: [{ kind: 'human', resourceRef: 'manual-record', installed: true }] }],
+  }
+}
+
 function buildRequest(state: LabWorkbenchState): LabExperimentRequest {
   const outputs = splitLines(state.expectedOutputsText)
   return {
@@ -521,12 +617,18 @@ function buildRequest(state: LabWorkbenchState): LabExperimentRequest {
   }
 }
 
-const LAB_STAGES: readonly LabStage[] = ['knowledge', 'request', 'plan', 'execution', 'report', 'devices', 'projects']
+const PROJECT_PAGES: readonly LabPage[] = ['overview', 'conversations', 'knowledge', 'experiments', 'runs', 'evidence']
 
-function stageFromHash(hash: string): LabStage | undefined {
-  if (!hash.startsWith('#lab-')) return undefined
-  const value = hash.slice('#lab-'.length)
-  return LAB_STAGES.includes(value as LabStage) ? value as LabStage : undefined
+function isLabPage(value: unknown): value is LabPage {
+  return typeof value === 'string' && [...PROJECT_PAGES, 'devices', 'projects'].includes(value as LabPage)
+}
+
+function parseSourceKeys(value: string): readonly { readonly documentId: string; readonly versionId: string }[] {
+  return splitComma(value).flatMap((item) => {
+    const separator = item.indexOf(':')
+    if (separator < 1 || separator === item.length - 1) return []
+    return [{ documentId: item.slice(0, separator), versionId: item.slice(separator + 1) }]
+  })
 }
 
 function splitLines(value: string): readonly string[] {

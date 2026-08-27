@@ -28,7 +28,7 @@ import type { LabWorkbenchInjected } from './LabWorkbench.tsx'
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /** 独立 Knowledge workspace 的公共挂载点。 */
-    'lab.knowledge.workspace': { kind: 'single'; scope: 'session' }
+    'lab.knowledge.workspace': { kind: 'single'; scope: 'session'; owner: import('./LabWorkbench.tsx').LabKnowledgeWorkspaceOwnerProps }
   }
   interface LocaleNamespaceMap {
     /** 实验工作台的阶段与操作文案。 */
@@ -37,6 +37,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 export type { LabWorkbenchKey } from './locales.ts'
+export type { LabKnowledgeWorkspaceOwnerProps } from './LabWorkbench.tsx'
 
 const NS = 'labWorkbench'
 
@@ -92,8 +93,13 @@ export function apply(ctx: ClientContext): void {
             return result.value
           } else {
             const view = toProjectView(result.value)
+            const project = view.project ?? {}
+            const projectId = typeof project.projectId === 'string' ? project.projectId : undefined
+            const projectName = typeof project.name === 'string' ? project.name : undefined
+            if (projectId !== undefined) actions.setProjectId(projectId)
+            if (projectName !== undefined) actions.setProjectName(projectName)
             actions.setProjectView(view)
-            actions.setSelectedSourceKeysText(view.sources.map(source => `${String(source.documentId ?? '')}:${String(source.versionId ?? '')}`).join('\\n'))
+            actions.setSelectedSourceKeysText(view.sources.map(source => `${String(source.documentId ?? '')}:${String(source.versionId ?? '')}`).join('\n'))
             actions.setSelectedDeviceIdsText(view.devices.map(device => String(device.deviceId ?? device.id ?? '')).filter(value => value !== '').join(', '))
             return result.value
           }
@@ -118,7 +124,10 @@ export function apply(ctx: ClientContext): void {
         if (created !== undefined && typeof created.sessionId === 'string') openSession(created.sessionId)
       }
       const openProject = async (projectId: string): Promise<void> => { await projectRun('project-open', { command: 'project-open', projectId }) }
-      const createProject = async (projectId: string, name: string): Promise<void> => { await projectRun('project-create', { command: 'project-create', projectId, name }) }
+      const createProject = async (name: string): Promise<void> => {
+        const projectId = 'project-showcase-' + Date.now().toString(36)
+        await projectRun('project-create', { command: 'project-create', projectId, name })
+      }
       const updateProjectScope = async (
         projectId: string,
         sources: readonly { readonly documentId: string; readonly versionId: string }[],

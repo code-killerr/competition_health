@@ -47,6 +47,21 @@ type Snapshot = {
   readonly knowledge?: readonly unknown[]
 }
 
+type KnowledgeWorkspaceOwnerProps = {
+  readonly projectId?: string
+  readonly experimentId?: string
+  readonly selectedSources?: readonly { readonly documentId: string; readonly versionId: string }[]
+  readonly onSourceToggle?: (source: { readonly documentId: string; readonly versionId: string }) => void
+  readonly onCitationAvailable?: (citation: {
+    readonly citationId: string
+    readonly documentId: string
+    readonly versionId: string
+    readonly location: string
+    readonly excerpt: string
+    readonly confirmed: boolean
+  }) => void
+}
+
 type ApiResult = {
   readonly kind?: string
   readonly value?: unknown
@@ -55,6 +70,7 @@ type ApiResult = {
 export type KnowledgeWorkspaceProps =
   & PropsRuntime<'lab.knowledge.workspace'>
   & PropsLocale<'labKnowledgeWorkspace'>
+  & KnowledgeWorkspaceOwnerProps
 
 /** Render the public Knowledge workspace in the Lab Workbench slot. */
 export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element {
@@ -71,13 +87,15 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
   const [notice, setNotice] = useState<string | undefined>()
 
   const sessionId = String(props.sessionId)
+  const experimentId = props.experimentId ?? 'experiment-1'
+  const selectedSources = props.selectedSources ?? []
 
   const refresh = useCallback(async (): Promise<void> => {
-    const value = await callLab({ command: 'snapshot', experimentId: 'experiment-1', sessionId })
+    const value = await callLab({ command: 'snapshot', experimentId, sessionId })
     const snapshot = parseSnapshot(value)
     setCapability(parseCapability(snapshot))
     setImports((snapshot.knowledge ?? []).map(parseImportStatus))
-  }, [sessionId])
+  }, [experimentId, sessionId])
 
   useEffect(() => {
     void refresh().catch((reason: unknown) => { setError(errorMessage(reason)) })
@@ -126,10 +144,12 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
       const value = await callLab({
         command: 'knowledge-search',
         sessionId,
-        request: { query: query.trim(), limit: 10 },
+        request: { query: query.trim(), limit: 10, experimentId },
       })
       const result = record(value)
-      setCitations(array(result.results).map(parseCitation))
+      const nextCitations = array(result.results).map(parseCitation)
+      setCitations(nextCitations)
+      nextCitations.forEach((citation) => { props.onCitationAvailable?.(citation) })
     })
   }
 
@@ -190,6 +210,7 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
           <span className={css.eyebrow}>{props.t('publicContract')}</span>
         </div>
         <div className={css.status}>
+          <span>{props.t('project')}: {props.projectId || props.t('noProject')}</span>
           <span>{props.t('capability')}</span>
           <span className={css.badge}>{capability.state === 'available' ? props.t('available') : props.t('unavailable')}</span>
         </div>
@@ -223,7 +244,14 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
                   <strong>{item.sourceName ?? item.documentId}</strong>
                   <span className={css.muted}>{item.documentId}:{item.versionId}</span>
                 </span>
-                <span className={css.badge}>{item.status}</span>
+                <span className={css.actions}>
+                  <span className={css.badge}>{item.status}</span>
+                  {item.status === 'READY' && (
+                    <button type="button" className={css.button} disabled={busy} onClick={() => { props.onSourceToggle?.({ documentId: item.documentId, versionId: item.versionId }) }}>
+                      {selectedSources.some(source => source.documentId === item.documentId && source.versionId === item.versionId) ? props.t('removeFromProject') : props.t('addToProject')}
+                    </button>
+                  )}
+                </span>
               </li>
             ))}
           </ul>
