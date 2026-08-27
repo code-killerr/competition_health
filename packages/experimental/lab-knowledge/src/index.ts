@@ -11,6 +11,7 @@ import type {
   KnowledgeConflict,
   KnowledgeSearchRequest,
   KnowledgeSearchResult,
+  KnowledgeSopDraftId,
 } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type {
   ConfirmFactRequest,
@@ -18,7 +19,11 @@ import type {
   ImportDocumentResult,
   ImportStatusResult,
   KnowledgeProvider,
+  CreateSopDraftRequest,
+  PublishSopDraftRequest,
   RecordConflictRequest,
+  SopDraftResult,
+  UpdateSopDraftRequest,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -83,6 +88,31 @@ export class KnowledgeService extends Service {
  */
   search(request: KnowledgeSearchRequest): Promise<readonly KnowledgeSearchResult[]> {
     return this.requireProvider().search(request)
+  }
+
+  /** 创建一个 SOP 草案。 */
+  createSopDraft(request: CreateSopDraftRequest): Promise<SopDraftResult> {
+    return this.requireProvider().createSopDraft(request)
+  }
+
+  /** 读取一个 SOP 草案。 */
+  getSopDraft(draftId: KnowledgeSopDraftId): Promise<SopDraftResult | undefined> {
+    return this.requireProvider().getSopDraft(draftId)
+  }
+
+  /** 列出所有 SOP 草案。 */
+  listSopDrafts(): Promise<readonly SopDraftResult[]> {
+    return this.requireProvider().listSopDrafts()
+  }
+
+  /** 更新一个 SOP 草案，并在无阻塞时提交审核。 */
+  updateSopDraft(request: UpdateSopDraftRequest): Promise<SopDraftResult> {
+    return this.requireProvider().updateSopDraft(request)
+  }
+
+  /** 发布一个已审核 SOP 草案。 */
+  publishSopDraft(request: PublishSopDraftRequest): Promise<SopDraftResult> {
+    return this.requireProvider().publishSopDraft(request)
   }
 
   /** 列出冲突事实。

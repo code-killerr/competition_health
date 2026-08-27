@@ -20,6 +20,7 @@
   "files": ["lib/index.js", "lib/invariant.js", "lib/types/**/*.d.ts"],
   "license": "MIT",
   "peerDependencies": {
+    "@deepseek-ai/dsh-experimental-lab-project": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-knowledge": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-planning": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-device": "workspace:^",
@@ -32,6 +33,7 @@
     "@deepseek-ai/cordis": "workspace:^"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-experimental-lab-project": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-knowledge": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-planning": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-device": "workspace:^",

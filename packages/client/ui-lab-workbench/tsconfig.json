@@ -21,6 +21,15 @@
       "path": "../ui-layout"
     },
     {
+      "path": "../ui-conversation"
+    },
+    {
+      "path": "../ui-sidebar"
+    },
+    {
+      "path": "../ui-workspace"
+    },
+    {
       "path": "../ui-primitives"
     },
     {

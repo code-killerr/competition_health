@@ -30,7 +30,10 @@
   "dsh": {
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-locale"
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-workspace"
       ],
       "platform": "web"
     }
@@ -45,6 +48,9 @@
     "@deepseek-ai/dsh-client-locale": "workspace:^",
     "@deepseek-ai/dsh-client-runtime": "workspace:^",
     "@deepseek-ai/dsh-client-ui-layout": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-conversation": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-sidebar": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-workspace": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^"
   },
   "devDependencies": {
@@ -52,6 +58,9 @@
     "@deepseek-ai/dsh-client-locale": "workspace:^",
     "@deepseek-ai/dsh-client-runtime": "workspace:^",
     "@deepseek-ai/dsh-client-ui-layout": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-conversation": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-sidebar": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-workspace": "workspace:^",
     "@deepseek-ai/dsh-client-ui-primitives": "workspace:^",
     "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",

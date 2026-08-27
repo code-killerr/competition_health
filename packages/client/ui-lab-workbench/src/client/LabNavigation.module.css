@@ -1,0 +1,35 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: var(--dsh-color-text-muted, #667085);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.link:hover {
+  background: var(--dsh-color-surface-hover, #f2f4f7);
+  color: var(--dsh-color-text, #101828);
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+}

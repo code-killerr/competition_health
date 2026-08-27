@@ -1,22 +1,27 @@
 /** 实验自动化平台 Web Facade；浏览器只能通过本服务访问实验能力。 */
 
 import { Context, Service } from '@deepseek-ai/cordis'
-import { brandId, type ExperimentId, type ExperimentPlan, type ExperimentRequest } from '@deepseek-ai/dsh-experimental-lab-domain'
+import { brandId, type DeviceId, type ExperimentId, type ExperimentPlan, type ExperimentRequest, type KnowledgeConflict, type KnowledgeSearchRequest, type KnowledgeSearchResult, type LabProjectEvidenceProjection, type LabProjectId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { DeviceView } from '@deepseek-ai/dsh-experimental-lab-device'
 import type { ImportStatusResult } from '@deepseek-ai/dsh-experimental-lab-knowledge'
+import { createLabKnowledgeConsumer, type KnowledgeCapabilityStatus, type LabKnowledgeConsumer } from '@deepseek-ai/dsh-experimental-lab-project'
+import type { LabProjectConversationCommand, LabProjectConversationResult } from './project-protocol.ts'
 import type { PlanProposalResult, PlanningContext } from '@deepseek-ai/dsh-experimental-lab-planning'
 import type { ExecutionStepSpec, RunView } from '@deepseek-ai/dsh-experimental-lab-runtime'
-import type { Session } from '@deepseek-ai/dsh-session'
+import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { LabWebCommand, LabWebCommandResult } from './protocol.ts'
 
 export * as Http from './http.ts'
 export { parseLabWebCommand } from './protocol.ts'
+export { parseLabProjectConversationCommand } from './project-protocol.ts'
 
 export type * from './protocol.ts'
+export type * from './project-protocol.ts'
 
 /** Web Consumer 的状态快照。 */
 export interface LabMvpWebSnapshot {
   readonly knowledge: readonly ImportStatusResult[]
+  readonly knowledgeCapability: KnowledgeCapabilityStatus
   readonly devices: readonly DeviceView[]
   readonly planningContext?: PlanningContext
   readonly planReviews: readonly PlanProposalResult[]
@@ -36,7 +41,9 @@ export class LabMvpWebService extends Service {
  * @returns - serializable device, planning, and runtime state.
  */
   async snapshot(experimentId: ExperimentId, planningContext?: PlanningContext): Promise<LabMvpWebSnapshot> {
-    const knowledge = await this.ctx.labKnowledge.listImportStatuses()
+    const knowledgeConsumer = this.knowledgeConsumer()
+    const knowledgeCapability = await knowledgeConsumer.capability()
+    const knowledge = knowledgeCapability.state === 'available' ? await knowledgeConsumer.listImportStatuses() : []
     const devices = this.ctx.labDevices.listDevices().map(device => ({
       ...device,
       capabilities: device.capabilities.map(capability => ({ ...capability, parameters: { ...capability.parameters } })),
@@ -46,6 +53,7 @@ export class LabMvpWebService extends Service {
     const report = run?.runId === undefined ? undefined : await this.ctx.labRuntime.buildReport(run.runId)
     return {
       knowledge,
+      knowledgeCapability,
       devices,
       ...planningContext === undefined ? {} : { planningContext },
       planReviews,
@@ -71,10 +79,21 @@ export class LabMvpWebService extends Service {
         return {
           kind: 'knowledge-search',
           value: {
-            results: await this.ctx.labKnowledge.search(command.request),
+            capability: await this.knowledgeConsumer().capability(),
+            results: await this.knowledgeConsumer().search(command.request),
             conflicts: await this.ctx.labKnowledge.listConflicts(command.request.experimentId),
           },
         }
+      case 'knowledge-sop-create':
+        return { kind: 'knowledge-sop', value: await this.ctx.labKnowledge.createSopDraft({ title: command.title, steps: command.steps, updatedBy: command.sessionId ?? 'lab-web:anonymous' }) }
+      case 'knowledge-sop-get':
+        return { kind: 'knowledge-sop', value: await this.ctx.labKnowledge.getSopDraft(command.draftId) }
+      case 'knowledge-sop-list':
+        return { kind: 'knowledge-sop', value: await this.ctx.labKnowledge.listSopDrafts() }
+      case 'knowledge-sop-update':
+        return { kind: 'knowledge-sop', value: await this.ctx.labKnowledge.updateSopDraft({ draftId: command.draftId, title: command.title, steps: command.steps, updatedBy: command.sessionId ?? 'lab-web:anonymous' }) }
+      case 'knowledge-sop-publish':
+        return { kind: 'knowledge-sop', value: await this.ctx.labKnowledge.publishSopDraft({ draftId: command.draftId, publishedBy: command.publishedBy }) }
       case 'experiment-create':
         await this.ctx.labRuntime.createExperiment(toRuntimeRequest(command.request))
         this.sessionFor(command)?.append('lab/experiment/requested', {
@@ -112,7 +131,152 @@ export class LabMvpWebService extends Service {
         return { kind: 'report', value: await this.reportRun(command) }
     }
   }
+  /** Execute one dedicated project/conversation command. */
+  async dispatchProject(command: LabProjectConversationCommand): Promise<LabProjectConversationResult> {
+    const actor = command.sessionId ?? brandId<'SessionId'>('lab-web:anonymous')
+    switch (command.command) {
+      case 'project-list':
+        return { kind: 'project-list', value: await this.ctx.labProjects.list() }
+      case 'project-create': {
+        const value = await this.ctx.labProjects.create({
+          projectId: command.projectId,
+          name: command.name,
+          ...command.description === undefined ? {} : { description: command.description },
+          createdBy: actor,
+        })
+        this.sessionFor(command)?.append('lab/project/created', {
+          version: 1,
+          projectId: command.projectId,
+          name: command.name,
+          sessionId: actor,
+        })
+        return { kind: 'project', value }
+      }
+      case 'project-open':
+        return { kind: 'project', value: await this.ctx.labProjects.open(command.projectId) }
+      case 'project-scope-update': {
+        await this.validateProjectScope(command.sources, command.deviceIds)
+        const value = await this.ctx.labProjects.updateScope(command.projectId, {
+          sources: command.sources,
+          deviceIds: command.deviceIds,
+          selectedBy: actor,
+        })
+        this.sessionFor(command)?.append('lab/project/scope-updated', {
+          version: 1,
+          projectId: command.projectId,
+          sources: command.sources,
+          deviceIds: command.deviceIds,
+          updatedBy: actor,
+        })
+        return { kind: 'project', value }
+      }
+      case 'project-session-associate': {
+        this.assertTargetSession(command.targetSessionId)
+        const value = await this.ctx.labProjects.associateSession({
+          projectId: command.projectId,
+          sessionId: command.targetSessionId,
+          ...command.title === undefined ? {} : { title: command.title },
+          associatedBy: actor,
+        })
+        this.sessionFor(command)?.append('lab/project/session-associated', {
+          version: 1,
+          projectId: command.projectId,
+          sessionId: command.targetSessionId,
+          title: value.sessions.find(session => session.sessionId === command.targetSessionId)?.title ?? 'Conversation',
+        })
+        return { kind: 'project', value }
+      }
+      case 'project-session-rename': {
+        this.assertTargetSession(command.targetSessionId)
+        const value = await this.ctx.labProjects.renameSession(command.projectId, command.targetSessionId, command.title, actor)
+        this.sessionFor(command)?.append('lab/project/session-renamed', {
+          version: 1,
+          projectId: command.projectId,
+          sessionId: command.targetSessionId,
+          title: command.title,
+          renamedBy: actor,
+        })
+        return { kind: 'project', value }
+      }
+      case 'project-context':
+        return { kind: 'project-context', value: await this.projectContext(command.projectId, command.sessionId) }
+      case 'project-planning-context':
+        return { kind: 'project-context', value: await this.projectPlanningContext(command.projectId, command.request, command.sessionId) }
+    }
+  }
 
+  private knowledgeConsumer(): LabKnowledgeConsumer {
+    return createLabKnowledgeConsumer(this.ctx.labKnowledge)
+  }
+
+  private async validateProjectScope(
+    sources: readonly { readonly documentId: string; readonly versionId: string }[],
+    deviceIds: readonly string[],
+  ): Promise<void> {
+    const consumer = this.knowledgeConsumer()
+    const capability = await consumer.capability()
+    if (capability.state !== 'available') throw new Error(`Knowledge capability unavailable: ${capability.reason ?? 'provider is unavailable'}`)
+    const statuses = await consumer.listImportStatuses()
+    const available = new Set(statuses.filter(status => status.status === 'READY').map(status => `${status.documentId}:${status.versionId}`))
+    for (const source of sources) {
+      if (!available.has(`${source.documentId}:${source.versionId}`)) throw new Error(`Knowledge source "${source.documentId}:${source.versionId}" is not READY`)
+    }
+    const devices = new Set(this.ctx.labDevices.listDevices().map(device => device.id))
+    for (const deviceId of deviceIds) {
+      if (!devices.has(deviceId as DeviceId)) throw new Error(`device "${deviceId}" is not available`)
+    }
+  }
+
+  private assertTargetSession(sessionId: SessionId): void {
+    const sessions = this.ctx.get('sessions')
+    if (sessions !== undefined && sessions.get(sessionId) === undefined) throw new Error(`session "${sessionId}" is not available`)
+  }
+
+  private async projectContext(projectId: LabProjectId, sessionId?: SessionId): Promise<unknown> {
+    return {
+      project: await this.ctx.labProjects.context(projectId, sessionId),
+      knowledgeCapability: await this.knowledgeConsumer().capability(),
+    }
+  }
+
+  private async projectPlanningContext(
+    projectId: LabProjectId,
+    request: ExperimentRequest,
+    sessionId?: SessionId,
+  ): Promise<unknown> {
+    const project = await this.ctx.labProjects.context(projectId, sessionId)
+    const consumer = this.knowledgeConsumer()
+    const knowledgeCapability = await consumer.capability()
+    let citations: readonly KnowledgeSearchResult[] = []
+    let conflicts: readonly KnowledgeConflict[] = []
+    if (knowledgeCapability.state === 'available') {
+      const searchRequest: KnowledgeSearchRequest = {
+        query: request.objective,
+        documentIds: project.sources.map(source => source.documentId),
+        versionIds: project.sources.map(source => source.versionId),
+        confirmed: true,
+        experimentId: request.experimentId,
+      }
+      citations = await consumer.search(searchRequest)
+      conflicts = await consumer.listConflicts(request.experimentId)
+    }
+    const selectedDevices = new Set(project.devices.map(device => device.deviceId))
+    const devices = this.ctx.labDevices.listDevices().filter(device => selectedDevices.has(device.id))
+    return {
+      project,
+      knowledgeCapability,
+      planningContext: {
+        experimentId: request.experimentId,
+        objective: request.objective,
+        queries: [request.objective],
+        citations,
+        conflicts,
+        devices,
+        assumptions: project.sharedFacts.map(fact => fact.content),
+        unresolved: request.unresolved,
+      } satisfies PlanningContext,
+    }
+  }
   private async proposePlan(command: Extract<LabWebCommand, { command: 'plan-propose' }>): Promise<PlanProposalResult> {
     const result = await this.ctx.labPlanning.propose(command.input)
     this.sessionFor(command)?.append('lab/plan/proposed', {
@@ -123,6 +287,14 @@ export class LabMvpWebService extends Service {
       ...result.plan.supersedesPlanId === undefined ? {} : { supersedesPlanId: result.plan.supersedesPlanId },
       citationIds: result.plan.citations,
       skillRevisionIds: result.skillRevisions.map(revision => revision.revisionId),
+    })
+    await this.projectEvidenceForSession(command, {
+      version: 1,
+      experimentId: result.plan.experimentId,
+      kind: 'plan-proposal',
+      referenceId: `${result.plan.planId}:r${result.plan.revision}`,
+      status: result.plan.status,
+      updatedAt: Date.now(),
     })
     return result
   }
@@ -149,6 +321,14 @@ export class LabMvpWebService extends Service {
       planId: command.planId,
       approvedBy: command.approvedBy,
       skillRevisionIds,
+    })
+    await this.projectEvidenceForSession(command, {
+      version: 1,
+      experimentId: result.plan.experimentId,
+      kind: 'plan-approval',
+      referenceId: `${result.plan.planId}:r${result.plan.revision}`,
+      status: result.plan.status,
+      updatedAt: Date.now(),
     })
     return result
   }
@@ -226,7 +406,7 @@ export class LabMvpWebService extends Service {
     return report
   }
 
-  private sessionFor(command: LabWebCommand): Session | undefined {
+  private sessionFor(command: { readonly sessionId?: SessionId }): Session | undefined {
     if (command.sessionId === undefined) return undefined
     const sessions = this.ctx.get('sessions')
     if (sessions === undefined) throw new Error('session service is unavailable for this Web command')
@@ -277,6 +457,31 @@ export class LabMvpWebService extends Service {
     if (cache === undefined) throw new Error('laboratory cache service is unavailable for this Web command')
     session.append('lab/cache/projected', { version: 1, projection: run.cache })
     await cache.project(run.cache)
+    await this.projectEvidenceForSession(command, {
+      version: 1,
+      experimentId: run.experimentId,
+      kind: command.command === 'run-report' ? 'report' : 'run',
+      referenceId: runId,
+      status: runStatus,
+      updatedAt: Date.now(),
+    })
+  }
+
+  private async projectEvidenceForSession(
+    command: { readonly sessionId?: SessionId },
+    details: Omit<LabProjectEvidenceProjection, 'projectId' | 'sessionId'>,
+  ): Promise<void> {
+    const sessionId = command.sessionId
+    if (sessionId === undefined) return
+    const project = await this.ctx.labProjects.projectForSession(sessionId)
+    if (project === undefined) return
+    const projection: LabProjectEvidenceProjection = {
+      ...details,
+      projectId: project.projectId,
+      sessionId,
+    }
+    await this.ctx.labProjects.projectEvidence(projection)
+    this.sessionFor(command)?.append('lab/project/evidence/projected', { version: 1, projection })
   }
 
   private executionStep(step: ExperimentPlan['steps'][number]): ExecutionStepSpec {
@@ -313,7 +518,7 @@ declare module '@deepseek-ai/cordis' {
 /** Cordis 插件名称。 */
 export const name = 'lab-mvp-web'
 /** 依赖实验状态 Service。 */
-export const inject = ['labKnowledge', 'labDevices', 'labPlanning', 'labSkills', 'labRuntime']
+export const inject = ['labKnowledge', 'labDevices', 'labPlanning', 'labSkills', 'labRuntime', 'labProjects']
 
 /** 安装 Web Consumer 服务。 */
 export function apply(ctx: Context): void {

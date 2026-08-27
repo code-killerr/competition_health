@@ -77,4 +77,4 @@ The Agent can call retrieval, context, proposal and draft-generation tools. It c
 ## Open Questions
 
 - Should project records live in a new lab-owned SQLite domain or in the existing Harness Storage domain? The default is a lab-owned domain with Session IDs as opaque references, but the final choice should follow the persistence catalog review.
-- Which public workspace slot identity and minimum Knowledge Facade version will `pdf-knowledge-parser` publish? Until implemented, this change uses a capability check and deterministic fake Consumer in tests.
+- Which public workspace slot identity and exact DTOs will `pdf-knowledge-parser` publish? This change uses a capability check and deterministic fake Consumer in tests; it does not enforce a Harness-side minimum version gate.

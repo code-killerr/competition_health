@@ -5,6 +5,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { LabProviderUnavailableError } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { parseLabWebCommand, type LabWebErrorCode } from './protocol.ts'
+import { parseLabProjectConversationCommand } from './project-protocol.ts'
 
 /** HTTP Consumer 配置。 */
 export interface Config {
@@ -52,13 +53,8 @@ async function handleRequest(
   }
   try {
     const body = await readJson(req, maxBodyBytes)
-    let command: ReturnType<typeof parseLabWebCommand>
-    try {
-      command = parseLabWebCommand(body)
-    } catch (error) {
-      throw new HttpCommandError(400, 'INVALID_COMMAND', error instanceof Error ? error.message : String(error))
-    }
-    const result = await ctx.labMvpWeb.dispatch(command)
+    const command = parseHttpCommand(body)
+    const result = command.kind === 'project' ? await ctx.labMvpWeb.dispatchProject(command.value) : await ctx.labMvpWeb.dispatch(command.value)
     sendJson(res, 200, { ok: true, result })
   } catch (error) {
     const response = classifyError(error)
@@ -81,6 +77,24 @@ async function readJson(req: IncomingMessage, maxBodyBytes: number): Promise<unk
   } catch {
     throw new HttpCommandError(400, 'INVALID_JSON', '请求体不是合法 JSON')
   }
+}
+type HttpCommand =
+  | { readonly kind: 'lab'; readonly value: ReturnType<typeof parseLabWebCommand> }
+  | { readonly kind: 'project'; readonly value: ReturnType<typeof parseLabProjectConversationCommand> }
+
+function parseHttpCommand(value: unknown): HttpCommand {
+  try {
+    if (isProjectCommand(value)) return { kind: 'project', value: parseLabProjectConversationCommand(value) }
+    return { kind: 'lab', value: parseLabWebCommand(value) }
+  } catch (error) {
+    throw new HttpCommandError(400, 'INVALID_COMMAND', error instanceof Error ? error.message : String(error))
+  }
+}
+
+function isProjectCommand(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const command = (value as Record<string, unknown>).command
+  return typeof command === 'string' && command.startsWith('project-')
 }
 
 function classifyError(error: unknown): { readonly status: number; readonly code: LabWebErrorCode; readonly message: string } {

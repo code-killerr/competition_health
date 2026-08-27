@@ -40,6 +40,7 @@
     "@deepseek-ai/dsh-client-ui-lab-workbench": "workspace:*",
     "@deepseek-ai/dsh-experimental-lab-mvp": "workspace:*",
     "@deepseek-ai/dsh-experimental-tool-lab": "workspace:*",
+    "@deepseek-ai/dsh-experimental-tool-lab-project": "workspace:*",
     "@deepseek-ai/dsh-invariants": "workspace:*",
     "@deepseek-ai/dsh-sdk-jsonrpc-server": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",

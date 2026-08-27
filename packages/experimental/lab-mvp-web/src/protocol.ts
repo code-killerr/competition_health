@@ -5,11 +5,13 @@ import {
   type ExperimentPlan,
   type ExperimentRequest,
   type KnowledgeSearchRequest,
+  type KnowledgeSopDraftId,
   type PlanParameter,
   type PlanStep,
   type UnitValue,
 } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { PlanProposalInput } from '@deepseek-ai/dsh-experimental-lab-planning'
+import type { CreateSopDraftRequest, UpdateSopDraftRequest } from '@deepseek-ai/dsh-experimental-lab-knowledge'
 import type { LabSkillDraft } from '@deepseek-ai/dsh-experimental-lab-skill'
 import type { OperationId, PlanStepId, RunId, SkillRevisionId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { SessionId } from '@deepseek-ai/dsh-session'
@@ -29,6 +31,7 @@ export type LabWebCommandResult =
   | { readonly kind: 'snapshot'; readonly value: unknown }
   | { readonly kind: 'knowledge-import'; readonly value: unknown }
   | { readonly kind: 'knowledge-search'; readonly value: unknown }
+  | { readonly kind: 'knowledge-sop'; readonly value: unknown }
   | { readonly kind: 'planning-context'; readonly value: unknown }
   | { readonly kind: 'plan-proposal'; readonly value: unknown }
   | { readonly kind: 'plan-rejection'; readonly value: unknown }
@@ -41,6 +44,11 @@ export type LabWebCommand = { readonly sessionId?: SessionId } & (
   | { readonly command: 'snapshot'; readonly experimentId: ExperimentRequest['experimentId'] }
   | { readonly command: 'knowledge-import'; readonly name: string; readonly bytes: Uint8Array; readonly metadata: Readonly<Record<string, string>> }
   | { readonly command: 'knowledge-search'; readonly request: KnowledgeSearchRequest }
+  | { readonly command: 'knowledge-sop-create'; readonly title: string; readonly steps: CreateSopDraftRequest['steps'] }
+  | { readonly command: 'knowledge-sop-get'; readonly draftId: KnowledgeSopDraftId }
+  | { readonly command: 'knowledge-sop-list' }
+  | { readonly command: 'knowledge-sop-update'; readonly draftId: KnowledgeSopDraftId; readonly title: string; readonly steps: UpdateSopDraftRequest['steps'] }
+  | { readonly command: 'knowledge-sop-publish'; readonly draftId: KnowledgeSopDraftId; readonly publishedBy: string }
   | { readonly command: 'experiment-create'; readonly request: ExperimentRequest }
   | { readonly command: 'planning-context'; readonly request: ExperimentRequest }
   | { readonly command: 'plan-propose'; readonly input: PlanProposalInput }
@@ -62,6 +70,7 @@ export function parseLabWebCommand(value: unknown): LabWebCommand {
   const object = record(value, 'command')
   const command = literal(object.command, 'command.command', [
     'snapshot', 'knowledge-import', 'knowledge-search', 'experiment-create', 'planning-context',
+    'knowledge-sop-create', 'knowledge-sop-get', 'knowledge-sop-list', 'knowledge-sop-update', 'knowledge-sop-publish',
     'plan-propose', 'plan-validate', 'plan-approve', 'plan-reject', 'run-start', 'run-step',
     'skill-validate', 'skill-approve', 'skill-activate', 'run-confirm', 'run-stop', 'run-report',
   ] as const)
@@ -79,6 +88,16 @@ export function parseLabWebCommand(value: unknown): LabWebCommand {
       }
     case 'knowledge-search':
       return { command, request: parseSearchRequest(object.request, 'command.request') }
+    case 'knowledge-sop-create':
+      return { command, title: nonBlankString(object.title, 'command.title'), steps: parseSopSteps(object.steps, 'command.steps') }
+    case 'knowledge-sop-get':
+      return { command, draftId: brandId<'KnowledgeSopDraftId'>(nonBlankString(object.draftId, 'command.draftId')) }
+    case 'knowledge-sop-list':
+      return { command }
+    case 'knowledge-sop-update':
+      return { command, draftId: brandId<'KnowledgeSopDraftId'>(nonBlankString(object.draftId, 'command.draftId')), title: nonBlankString(object.title, 'command.title'), steps: parseSopSteps(object.steps, 'command.steps') }
+    case 'knowledge-sop-publish':
+      return { command, draftId: brandId<'KnowledgeSopDraftId'>(nonBlankString(object.draftId, 'command.draftId')), publishedBy: nonBlankString(object.publishedBy, 'command.publishedBy') }
     case 'experiment-create':
       return { command, request: parseExperimentRequest(object.request, 'command.request') }
     case 'planning-context':
@@ -164,6 +183,24 @@ function parseExperimentRequest(value: unknown, path: string): ExperimentRequest
     expectedOutputs: stringArray(object.expectedOutputs, `${path}.expectedOutputs`),
     unresolved: stringArray(object.unresolved, `${path}.unresolved`),
   }
+}
+
+function parseSopSteps(value: unknown, path: string): CreateSopDraftRequest['steps'] {
+  return array(value, path).map((item, index) => {
+    const step = record(item, `${path}[${index}]`)
+    const requiredInputs = step.requiredInputs === undefined ? [] : stringArray(step.requiredInputs, `${path}[${index}].requiredInputs`)
+    const completionCriteria = step.completionCriteria === undefined ? [] : stringArray(step.completionCriteria, `${path}[${index}].completionCriteria`)
+    const missingFields = step.missingFields === undefined ? [] : stringArray(step.missingFields, `${path}[${index}].missingFields`)
+    return {
+      order: integer(step.order, `${path}[${index}].order`),
+      title: nonBlankString(step.title, `${path}[${index}].title`),
+      instruction: nonBlankString(step.instruction, `${path}[${index}].instruction`),
+      requiredInputs,
+      completionCriteria,
+      citations: stringArray(step.citations, `${path}[${index}].citations`).map(item => brandId<'CitationId'>(item)),
+      missingFields,
+    }
+  })
 }
 
 function parseSearchRequest(value: unknown, path: string): KnowledgeSearchRequest {

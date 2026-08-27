@@ -8,6 +8,7 @@
     { "path": "../../runtime-diagnostics/invariants" },
     { "path": "../lab-domain" },
     { "path": "../lab-cache" },
+    { "path": "../lab-project" },
     { "path": "../../core/session" },
     { "path": "../lab-planning" },
     { "path": "../lab-device" },

@@ -17,6 +17,9 @@ import type {
   ExperimentId,
   KnowledgeSearchRequest,
   KnowledgeSearchResult,
+  KnowledgeSopDraftId,
+  KnowledgeSopDraftStatus,
+  KnowledgeSopStep,
 } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type {
   ConfirmFactRequest,
@@ -24,7 +27,11 @@ import type {
   ImportDocumentResult,
   ImportStatusResult,
   KnowledgeProvider,
+  CreateSopDraftRequest,
+  PublishSopDraftRequest,
   RecordConflictRequest,
+  SopDraftResult,
+  UpdateSopDraftRequest,
 } from '@deepseek-ai/dsh-experimental-lab-knowledge'
 
 /** 解析后供 Knowledge Provider 持久化的标准区块。 */
@@ -109,6 +116,9 @@ interface SearchRow {
   readonly table_row: number | null
   readonly confirmed: number
   readonly conflicted: number
+  readonly provenance: 'SOURCE' | 'SOP_PUBLISHED'
+  readonly sop_draft_id: string | null
+  readonly sop_step_id: string | null
   readonly rank: number
 }
 
@@ -127,10 +137,37 @@ interface EmbeddingRow {
   readonly table_row: number | null
   readonly confirmed: number
   readonly conflicted: number
+  readonly provenance: 'SOURCE' | 'SOP_PUBLISHED'
+  readonly sop_draft_id: string | null
+  readonly sop_step_id: string | null
   readonly vector: string
 }
 
 type SqlParam = string | number | null
+
+interface SopDraftRow {
+  readonly id: string
+  readonly title: string
+  readonly status: KnowledgeSopDraftStatus
+  readonly updated_by: string | null
+}
+
+interface SopStepRow {
+  readonly id: string
+  readonly draft_id: string
+  readonly step_order: number
+  readonly title: string
+  readonly instruction: string
+  readonly required_inputs_json: string
+  readonly completion_criteria_json: string
+  readonly citations_json: string
+  readonly missing_fields_json: string
+}
+
+interface BlockReferenceRow {
+  readonly document_id: string
+  readonly version_id: string
+}
 
 const OPEN_CONFLICT_SQL = "EXISTS (SELECT 1 FROM conflict_citations AS cc JOIN conflicts AS c ON c.id = cc.conflict_id WHERE cc.citation_id = 'citation-' || b.id AND c.status = 'OPEN')"
 
@@ -175,6 +212,7 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
     let blocks: readonly ParsedDocumentBlock[]
     try {
       blocks = await this.parse(source)
+      if (blocks.every(block => block.content.trim().length === 0)) throw new Error('parser returned no usable blocks')
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       db.prepare('UPDATE document_versions SET status = ?, error = ? WHERE id = ?').run('FAILED', message, versionId)
@@ -265,7 +303,7 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
     const limit = Math.min(Math.max(request.limit ?? 20, 1), 100)
     const filter = searchFilter(request)
     const keywordRows = query.length === 0 ? [] : db.prepare(`
-      SELECT f.block_id, b.document_id, f.version_id, f.location, f.content, b.kind, b.page, b.title_path, b.table_headers, b.table_row, b.confirmed, ${OPEN_CONFLICT_SQL} AS conflicted, bm25(blocks_fts) AS rank
+      SELECT f.block_id, b.document_id, f.version_id, f.location, f.content, b.kind, b.page, b.title_path, b.table_headers, b.table_row, b.confirmed, ${OPEN_CONFLICT_SQL} AS conflicted, b.provenance, b.sop_draft_id, b.sop_step_id, bm25(blocks_fts) AS rank
       FROM blocks_fts AS f JOIN blocks AS b ON b.id = f.block_id
       WHERE blocks_fts MATCH ?${filter.sql} ORDER BY rank ASC LIMIT ?
     `).all(query, ...filter.params, limit) as unknown as SearchRow[]
@@ -275,7 +313,7 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
     if (this.embeddingAdapter !== undefined) {
       const vector = await this.vectorFor(request.query)
       const rows = db.prepare(`
-        SELECT b.id AS block_id, b.document_id, b.version_id, b.location, b.content, b.kind, b.page, b.title_path, b.table_headers, b.table_row, b.confirmed, ${OPEN_CONFLICT_SQL} AS conflicted, e.vector
+        SELECT b.id AS block_id, b.document_id, b.version_id, b.location, b.content, b.kind, b.page, b.title_path, b.table_headers, b.table_row, b.confirmed, ${OPEN_CONFLICT_SQL} AS conflicted, b.provenance, b.sop_draft_id, b.sop_step_id, e.vector
         FROM block_embeddings AS e JOIN blocks AS b ON b.id = e.block_id
         WHERE 1 = 1${filter.sql}
       `).all(...filter.params) as unknown as EmbeddingRow[]
@@ -296,6 +334,82 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
       .map(({ row, keyword, embedding }) => searchResult(row, keywordWeight * keyword + embeddingWeight * embedding))
       .sort((left, right) => right.score - left.score || left.location.localeCompare(right.location))
       .slice(0, limit)
+  }
+  /** 创建一个由知识引用组成的 SOP 草案。 */
+  async createSopDraft(request: CreateSopDraftRequest): Promise<SopDraftResult> {
+    const db = await this.requireDatabase()
+    const title = request.title.trim()
+    const draftId = brandId<'KnowledgeSopDraftId'>(`sop-draft-${createHash('sha256').update(JSON.stringify({ title, steps: request.steps })).digest('hex')}`)
+    const existing = db.prepare('SELECT id FROM sop_drafts WHERE id = ?').get(draftId) as { id: string } | undefined
+    if (existing === undefined) {
+      const steps = normalizeSopSteps(draftId, request.steps)
+      db.prepare('INSERT INTO sop_drafts (id, title, status, updated_by) VALUES (?, ?, ?, ?)').run(draftId, title, 'DRAFT', request.updatedBy?.trim() || null)
+      replaceSopSteps(db, draftId, steps)
+    }
+    return requireSopDraftResult(db, draftId)
+  }
+
+  /** 读取一个 SOP 草案及其发布阻塞原因。 */
+  async getSopDraft(draftId: KnowledgeSopDraftId): Promise<SopDraftResult | undefined> {
+    return readSopDraftResult(await this.requireDatabase(), draftId)
+  }
+
+  /** 按更新时间列出全部 SOP 草案。 */
+  async listSopDrafts(): Promise<readonly SopDraftResult[]> {
+    const db = await this.requireDatabase()
+    const rows = db.prepare('SELECT id FROM sop_drafts ORDER BY updated_at ASC, id ASC').all() as Array<{ id: string }>
+    return rows.map(row => requireSopDraftResult(db, brandId<'KnowledgeSopDraftId'>(row.id)))
+  }
+
+  /** 更新 SOP 草案；无阻塞时进入 REVIEWED 状态。 */
+  async updateSopDraft(request: UpdateSopDraftRequest): Promise<SopDraftResult> {
+    const db = await this.requireDatabase()
+    const existing = db.prepare('SELECT id, status FROM sop_drafts WHERE id = ?').get(request.draftId) as { id: string; status: KnowledgeSopDraftStatus } | undefined
+    if (existing === undefined) throw new Error(`unknown SOP draft "${request.draftId}"`)
+    if (existing.status === 'PUBLISHED') throw new Error('published SOP drafts are immutable')
+    const title = request.title.trim()
+    const steps = normalizeSopSteps(request.draftId, request.steps)
+    replaceSopSteps(db, request.draftId, steps)
+    const blockers = sopBlockers(db, title, steps)
+    db.prepare('UPDATE sop_drafts SET title = ?, status = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(title, blockers.length === 0 ? 'REVIEWED' : 'DRAFT', request.updatedBy?.trim() || null, request.draftId)
+    return requireSopDraftResult(db, request.draftId)
+  }
+
+  /** 发布已审核且所有步骤均有引用的 SOP。 */
+  async publishSopDraft(request: PublishSopDraftRequest): Promise<SopDraftResult> {
+    const db = await this.requireDatabase()
+    const current = requireSopDraftResult(db, request.draftId)
+    if (current.draft.status === 'PUBLISHED') return current
+    if (request.publishedBy.trim().length === 0) throw new Error('publishedBy must be non-blank')
+    if (current.blockers.length > 0) throw new Error(`SOP draft cannot be published: ${current.blockers.join('; ')}`)
+    if (current.draft.status !== 'REVIEWED') throw new Error('SOP draft must be reviewed before publishing')
+    const steps = current.draft.steps
+    db.exec('BEGIN')
+    try {
+      db.prepare('DELETE FROM blocks WHERE sop_draft_id = ?').run(request.draftId)
+      const insertBlock = db.prepare('INSERT INTO blocks (id, version_id, document_id, location, content, kind, page, title_path, table_headers, table_row, confirmed, provenance, sop_draft_id, sop_step_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)')
+      const insertFts = db.prepare('INSERT INTO blocks_fts (block_id, content, location, version_id) VALUES (?, ?, ?, ?)')
+      const insertEmbedding = this.embeddingAdapter === undefined ? undefined : db.prepare('INSERT INTO block_embeddings (block_id, vector) VALUES (?, ?)')
+      for (const step of steps) {
+        const firstCitation = step.citations[0]
+        if (firstCitation === undefined) throw new Error(`SOP step ${step.order} has no citation`)
+        const source = db.prepare('SELECT document_id, version_id FROM blocks WHERE id = ?').get(citationBlockId(firstCitation)) as BlockReferenceRow | undefined
+        if (source === undefined) throw new Error(`SOP step ${step.order} cites an unknown source`)
+        const blockId = `sop-block-${request.draftId}-${step.stepId}`
+        const content = sopStepContent(step)
+        const location = `sop:${request.draftId}/step:${step.order}`
+        insertBlock.run(blockId, source.version_id, source.document_id, location, content, 'text', null, JSON.stringify([current.draft.title, `Step ${step.order}`]), null, null, 'SOP_PUBLISHED', request.draftId, step.stepId)
+        insertFts.run(blockId, content, location, source.version_id)
+        if (insertEmbedding !== undefined) insertEmbedding.run(blockId, JSON.stringify(await this.vectorFor(content)))
+      }
+      db.prepare('UPDATE sop_drafts SET status = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('PUBLISHED', request.publishedBy.trim(), request.draftId)
+      db.exec('COMMIT')
+    } catch (error) {
+      db.exec('ROLLBACK')
+      throw error
+    }
+    return requireSopDraftResult(db, request.draftId)
   }
 
   /** 返回 Provider 已登记的待处理冲突。 */
@@ -380,15 +494,21 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
       CREATE TABLE IF NOT EXISTS fact_confirmations (id INTEGER PRIMARY KEY, block_id TEXT NOT NULL REFERENCES blocks(id), citation_id TEXT NOT NULL, confirmed_by TEXT NOT NULL, note TEXT, confirmed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP) STRICT;
       CREATE TABLE IF NOT EXISTS conflicts (id TEXT PRIMARY KEY, experiment_id TEXT, summary TEXT NOT NULL, status TEXT NOT NULL) STRICT;
       CREATE TABLE IF NOT EXISTS conflict_citations (conflict_id TEXT NOT NULL REFERENCES conflicts(id), citation_id TEXT NOT NULL, PRIMARY KEY (conflict_id, citation_id)) STRICT;
+      CREATE TABLE IF NOT EXISTS sop_drafts (id TEXT PRIMARY KEY, title TEXT NOT NULL, status TEXT NOT NULL, updated_by TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP) STRICT;
+      CREATE TABLE IF NOT EXISTS sop_steps (id TEXT PRIMARY KEY, draft_id TEXT NOT NULL REFERENCES sop_drafts(id) ON DELETE CASCADE, step_order INTEGER NOT NULL, title TEXT NOT NULL, instruction TEXT NOT NULL, required_inputs_json TEXT NOT NULL, completion_criteria_json TEXT NOT NULL, citations_json TEXT NOT NULL, missing_fields_json TEXT NOT NULL) STRICT;
     `)
 
     ensureColumn(db, 'documents', 'metadata_json', 'TEXT')
+    ensureColumn(db, 'document_versions', 'error_code', 'TEXT')
     ensureColumn(db, 'conflicts', 'experiment_id', 'TEXT')
     ensureColumn(db, 'blocks', 'kind', "TEXT NOT NULL DEFAULT 'text'")
     ensureColumn(db, 'blocks', 'page', 'INTEGER')
     ensureColumn(db, 'blocks', 'title_path', 'TEXT')
     ensureColumn(db, 'blocks', 'table_headers', 'TEXT')
     ensureColumn(db, 'blocks', 'table_row', 'INTEGER')
+    ensureColumn(db, 'blocks', 'provenance', "TEXT NOT NULL DEFAULT 'SOURCE'")
+    ensureColumn(db, 'blocks', 'sop_draft_id', 'TEXT')
+    ensureColumn(db, 'blocks', 'sop_step_id', 'TEXT')
     return db
   }
 
@@ -408,6 +528,106 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
     if (vector.length === 0 || vector.some(value => !Number.isFinite(value))) throw new Error('embedding adapter returned an invalid vector')
     return vector
   }
+}
+function normalizeSopSteps(draftId: KnowledgeSopDraftId, steps: readonly Omit<KnowledgeSopStep, 'stepId'>[]): readonly KnowledgeSopStep[] {
+  return [...steps]
+    .sort((left, right) => left.order - right.order)
+    .map((step, index) => ({
+      stepId: brandId<'KnowledgeSopStepId'>(`sop-step-${draftId}-${index + 1}`),
+      order: index + 1,
+      title: step.title.trim(),
+      instruction: step.instruction.trim(),
+      requiredInputs: step.requiredInputs.map(value => value.trim()).filter(Boolean),
+      completionCriteria: step.completionCriteria.map(value => value.trim()).filter(Boolean),
+      citations: [...step.citations],
+      missingFields: step.missingFields.map(value => value.trim()).filter(Boolean),
+    }))
+}
+
+function replaceSopSteps(db: DatabaseSync, draftId: KnowledgeSopDraftId, steps: readonly KnowledgeSopStep[]): void {
+  db.prepare('DELETE FROM sop_steps WHERE draft_id = ?').run(draftId)
+  const insert = db.prepare('INSERT INTO sop_steps (id, draft_id, step_order, title, instruction, required_inputs_json, completion_criteria_json, citations_json, missing_fields_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+  for (const step of steps) {
+    insert.run(step.stepId, draftId, step.order, step.title, step.instruction, JSON.stringify(step.requiredInputs), JSON.stringify(step.completionCriteria), JSON.stringify(step.citations), JSON.stringify(step.missingFields))
+  }
+}
+
+function readSopDraftResult(db: DatabaseSync, draftId: KnowledgeSopDraftId): SopDraftResult | undefined {
+  const row = db.prepare('SELECT id, title, status, updated_by FROM sop_drafts WHERE id = ?').get(draftId) as SopDraftRow | undefined
+  if (row === undefined) return undefined
+  const rows = db.prepare('SELECT id, draft_id, step_order, title, instruction, required_inputs_json, completion_criteria_json, citations_json, missing_fields_json FROM sop_steps WHERE draft_id = ? ORDER BY step_order ASC').all(draftId) as unknown as SopStepRow[]
+  const steps = rows.map(step => ({
+    stepId: brandId<'KnowledgeSopStepId'>(step.id),
+    order: step.step_order,
+    title: step.title,
+    instruction: step.instruction,
+    requiredInputs: parseSopStringArray(step.required_inputs_json, 'requiredInputs'),
+    completionCriteria: parseSopStringArray(step.completion_criteria_json, 'completionCriteria'),
+    citations: parseSopStringArray(step.citations_json, 'citations').map(value => brandId<'CitationId'>(value)),
+    missingFields: parseSopStringArray(step.missing_fields_json, 'missingFields'),
+  }))
+  const blockers = sopBlockers(db, row.title, steps)
+  return {
+    draft: {
+      draftId: brandId<'KnowledgeSopDraftId'>(row.id),
+      title: row.title,
+      status: row.status,
+      steps,
+      sourceVersionIds: sourceVersionIds(db, steps),
+      blockers,
+      ...row.updated_by === null ? {} : { updatedBy: row.updated_by },
+    },
+    blockers,
+  }
+}
+
+function requireSopDraftResult(db: DatabaseSync, draftId: KnowledgeSopDraftId): SopDraftResult {
+  const result = readSopDraftResult(db, draftId)
+  if (result === undefined) throw new Error(`unknown SOP draft "${draftId}"`)
+  return result
+}
+
+function sourceVersionIds(db: DatabaseSync, steps: readonly KnowledgeSopStep[]): readonly KnowledgeDocumentVersionId[] {
+  const blockIds = [...new Set(steps.flatMap(step => step.citations).map(citationBlockId))]
+  if (blockIds.length === 0) return []
+  const placeholders = blockIds.map(() => '?').join(', ')
+  const rows = db.prepare(`SELECT DISTINCT version_id FROM blocks WHERE id IN (${placeholders}) ORDER BY version_id ASC`).all(...blockIds) as Array<{ version_id: string }>
+  return rows.map(row => brandId<'KnowledgeDocumentVersionId'>(row.version_id))
+}
+
+function sopBlockers(db: DatabaseSync, title: string, steps: readonly KnowledgeSopStep[]): readonly string[] {
+  const blockers: string[] = []
+  if (title.trim().length === 0) blockers.push('title is required')
+  if (steps.length === 0) blockers.push('at least one SOP step is required')
+  for (const step of steps) {
+    if (step.title.length === 0) blockers.push(`step ${step.order} title is required`)
+    if (step.instruction.length === 0) blockers.push(`step ${step.order} instruction is required`)
+    if (step.citations.length === 0) blockers.push(`step ${step.order} needs at least one citation`)
+    for (const field of step.missingFields) blockers.push(`step ${step.order} missing field: ${field}`)
+    const blockIds = [...new Set(step.citations.map(citationBlockId))]
+    if (blockIds.length === 0) continue
+    const placeholders = blockIds.map(() => '?').join(', ')
+    const rows = db.prepare(`SELECT b.id, b.confirmed, ${OPEN_CONFLICT_SQL} AS conflicted FROM blocks AS b WHERE b.id IN (${placeholders})`).all(...blockIds) as Array<{ id: string; confirmed: number; conflicted: number }>
+    const found = new Set(rows.map(row => row.id))
+    for (const blockId of blockIds) {
+      if (!found.has(blockId)) blockers.push(`step ${step.order} cites unknown citation "citation-${blockId}"`)
+    }
+    for (const row of rows) {
+      if (row.confirmed !== 1) blockers.push(`step ${step.order} cites an unconfirmed fact "citation-${row.id}"`)
+      if (row.conflicted === 1) blockers.push(`step ${step.order} cites a conflicted fact "citation-${row.id}"`)
+    }
+  }
+  return blockers
+}
+
+function sopStepContent(step: KnowledgeSopStep): string {
+  return [step.title, step.instruction, ...step.requiredInputs.map(value => `Required input: ${value}`), ...step.completionCriteria.map(value => `Completion: ${value}`)].filter(value => value.length > 0).join('\n')
+}
+
+function parseSopStringArray(value: string, field: string): readonly string[] {
+  const parsed: unknown = JSON.parse(value)
+  if (!Array.isArray(parsed) || parsed.some(item => typeof item !== 'string')) throw new Error(`stored SOP ${field} is invalid`)
+  return parsed
 }
 
 function parseTableBlocks(text: string, delimiter: ',' | '\t'): readonly ParsedDocumentBlock[] {
@@ -545,6 +765,9 @@ function searchResult(row: SearchRow | EmbeddingRow, score: number): KnowledgeSe
     ...row.table_row === null ? {} : { tableRow: row.table_row },
     confirmed: row.confirmed === 1 && row.conflicted === 0,
     conflicted: row.conflicted === 1,
+    provenance: row.provenance,
+    ...row.sop_draft_id === null ? {} : { sopDraftId: brandId<'KnowledgeSopDraftId'>(row.sop_draft_id) },
+    ...row.sop_step_id === null ? {} : { sopStepId: brandId<'KnowledgeSopStepId'>(row.sop_step_id) },
     score,
   }
 }

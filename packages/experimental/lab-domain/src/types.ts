@@ -21,6 +21,10 @@ export type KnowledgeDocumentId = Branded<'KnowledgeDocumentId'>
 export type KnowledgeDocumentVersionId = Branded<'KnowledgeDocumentVersionId'>
 /** 知识引用标识。 */
 export type CitationId = Branded<'CitationId'>
+/** 知识 SOP 草案标识。 */
+export type KnowledgeSopDraftId = Branded<'KnowledgeSopDraftId'>
+/** 知识 SOP 步骤标识。 */
+export type KnowledgeSopStepId = Branded<'KnowledgeSopStepId'>
 /** 知识冲突标识。 */
 export type KnowledgeConflictId = Branded<'KnowledgeConflictId'>
 /** 实验运行标识。 */
@@ -53,6 +57,8 @@ export type LabSkillStatus = 'DRAFT' | 'VALIDATED' | 'HUMAN_APPROVED' | 'ACTIVE'
 export type OperationKind = 'device' | 'human' | 'approval' | 'script' | 'api'
 /** 文档导入生命周期。 */
 export type KnowledgeImportStatus = 'QUEUED' | 'PARSING' | 'INDEXING' | 'READY' | 'FAILED'
+/** 知识 SOP 草案生命周期。 */
+export type KnowledgeSopDraftStatus = 'DRAFT' | 'REVIEWED' | 'PUBLISHED' | 'REJECTED'
 /** 知识冲突生命周期。 */
 export type KnowledgeConflictStatus = 'OPEN' | 'RESOLVED'
 /** 实验计划生命周期。 */
@@ -213,7 +219,33 @@ export interface KnowledgeSearchResult {
   readonly tableRow?: number
   readonly confirmed: boolean
   readonly conflicted: boolean
+  readonly provenance?: 'SOURCE' | 'SOP_PUBLISHED'
+  readonly sopDraftId?: KnowledgeSopDraftId
+  readonly sopStepId?: KnowledgeSopStepId
   readonly score: number
+}
+
+/** 一个可供人工审核的 SOP 步骤。 */
+export interface KnowledgeSopStep {
+  readonly stepId: KnowledgeSopStepId
+  readonly order: number
+  readonly title: string
+  readonly instruction: string
+  readonly requiredInputs: readonly string[]
+  readonly completionCriteria: readonly string[]
+  readonly citations: readonly CitationId[]
+  readonly missingFields: readonly string[]
+}
+
+/** 从知识引用生成、但尚未成为规划知识的 SOP 草案。 */
+export interface KnowledgeSopDraft {
+  readonly draftId: KnowledgeSopDraftId
+  readonly title: string
+  readonly status: KnowledgeSopDraftStatus
+  readonly steps: readonly KnowledgeSopStep[]
+  readonly sourceVersionIds: readonly KnowledgeDocumentVersionId[]
+  readonly blockers: readonly string[]
+  readonly updatedBy?: string
 }
 
 /** 两条或多条引用之间需要人工处理的知识冲突。 */

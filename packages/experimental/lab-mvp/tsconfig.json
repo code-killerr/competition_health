@@ -11,6 +11,7 @@
     { "path": "../../storage/storage-sqlite" },
     { "path": "../lab-domain" },
     { "path": "../lab-cache" },
+    { "path": "../lab-project" },
     { "path": "../lab-knowledge" },
     { "path": "../lab-knowledge-local" },
     { "path": "../lab-planning" },

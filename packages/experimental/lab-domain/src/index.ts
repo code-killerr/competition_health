@@ -1,6 +1,7 @@
 /** 实验自动化平台第一阶段共享领域协议。 */
 
 export * from './types.ts'
+export * from './project.ts'
 export * from './validation.ts'
 
 /** 实验能力尚未注册 Provider 时的明确错误。 */

@@ -15,6 +15,7 @@ import * as MockDevice from '@deepseek-ai/dsh-experimental-lab-device-mock'
 import LabRuntimeService from '@deepseek-ai/dsh-experimental-lab-runtime'
 import * as LocalRuntime from '@deepseek-ai/dsh-experimental-lab-runtime-local'
 import * as LabExperimentCache from '@deepseek-ai/dsh-experimental-lab-cache'
+import * as LabProject from '@deepseek-ai/dsh-experimental-lab-project'
 import * as WebConsumer from '@deepseek-ai/dsh-experimental-lab-mvp-web'
 
 /** Bundle 的可配置项。 */
@@ -44,6 +45,7 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   await ctx.plugin(StorageSqlite, { path: config.storagePath ?? '.lab-data/lab-storage.sqlite' })
   if (ctx.get('storageDomain') === undefined) await ctx.plugin(StorageDomain, { backend: 'sqlite' })
   if (ctx.get('labExperimentCache') === undefined) await ctx.plugin(LabExperimentCache)
+  if (ctx.get('labProjects') === undefined) await ctx.plugin(LabProject)
   await ctx.plugin(KnowledgeService)
   await ctx.plugin(LabPlanningService)
   await ctx.plugin(LabSkillService)
@@ -65,3 +67,5 @@ export {
   LabDeviceService,
   LabRuntimeService,
 }
+
+export { LabProjectService } from '@deepseek-ai/dsh-experimental-lab-project'

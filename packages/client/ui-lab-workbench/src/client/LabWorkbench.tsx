@@ -1,8 +1,9 @@
 /** 实验自动化工作台的纯展示组件；数据和副作用通过四个 props share 注入。 */
 
-import type { PropsLocale, PropsRuntime, PropsStore, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
-import { useMemo, type ReactNode } from 'react'
-import type { LabExperimentRequest } from './api.ts'
+import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { PropsLocale, PropsStore, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
+import { useEffect, useMemo, type ReactNode } from 'react'
+import type { LabExperimentRequest, LabSopDraft } from './api.ts'
 import type { LabStage, LabWorkbenchState } from './store.ts'
 import { firstPlanId, planReviews, runView } from './store.ts'
 import type { createLabWorkbenchStore } from './store.ts'
@@ -12,10 +13,20 @@ import css from './LabWorkbench.module.css'
 export interface LabWorkbenchInjected {
   refresh: (experimentId: string) => Promise<void>
   importSource: (name: string, content: string, title: string) => Promise<void>
+  importFile: (file: File) => Promise<void>
   search: (query: string, experimentId: string) => Promise<void>
+  createSop: (title: string, citationId: string, instruction: string) => Promise<void>
+  reviewSop: (draft: LabSopDraft) => Promise<void>
+  publishSop: (draftId: string) => Promise<void>
+  listProjects: () => Promise<void>
+  openProject: (projectId: string) => Promise<void>
+  createProject: (projectId: string, name: string) => Promise<void>
+  updateProjectScope: (projectId: string, sources: readonly { readonly documentId: string; readonly versionId: string }[], deviceIds: readonly string[]) => Promise<void>
+  associateSession: (projectId: string, sessionId: string, title?: string) => Promise<void>
+  renameSession: (projectId: string, sessionId: string, title: string) => Promise<void>
   createExperiment: (request: LabExperimentRequest) => Promise<void>
   buildContext: (request: LabExperimentRequest) => Promise<void>
-  agentPlan: (request: LabExperimentRequest) => Promise<void>
+  agentPlan: (projectId: string, request: LabExperimentRequest, submit: (text: string) => void) => Promise<void>
   proposeLocalPlan: (request: LabExperimentRequest, content: string) => Promise<void>
   validatePlan: (planId: string) => Promise<void>
   approvePlan: (experimentId: string, planId: string, approvedBy: string) => Promise<void>
@@ -31,20 +42,31 @@ export interface LabWorkbenchInjected {
 
 /** 工作台的完整槽位 props。 */
 export type LabWorkbenchProps =
-  & PropsRuntime<'shell.overlay'>
+  & ConvViewProps
   & PropsStore<ReturnType<typeof createLabWorkbenchStore>>
   & InjectFace<LabWorkbenchInjected>
   & PropsLocale<'labWorkbench'>
 
-/** 渲染工作台的全屏叠加视图。 */
+/** 渲染会话视图中的实验工作台。 */
 export function LabWorkbench(props: LabWorkbenchProps): JSX.Element {
   const state = props.useStore(snapshot => snapshot)
+  useEffect(() => {
+    const applyHash = (): void => {
+      const stage = stageFromHash(window.location.hash)
+      if (stage !== undefined) props.actions.setStage(stage)
+    }
+    window.addEventListener('hashchange', applyHash)
+    applyHash()
+    return () => { window.removeEventListener('hashchange', applyHash) }
+  }, [props.actions])
   const labels = useMemo<Record<LabStage, string>>(() => ({
     knowledge: props.t('knowledge'),
     request: props.t('request'),
     plan: props.t('plan'),
     execution: props.t('execution'),
     report: props.t('report'),
+    devices: props.t('devices'),
+    projects: props.t('projects'),
   }), [props.t])
   const request = buildRequest(state)
   const reviews = planReviews(state.snapshot)
@@ -96,6 +118,10 @@ export function LabWorkbench(props: LabWorkbenchProps): JSX.Element {
             <span>{props.t('experimentId')}</span>
             <input value={state.experimentId} onChange={event => { props.actions.setExperimentId(event.currentTarget.value) }} />
           </label>
+          <label className={css.compactField}>
+            <span>{props.t('projectId')}</span>
+            <input value={state.projectId} onChange={event => { props.actions.setProjectId(event.currentTarget.value) }} />
+          </label>
         </header>
 
         {(state.error !== undefined || state.notice !== undefined) && (
@@ -105,6 +131,8 @@ export function LabWorkbench(props: LabWorkbenchProps): JSX.Element {
         )}
 
         {state.stage === 'knowledge' && <KnowledgeStage props={props} state={state} busy={busy} />}
+        {state.stage === 'devices' && <DeviceStage props={props} state={state} busy={busy} />}
+        {state.stage === 'projects' && <ProjectStage props={props} state={state} busy={busy} />}
         {state.stage === 'request' && <RequestStage props={props} state={state} request={request} busy={busy} />}
         {state.stage === 'plan' && <PlanStage props={props} state={state} reviews={reviews} {...activePlanId === undefined ? {} : { activePlanId }} busy={busy} />}
         {state.stage === 'execution' && <ExecutionStage props={props} state={state} {...run === undefined ? {} : { run }} {...runId === undefined ? {} : { runId }} {...planId === undefined ? {} : { planId }} busy={busy} />}
@@ -116,7 +144,119 @@ export function LabWorkbench(props: LabWorkbenchProps): JSX.Element {
 
 type StageProps = { readonly props: LabWorkbenchProps; readonly state: LabWorkbenchState; readonly busy: boolean }
 
+function DeviceStage({ props, state, busy }: StageProps): JSX.Element {
+  const sourceSelections = splitComma(state.selectedSourceKeysText).map(value => {
+    const separator = value.indexOf(':')
+    return {
+      documentId: separator < 0 ? value : value.slice(0, separator),
+      versionId: separator < 0 ? '' : value.slice(separator + 1),
+    }
+  })
+  const deviceIds = splitComma(state.selectedDeviceIdsText)
+  const invalidSource = sourceSelections.some(source => source.documentId === '' || source.versionId === '')
+  return (
+    <div className={css.stageGrid}>
+      <Panel title={props.t('devices')} hint={props.t('scope')}>
+        <label className={css.field}>
+          <span>{props.t('selectedSources')}</span>
+          <textarea
+            value={state.selectedSourceKeysText}
+            onChange={event => { props.actions.setSelectedSourceKeysText(event.currentTarget.value) }}
+            rows={3}
+            placeholder="document-id:version-id"
+          />
+        </label>
+        <label className={css.field}>
+          <span>{props.t('selectedDevices')}</span>
+          <input
+            value={state.selectedDeviceIdsText}
+            onChange={event => { props.actions.setSelectedDeviceIdsText(event.currentTarget.value) }}
+            placeholder="device-1, device-2"
+          />
+        </label>
+        <ActionButton
+          disabled={busy || state.projectId.trim() === '' || invalidSource}
+          onClick={() => { void props.updateProjectScope(state.projectId.trim(), sourceSelections, deviceIds) }}
+        >
+          {props.t('saveScope')}
+        </ActionButton>
+      </Panel>
+      <Panel title={props.t('status')} hint={props.t('devices')}>
+        <StatusList items={state.snapshot?.devices ?? []} empty={props.t('empty')} renderItem={(device, index) => (
+          <div key={String(device.id ?? index)} className={css.listRow}>
+            <span>{String(device.name ?? device.id ?? props.t('devices'))}</span>
+            <StatusBadge value={device.status} />
+          </div>
+        )} />
+      </Panel>
+      <Panel title={props.t('sources')} hint={props.t('scope')}>
+        <StatusList items={state.projectView?.sources ?? []} empty={props.t('empty')} renderItem={(source, index) => (
+          <div key={String(source.versionId ?? index)} className={css.listRow}>
+            <span>{String(source.documentId ?? props.t('sourceName'))}:{String(source.versionId ?? '—')}</span>
+            <StatusBadge value={source.status} />
+          </div>
+        )} />
+      </Panel>
+    </div>
+  )
+}
+
+function ProjectStage({ props, state, busy }: StageProps): JSX.Element {
+  const projectId = state.projectId.trim()
+  const sessionId = String(props.sessionId)
+  const sessionTitle = state.sessionTitle.trim()
+  const currentSession = state.projectView?.sessions.find(session => String(session.sessionId) === sessionId)
+  return (
+    <div className={css.stageGrid}>
+      <Panel title={props.t('projects')} hint={props.t('stageHint')}>
+        <label className={css.field}>
+          <span>{props.t('projectName')}</span>
+          <input value={state.projectName} onChange={event => { props.actions.setProjectName(event.currentTarget.value) }} />
+        </label>
+        <div className={css.buttonRow}>
+          <ActionButton disabled={busy} onClick={() => { void props.listProjects() }}>{props.t('listProjects')}</ActionButton>
+          <ActionButton disabled={busy || projectId === ''} onClick={() => { void props.openProject(projectId) }}>{props.t('openProject')}</ActionButton>
+          <ActionButton disabled={busy || projectId === '' || state.projectName.trim() === ''} onClick={() => { void props.createProject(projectId, state.projectName.trim()) }}>{props.t('createProject')}</ActionButton>
+        </div>
+        <StatusList items={state.projectViews} empty={props.t('empty')} renderItem={(view, index) => {
+          const project = view.project ?? {}
+          const listedProjectId = String(project.projectId ?? 'project-' + String(index + 1))
+          return (
+            <button key={listedProjectId} type="button" className={css.listRow} onClick={() => { void props.openProject(listedProjectId) }}>
+              <span>{String(project.name ?? listedProjectId)}</span>
+              <StatusBadge value={project.status} />
+            </button>
+          )
+        }} />
+        <JsonPreview value={state.projectView?.project} empty={props.t('empty')} />
+      </Panel>
+      <Panel title={props.t('projectSessions')} hint={props.t('stageHint')}>
+        <label className={css.field}>
+          <span>{props.t('sessionTitle')}</span>
+          <input value={state.sessionTitle} onChange={event => { props.actions.setSessionTitle(event.currentTarget.value) }} />
+        </label>
+        <div className={css.buttonRow}>
+          <ActionButton disabled={busy || projectId === '' || sessionId.trim() === ''} onClick={() => { void props.associateSession(projectId, sessionId, sessionTitle === '' ? undefined : sessionTitle) }}>
+            {props.t('associateSession')}
+          </ActionButton>
+          <ActionButton disabled={busy || projectId === '' || currentSession === undefined || sessionTitle === ''} onClick={() => { void props.renameSession(projectId, sessionId, sessionTitle) }}>
+            {props.t('renameSession')}
+          </ActionButton>
+        </div>
+        <StatusList items={state.projectView?.sessions ?? []} empty={props.t('empty')} renderItem={(session, index) => (
+          <div key={String(session.sessionId ?? index)} className={css.listRow}>
+            <span>{String(session.title ?? session.sessionId ?? props.t('sessionTitle'))}</span>
+            <StatusBadge value={session.status} />
+          </div>
+        )} />
+      </Panel>
+    </div>
+  )
+}
+
 function KnowledgeStage({ props, state, busy }: StageProps): JSX.Element {
+  const firstCitation = state.searchResults.find(result => result.citationId !== undefined && result.excerpt !== undefined)
+  const draft = state.sopDraft
   return (
     <div className={css.stageGrid}>
       <Panel title={props.t('importSource')} hint={props.t('sourceText')}>
@@ -127,6 +267,13 @@ function KnowledgeStage({ props, state, busy }: StageProps): JSX.Element {
         <label className={css.field}>
           <span>{props.t('sourceText')}</span>
           <textarea value={state.sourceText} onChange={event => { props.actions.setSourceText(event.currentTarget.value) }} rows={9} />
+        </label>
+        <label className={css.field}>
+          <span>{props.t('fileInput')}</span>
+          <input type="file" accept=".pdf,.csv,.tsv,.txt,.md" onChange={event => {
+            const file = event.currentTarget.files?.[0]
+            if (file !== undefined) void props.importFile(file)
+          }} />
         </label>
         <ActionButton disabled={busy || state.sourceName.trim() === '' || state.sourceText.trim() === ''} onClick={() => { void props.importSource(state.sourceName, state.sourceText, state.sourceName) }}>
           {props.t('importSource')}
@@ -155,6 +302,38 @@ function KnowledgeStage({ props, state, busy }: StageProps): JSX.Element {
           </div>
         )} />
       </Panel>
+      <Panel title={props.t('sop')} hint={props.t('sopHint')}>
+        <label className={css.field}>
+          <span>{props.t('sopTitle')}</span>
+          <input value={state.sopTitle} onChange={event => { props.actions.setSopTitle(event.currentTarget.value) }} />
+        </label>
+        <ActionButton
+          disabled={busy || state.sopTitle.trim() === '' || firstCitation === undefined}
+          onClick={() => {
+            if (firstCitation !== undefined) void props.createSop(state.sopTitle, firstCitation.citationId!, firstCitation.excerpt!)
+          }}
+        >
+          {props.t('createSop')}
+        </ActionButton>
+        {draft === undefined ? <EmptyState text={props.t('empty')} /> : (
+          <>
+            <div className={css.subheading}>{String(draft.status ?? '—')} · {String(draft.title ?? '—')}</div>
+            {draft.blockers === undefined || draft.blockers.length === 0
+              ? <EmptyState text={props.t('empty')} />
+              : <div className={css.list}>{draft.blockers.map(blocker => <div key={blocker} className={css.listRow}><span>{blocker}</span></div>)}</div>}
+            <div className={css.buttonRow}>
+              <ActionButton disabled={busy || draft.draftId === undefined || draft.status === 'PUBLISHED'} onClick={() => { void props.reviewSop(draft) }}>
+                {props.t('reviewSop')}
+              </ActionButton>
+              <ActionButton emphasis="amber" disabled={busy || draft.draftId === undefined || draft.status !== 'REVIEWED'} onClick={() => {
+                if (draft.draftId !== undefined) void props.publishSop(draft.draftId)
+              }}>
+                {props.t('publishSop')}
+              </ActionButton>
+            </div>
+          </>
+        )}
+      </Panel>
     </div>
   )
 }
@@ -182,7 +361,7 @@ function RequestStage({ props, state, request, busy }: StageProps & { readonly r
         <div className={css.buttonRow}>
           <ActionButton disabled={busy || request.objective === ''} onClick={() => { void props.createExperiment(request) }}>{props.t('createExperiment')}</ActionButton>
           <ActionButton disabled={busy || request.objective === ''} onClick={() => { void props.buildContext(request) }}>{props.t('buildContext')}</ActionButton>
-          <ActionButton emphasis="amber" disabled={busy || request.objective === ''} onClick={() => { void props.agentPlan(request) }}>{props.t('agentPlan')}</ActionButton>
+          <ActionButton emphasis="amber" disabled={busy || request.objective === ''} onClick={() => { void props.agentPlan(state.projectId, request, text => { props.inputActions.setDraft(text); props.inputActions.submit() }) }}>{props.t('agentPlan')}</ActionButton>
         </div>
       </Panel>
       <Panel title={props.t('citations')} hint={props.t('noPlan')}>
@@ -361,6 +540,18 @@ function buildRequest(state: LabWorkbenchState): LabExperimentRequest {
   }
 }
 
+const LAB_STAGES: readonly LabStage[] = ['knowledge', 'request', 'plan', 'execution', 'report', 'devices', 'projects']
+
+function stageFromHash(hash: string): LabStage | undefined {
+  if (!hash.startsWith('#lab-')) return undefined
+  const value = hash.slice('#lab-'.length)
+  return LAB_STAGES.includes(value as LabStage) ? value as LabStage : undefined
+}
+
 function splitLines(value: string): readonly string[] {
   return value.split(/\r?\n/).map(item => item.trim()).filter(item => item !== '')
+}
+
+function splitComma(value: string): readonly string[] {
+  return value.split(/[,\r\n]/).map(item => item.trim()).filter(item => item !== '')
 }

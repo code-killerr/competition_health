@@ -1,6 +1,6 @@
 ## 1. Cross-change contract and Harness composition
 
-- [ ] 1.1 Pin the minimum Knowledge Facade capability version and opaque source, version, citation, conflict and published-SOP identifiers supplied by `pdf-knowledge-parser`; consume them through typed Service/Facade contracts only.
+- [ ] 1.1 Consume the currently shared typed Knowledge Facade contract for opaque source, version, citation, conflict and published-SOP identifiers; do not enforce a Harness-side minimum version gate.
 - [ ] 1.2 Add a deterministic fake Knowledge Consumer and explicit capability-unavailable state so this line can develop and test without importing the parallel Provider or waiting for Docling/embedding availability.
 - [ ] 1.3 Add the opt-in Web composition rows and package dependencies for Harness-native project, navigation and conversation contributors without changing the default Web profile.
 - [ ] 1.4 Verify that this change adds no PDF parser, file upload, SQLite knowledge schema, embedding adapter, retrieval ranking or Knowledge workspace implementation.

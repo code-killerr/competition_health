@@ -34,6 +34,27 @@ export interface LabSearchResult {
   readonly [key: string]: unknown
 }
 
+export interface LabSopStep {
+  readonly stepId?: string
+  readonly order?: number
+  readonly title?: string
+  readonly instruction?: string
+  readonly requiredInputs?: readonly string[]
+  readonly completionCriteria?: readonly string[]
+  readonly citations?: readonly string[]
+  readonly missingFields?: readonly string[]
+}
+
+export interface LabSopDraft {
+  readonly draftId?: string
+  readonly title?: string
+  readonly status?: string
+  readonly steps?: readonly LabSopStep[]
+  readonly sourceVersionIds?: readonly string[]
+  readonly blockers?: readonly string[]
+  readonly updatedBy?: string
+}
+
 export interface LabConflict {
   readonly conflictId?: string
   readonly status?: string
@@ -148,10 +169,36 @@ export interface LabSnapshot {
   readonly report?: Readonly<Record<string, unknown>>
 }
 
+/** Project state projected by the project conversation Facade. */
+export interface LabProjectView {
+  readonly project?: Readonly<Record<string, unknown>>
+  readonly sources: readonly Readonly<Record<string, unknown>>[]
+  readonly devices: readonly Readonly<Record<string, unknown>>[]
+  readonly sessions: readonly Readonly<Record<string, unknown>>[]
+  readonly sharedFacts: readonly Readonly<Record<string, unknown>>[]
+  readonly evidence: readonly Readonly<Record<string, unknown>>[]
+}
+
+/** Project-scoped command DTO sent to the dedicated project protocol. */
+export type LabProjectCommand = { readonly sessionId?: string } & (
+  | { readonly command: 'project-list' }
+  | { readonly command: 'project-create'; readonly projectId: string; readonly name: string; readonly description?: string }
+  | { readonly command: 'project-open'; readonly projectId: string }
+  | { readonly command: 'project-scope-update'; readonly projectId: string; readonly sources: readonly { readonly documentId: string; readonly versionId: string }[]; readonly deviceIds: readonly string[] }
+  | { readonly command: 'project-session-associate'; readonly projectId: string; readonly targetSessionId: string; readonly title?: string }
+  | { readonly command: 'project-session-rename'; readonly projectId: string; readonly targetSessionId: string; readonly title: string }
+  | { readonly command: 'project-context'; readonly projectId: string }
+  | { readonly command: 'project-planning-context'; readonly projectId: string; readonly request: LabExperimentRequest }
+)
 export type LabCommand = { readonly sessionId?: string } & (
   | { readonly command: 'snapshot'; readonly experimentId: string }
   | { readonly command: 'knowledge-import'; readonly name: string; readonly bytesBase64: string; readonly metadata?: Readonly<Record<string, string>> }
   | { readonly command: 'knowledge-search'; readonly request: { readonly query: string; readonly experimentId?: string } }
+  | { readonly command: 'knowledge-sop-create'; readonly title: string; readonly steps: readonly LabSopStep[] }
+  | { readonly command: 'knowledge-sop-get'; readonly draftId: string }
+  | { readonly command: 'knowledge-sop-list' }
+  | { readonly command: 'knowledge-sop-update'; readonly draftId: string; readonly title: string; readonly steps: readonly LabSopStep[] }
+  | { readonly command: 'knowledge-sop-publish'; readonly draftId: string; readonly publishedBy: string }
   | { readonly command: 'experiment-create'; readonly request: LabExperimentRequest }
   | { readonly command: 'planning-context'; readonly request: LabExperimentRequest }
   | { readonly command: 'plan-propose'; readonly input: LabPlanProposalInput }
@@ -259,4 +306,27 @@ function recordOrUndefined(value: unknown): Record<string, unknown> | undefined 
 
 function array(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
+}
+
+/** Send a project-scoped command through the same Web Facade route. */
+export async function sendLabProjectCommand(command: LabProjectCommand, signal?: AbortSignal): Promise<LabCommandResult> {
+  const response = await fetch('/api/lab', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(command),
+    ...signal === undefined ? {} : { signal },
+  })
+  let body: LabSuccessEnvelope | LabErrorEnvelope
+  try {
+    body = await response.json() as LabSuccessEnvelope | LabErrorEnvelope
+  } catch {
+    throw new LabApiError('INVALID_JSON', `实验 API 返回了无法解析的响应（HTTP ${String(response.status)}）`, response.status)
+  }
+  if (!body.ok) {
+    throw new LabApiError(body.error?.code ?? 'INTERNAL_ERROR', body.error?.message ?? '实验 API 请求失败', response.status)
+  }
+  if (body.result === undefined || typeof body.result.kind !== 'string') {
+    throw new LabApiError('INVALID_RESPONSE', '实验 API 返回缺少结果类型', response.status)
+  }
+  return body.result
 }

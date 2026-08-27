@@ -256,6 +256,7 @@
       "@deepseek-ai/dsh-experimental-tool-agent-team": ["./packages/experimental/tool-agent-team/src"],
       "@deepseek-ai/dsh-experimental-lab-domain": ["./packages/experimental/lab-domain/src"],
       "@deepseek-ai/dsh-experimental-lab-cache": ["./packages/experimental/lab-cache/src"],
+      "@deepseek-ai/dsh-experimental-lab-project": ["./packages/experimental/lab-project/src"],
       "@deepseek-ai/dsh-experimental-lab-knowledge": ["./packages/experimental/lab-knowledge/src"],
       "@deepseek-ai/dsh-experimental-lab-knowledge-local": ["./packages/experimental/lab-knowledge-local/src"],
       "@deepseek-ai/dsh-experimental-tool-lab-knowledge": ["./packages/experimental/tool-lab-knowledge/src"],

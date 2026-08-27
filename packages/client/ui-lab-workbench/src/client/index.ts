@@ -1,17 +1,25 @@
-/** 实验自动化工作台的浏览器插件；通过 `shell.overlay` 叠加到现有 Web 壳。 */
+/** 实验自动化工作台的浏览器插件；通过 `conversation.view` 接入现有会话视图。 */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { LabWorkbench } from './LabWorkbench.tsx'
+import { LabNavigation } from './LabNavigation.tsx'
 import {
+  sendLabProjectCommand,
   sendLabCommand,
   textToBase64,
   toSnapshot,
   type LabCommand,
   type LabExperimentRequest,
   type LabPlan,
+  type LabProjectCommand,
+  type LabProjectView,
+  type LabSopDraft,
   type LabSkillDraft,
 } from './api.ts'
 import { en, zh, type LabWorkbenchKey } from './locales.ts'
@@ -37,20 +45,17 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-lab-workbench: dictionaries')
 
   const store = createLabWorkbenchStore()
-  let latestExperimentId = 'experiment-1'
-  let workbenchActions: BoundActions<typeof store> | undefined
-  const withSession = (command: LabCommand): LabCommand => {
-    const sessionId = ctx.sessions.list.getSnapshot().current
-    return sessionId === undefined ? command : { ...command, sessionId }
-  }
 
   const register = (): (() => void) => ctx.slots.register({
-    name: 'shell.overlay',
+    name: 'conversation.view',
     id: 'lab-workbench',
+    order: 20,
     locale: NS,
     store,
-    inject: (actions: BoundActions<typeof store>): LabWorkbenchInjected => {
-      workbenchActions = actions
+    inject: (sessionId: SessionId, actions: BoundActions<typeof store>): LabWorkbenchInjected => {
+      let latestExperimentId = 'experiment-1'
+      const withSession = (command: LabCommand): LabCommand => ({ ...command, sessionId })
+      const withProjectSession = (command: LabProjectCommand): LabProjectCommand => ({ ...command, sessionId })
       const run = async (label: string, command: LabCommand): Promise<void> => {
         actions.setPending(label)
         actions.setError(undefined)
@@ -79,6 +84,85 @@ export function apply(ctx: ClientContext): void {
         })
         await refresh(latestExperimentId)
       }
+
+      const importFile = async (file: File): Promise<void> => {
+        const bytes = new Uint8Array(await file.arrayBuffer())
+        await run('knowledge-import', {
+          command: 'knowledge-import',
+          name: file.name,
+          bytesBase64: bytesToBase64(bytes),
+          metadata: { sourceType: file.type || 'application/octet-stream' },
+        })
+        await refresh(latestExperimentId)
+      }
+
+      const createSop = (title: string, citationId: string, instruction: string): Promise<void> => run('knowledge-sop-create', {
+        command: 'knowledge-sop-create',
+        title,
+        steps: [{ order: 1, title, instruction, requiredInputs: [], completionCriteria: [], citations: [citationId], missingFields: [] }],
+      })
+
+      const reviewSop = (draft: LabSopDraft): Promise<void> => {
+        if (draft.draftId === undefined) return Promise.reject(new Error('当前没有可审核的 SOP 草案'))
+        return run('knowledge-sop-update', {
+          command: 'knowledge-sop-update',
+          draftId: draft.draftId,
+          title: draft.title ?? '',
+          steps: (draft.steps ?? []).map(step => ({
+            order: step.order ?? 0,
+            title: step.title ?? '',
+            instruction: step.instruction ?? '',
+            requiredInputs: step.requiredInputs ?? [],
+            completionCriteria: step.completionCriteria ?? [],
+            citations: step.citations ?? [],
+            missingFields: step.missingFields ?? [],
+          })),
+        })
+      }
+
+      const publishSop = (draftId: string): Promise<void> => run('knowledge-sop-publish', { command: 'knowledge-sop-publish', draftId, publishedBy: 'workbench-reviewer' })
+
+      const projectRun = async (label: string, command: LabProjectCommand): Promise<void> => {
+        actions.setPending(label)
+        actions.setError(undefined)
+        try {
+          const result = await sendLabProjectCommand(withProjectSession(command))
+          if (Array.isArray(result.value)) {
+            actions.setProjectViews(result.value.map(toProjectView))
+          } else {
+            const view = toProjectView(result.value)
+            actions.setProjectView(view)
+            actions.setSelectedSourceKeysText(view.sources.map(source => `${String(source.documentId ?? '')}:${String(source.versionId ?? '')}`).join('\\n'))
+            actions.setSelectedDeviceIdsText(view.devices.map(device => String(device.deviceId ?? device.id ?? '')).filter(value => value !== '').join(', '))
+          }
+        } catch (error) {
+          actions.setError(error instanceof Error ? error.message : String(error))
+        } finally {
+          actions.setPending(undefined)
+        }
+      }
+
+      const listProjects = (): Promise<void> => projectRun('project-list', { command: 'project-list' })
+      const openProject = (projectId: string): Promise<void> => projectRun('project-open', { command: 'project-open', projectId })
+      const createProject = (projectId: string, name: string): Promise<void> => projectRun('project-create', { command: 'project-create', projectId, name })
+      const updateProjectScope = (
+        projectId: string,
+        sources: readonly { readonly documentId: string; readonly versionId: string }[],
+        deviceIds: readonly string[],
+      ): Promise<void> => projectRun('project-scope-update', { command: 'project-scope-update', projectId, sources, deviceIds })
+      const associateSession = (projectId: string, targetSessionId: string, title?: string): Promise<void> => projectRun('project-session-associate', {
+        command: 'project-session-associate',
+        projectId,
+        targetSessionId,
+        ...title === undefined ? {} : { title },
+      })
+      const renameSession = (projectId: string, targetSessionId: string, title: string): Promise<void> => projectRun('project-session-rename', {
+        command: 'project-session-rename',
+        projectId,
+        targetSessionId,
+        title,
+      })
+
 
       const search = async (query: string, experimentId: string): Promise<void> => {
         latestExperimentId = experimentId
@@ -123,23 +207,22 @@ export function apply(ctx: ClientContext): void {
         }
       }
 
-      const agentPlan = async (request: LabExperimentRequest): Promise<void> => {
+      const agentPlan = async (projectId: string, request: LabExperimentRequest, submit: (text: string) => void): Promise<void> => {
         latestExperimentId = request.experimentId
         actions.setPending('agent-plan')
         actions.setError(undefined)
         try {
-          const sessionId = ctx.sessions.list.getSnapshot().current
-          if (sessionId === undefined) throw new Error('当前没有可用的 Agent 会话')
-          const session = ctx.sessions.binding(sessionId)?.session
-          if (session === undefined) throw new Error('当前 Agent 会话尚未完成绑定')
+          const contextResult = await sendLabProjectCommand(withProjectSession({ command: 'project-planning-context', projectId, request }))
+          if (contextResult.kind !== 'project-context') throw new Error('项目规划上下文返回了无效结果')
+          const context = asRecord(contextResult.value)
+          actions.setPlanningContext(asRecord(context.planningContext))
           const prompt = [
             '请为实验自动化工作台规划实验步骤。',
-            '只读取知识库和设备事实，使用 lab_plan_context 后调用 lab_plan_propose 提交结构化计划和 Skill 草案。',
+            '只使用上面的项目规划上下文，调用 lab_project_plan_context 后调用 lab_plan_propose 提交结构化计划和 Skill 草案。',
             '不要批准计划、激活 Skill、启动运行或执行设备。所有计划步骤必须包含引用、依赖、输入、输出和必要的人工确认。',
             `实验请求 JSON：${JSON.stringify(request)}`,
           ].join('\n')
-          const result = await session.prompt([{ type: 'text', text: prompt }], 'queue')
-          if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`)
+          submit(prompt)
           actions.setNotice(zh.noticeAgent)
         } catch (error) {
           actions.setError(error instanceof Error ? error.message : String(error))
@@ -168,7 +251,17 @@ export function apply(ctx: ClientContext): void {
       return {
         refresh,
         importSource,
+        importFile,
+        listProjects,
+        openProject,
+        createProject,
+        updateProjectScope,
+        associateSession,
+        renameSession,
         search,
+        createSop,
+        reviewSop,
+        publishSop,
         createExperiment,
         buildContext,
         agentPlan,
@@ -187,20 +280,16 @@ export function apply(ctx: ClientContext): void {
     },
   }, LabWorkbench)
 
-  ctx.slots.inject('shell.overlay', register)
+  ctx.slots.inject('conversation.view', register)
 
-  ctx.effect(() => {
-      const timer = window.setInterval(() => {
-      const actions = workbenchActions
-      if (actions === undefined) return
-        void sendLabCommand(withSession({ command: 'snapshot', experimentId: latestExperimentId })).then((result) => {
-        applyResult(actions, { command: 'snapshot', experimentId: latestExperimentId }, result.value)
-      }).catch(() => {
-        // 轮询失败保留在下次主动操作中，避免覆盖用户当前错误提示。
-      })
-    }, 4_000)
-    return () => { window.clearInterval(timer) }
-  }, 'ui-lab-workbench: snapshot polling')
+  const registerNavigation = (): (() => void) => ctx.slots.register({
+    name: 'sidebar.footer.action',
+    id: 'lab-navigation',
+    order: 20,
+    locale: NS,
+  }, LabNavigation)
+  ctx.slots.inject('sidebar.footer.action', registerNavigation)
+
 }
 
 function applyResult(actions: BoundActions<ReturnType<typeof createLabWorkbenchStore>>, command: LabCommand, value: unknown): void {
@@ -216,9 +305,29 @@ function applyResult(actions: BoundActions<ReturnType<typeof createLabWorkbenchS
     )
     return
   }
+  if (command.command.startsWith('knowledge-sop-')) {
+    const object = asRecord(value)
+    if (isRecord(object.draft)) actions.setSopDraft(object.draft as LabSopDraft)
+    return
+  }
   if (command.command === 'planning-context') {
     actions.setPlanningContext(asRecord(value))
   }
+}
+function toProjectView(value: unknown): LabProjectView {
+  const object = asRecord(value)
+  return {
+    project: asRecord(object.project),
+    sources: array(object.sources).map(item => asRecord(item)),
+    devices: array(object.devices).map(item => asRecord(item)),
+    sessions: array(object.sessions).map(item => asRecord(item)),
+    sharedFacts: array(object.sharedFacts).map(item => asRecord(item)),
+    evidence: array(object.evidence).map(item => asRecord(item)),
+  }
+}
+
+function array(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -232,4 +341,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function splitLines(value: string): readonly string[] {
   return value.split(/\r?\n/).map(item => item.trim()).filter(item => item !== '')
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
 }

@@ -4,11 +4,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LabWorkbench, type LabWorkbenchProps } from '../src/client/LabWorkbench.tsx'
 import type { LabSnapshot } from '../src/client/api.ts'
 import { zh, type LabWorkbenchKey } from '../src/client/locales.ts'
-import { createLabWorkbenchStore } from '../src/client/store.ts'
+import { createLabWorkbenchStore, type LabStage } from '../src/client/store.ts'
 
 afterEach(cleanup)
 
-function renderWorkbench(stage: 'knowledge' | 'request' | 'plan' | 'execution' | 'report' = 'knowledge', localPlanText = '', snapshot?: LabSnapshot, withSearch = false, requestedBy = '') {
+function renderWorkbench(stage: LabStage = 'knowledge', localPlanText = '', snapshot?: LabSnapshot, withSearch = false, requestedBy = '') {
   const handle = createLabWorkbenchStore()
   const instance = handle.create()
   instance.actions.setStage(stage)
@@ -23,9 +23,17 @@ function renderWorkbench(stage: 'knowledge' | 'request' | 'plan' | 'execution' |
     useStore: (selector: (state: ReturnType<typeof instance.getSnapshot>) => unknown) => selector(instance.getSnapshot()),
     actions: instance.actions,
     t: translate,
+    sessionId: 'session-1',
     refresh: vi.fn(() => Promise.resolve()),
     importSource: vi.fn(() => Promise.resolve()),
+    importFile: vi.fn(() => Promise.resolve()),
     search: vi.fn(() => Promise.resolve()),
+    listProjects: vi.fn(() => Promise.resolve()),
+    openProject: vi.fn(() => Promise.resolve()),
+    createProject: vi.fn(() => Promise.resolve()),
+    updateProjectScope: vi.fn(() => Promise.resolve()),
+    associateSession: vi.fn(() => Promise.resolve()),
+    renameSession: vi.fn(() => Promise.resolve()),
     createExperiment: vi.fn(() => Promise.resolve()),
     buildContext: vi.fn(() => Promise.resolve()),
     agentPlan: vi.fn(() => Promise.resolve()),
@@ -41,7 +49,7 @@ function renderWorkbench(stage: 'knowledge' | 'request' | 'plan' | 'execution' |
     stopRun: vi.fn(() => Promise.resolve()),
     report: vi.fn(() => Promise.resolve()),
   } as unknown as LabWorkbenchProps
-  return { ...render(<LabWorkbench {...props} />), proposeLocalPlan, stopRun: props.stopRun, report: props.report }
+  return { ...render(<LabWorkbench {...props} />), proposeLocalPlan, stopRun: props.stopRun, report: props.report, updateProjectScope: props.updateProjectScope, listProjects: props.listProjects, associateSession: props.associateSession }
 }
 
 describe('实验工作台浏览器组件', () => {
@@ -80,4 +88,18 @@ describe('实验工作台浏览器组件', () => {
     fireEvent.click(screen.getByRole('button', { name: zh.reportAction }))
     expect(report.report).toHaveBeenCalledWith('run-1')
   })
+
+  it('renders project scope and multi-session controls through the injected actions', () => {
+    const devices = renderWorkbench('devices')
+    fireEvent.click(screen.getByRole('button', { name: zh.saveScope }))
+    expect(devices.updateProjectScope).toHaveBeenCalledWith('project-1', [], [])
+
+    cleanup()
+    const projects = renderWorkbench('projects')
+    fireEvent.click(screen.getByRole('button', { name: zh.listProjects }))
+    expect(projects.listProjects).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: zh.associateSession }))
+    expect(projects.associateSession).toHaveBeenCalledWith('project-1', 'session-1', undefined)
+  })
+
 })

@@ -14,3 +14,6 @@
 
     - id: tool-lab
       name: '@deepseek-ai/dsh-experimental-tool-lab'
+
+    - id: tool-lab-project
+      name: '@deepseek-ai/dsh-experimental-tool-lab-project'
