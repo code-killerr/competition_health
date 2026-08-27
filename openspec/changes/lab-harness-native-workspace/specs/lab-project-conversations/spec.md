@@ -35,7 +35,7 @@ The laboratory browser contribution SHALL use existing `ui-sidebar`, `ui-layout`
 
 ### Requirement: The Harness workspace SHALL consume Knowledge through a versioned contract
 
-The project, navigation and Agent context layers SHALL consume capability status, source/version identities, citations, confirmation state and retrieval results through the typed contract published by `pdf-knowledge-parser`. They SHALL not import the Knowledge Provider, parser, embedding adapter, SQLite schema, ranking implementation or Knowledge workspace client internals.
+The project, navigation and Agent context layers SHALL consume capability status, source/version identities, citations, confirmation state and retrieval results through the typed contract published by `pdf-knowledge-parser-mvp`. They SHALL not import the Knowledge Provider, parser, embedding adapter, SQLite schema, ranking implementation or Knowledge workspace client internals.
 
 #### Scenario: Associating Knowledge with a project
 

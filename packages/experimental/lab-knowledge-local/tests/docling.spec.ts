@@ -46,7 +46,7 @@ describe('DoclingAdapter', () => {
     const runner = runnerFor({})
     const adapter = new DoclingAdapter({ runner })
 
-    await expect(adapter.parse({ name: 'protocol.pdf', bytes: new TextEncoder().encode('plain text') })).rejects.toMatchObject<Partial<DoclingParserError>>({
+    await expect(adapter.parse({ name: 'protocol.pdf', bytes: new TextEncoder().encode('plain text') })).rejects.toMatchObject({
       code: 'PDF_INPUT_INVALID',
       phase: 'input',
       retryable: false,

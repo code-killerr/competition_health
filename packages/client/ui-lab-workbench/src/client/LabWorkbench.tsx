@@ -1,7 +1,7 @@
 /** 实验自动化工作台的纯展示组件；数据和副作用通过四个 props share 注入。 */
 
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { PropsLocale, PropsStore, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRenderSlots, PropsStore, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import { useEffect, useMemo, type ReactNode } from 'react'
 import type { LabExperimentRequest } from './api.ts'
 import type { LabStage, LabWorkbenchState } from './store.ts'
@@ -43,6 +43,7 @@ export interface LabWorkbenchInjected {
 export type LabWorkbenchProps =
   & ConvViewProps
   & PropsStore<ReturnType<typeof createLabWorkbenchStore>>
+  & PropsRenderSlots<'lab.knowledge.workspace'>
   & InjectFace<LabWorkbenchInjected>
   & PropsLocale<'labWorkbench'>
 
@@ -245,6 +246,9 @@ function ProjectStage({ props, state, busy }: StageProps): JSX.Element {
 function KnowledgeStage({ props, state }: StageProps): JSX.Element {
   return (
     <div className={css.stageGrid}>
+      <div className={css.workspaceSlot} data-lab-knowledge-slot>
+        {props.renderSlot('lab.knowledge.workspace', {})}
+      </div>
       <Panel title={props.t('knowledge')} hint={props.t('knowledgeWorkspaceNotice')}>
         <p className={css.description}>{props.t('knowledgeWorkspaceNotice')}</p>
         <div className={css.statusLine}>

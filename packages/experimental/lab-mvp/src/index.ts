@@ -33,6 +33,8 @@ export interface Config {
   readonly skill?: LocalSkill.Config
   /** 本地 Runtime 配置；默认使用 `.lab-data/runtime.sqlite` 保存权威状态。 */
   readonly runtime?: LocalRuntime.Config
+  /** 显式提供文档解析器；用于组合测试和可替换的 MVP 解析运行时。 */
+  readonly documentParser?: LocalKnowledge.DocumentParser
   /** 显式启用本地 Docling PDF 解析；缺省时保持现有 PDF 不可用状态。 */
   readonly docling?: LocalKnowledge.DoclingConfig
   /** 显式启用实验 Web HTTP Consumer；缺省时只装实验 Service。 */
@@ -54,7 +56,10 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   await ctx.plugin(LabSkillService)
   await ctx.plugin(LabDeviceService)
   await ctx.plugin(LabRuntimeService)
-  let knowledgeConfig: LocalKnowledge.Config = { path: config.knowledgePath ?? '.lab-data/knowledge.sqlite' }
+  let knowledgeConfig: LocalKnowledge.Config = {
+    path: config.knowledgePath ?? '.lab-data/knowledge.sqlite',
+    ...config.documentParser === undefined ? {} : { documentParser: config.documentParser },
+  }
   if (config.docling !== undefined) {
     if (ctx.get('subprocess') === undefined) await ctx.plugin(LocalSubprocess)
     knowledgeConfig = {

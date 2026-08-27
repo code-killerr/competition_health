@@ -87,6 +87,9 @@ export class LabMvpWebService extends Service {
             conflicts: await this.ctx.labKnowledge.listConflicts(command.request.experimentId),
           },
         }
+      case 'knowledge-fact-confirm':
+        await this.ctx.labKnowledge.confirmFact({ citationId: brandId<'CitationId'>(command.citationId), confirmedBy: command.confirmedBy, ...command.note === undefined ? {} : { note: command.note } })
+        return { kind: 'knowledge-fact-confirm', value: null }
       case 'knowledge-sop-create':
         return { kind: 'knowledge-sop', value: await this.ctx.labKnowledge.createSopDraft({ title: command.title, steps: command.steps, updatedBy: command.sessionId ?? 'lab-web:anonymous' }) }
       case 'knowledge-sop-get':

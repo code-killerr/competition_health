@@ -16,7 +16,7 @@ describe('real Docling runtime', () => {
     const ctx = new Context()
     contexts.push(ctx)
     await ctx.plugin(LocalSubprocess)
-    const adapter = createDoclingAdapter(ctx, { pythonCommand })
+    const adapter = createDoclingAdapter(ctx, pythonCommand === undefined ? {} : { pythonCommand })
     const fixture = availablePdfKnowledgeFixtures()[0]
     if (fixture === undefined) return
     const bytes = await readPdfKnowledgeFixture(fixture)

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-26-lab-web-workbench-consumer-topology.md
-2026-08-26-lab-web-workbench-consumer-topology.md: 328b85f8a6c59cafe38dfab8c65d004623435782
-2026-08-26-lab-web-workbench-consumer-topology.zh.md: 20d67c5e8e251772db316bfdec7a4335d2770ed3
+2026-08-26-lab-web-workbench-consumer-topology.md: 4d1936430db735696688f9ec56a93a76b514ac5c
+2026-08-26-lab-web-workbench-consumer-topology.zh.md: 987199d80b3eec8b7c8cae168f68f551a8ab414f

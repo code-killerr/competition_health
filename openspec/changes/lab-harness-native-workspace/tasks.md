@@ -16,7 +16,7 @@
 ## 3. Harness-native navigation and workspace
 
 - [x] 3.1 Replace the full-screen `shell.overlay` workbench entry with a dedicated Harness workspace contributor/package using public `ui-sidebar`, `ui-layout`, `ui-workspace` and `ui-conversation` contracts while retaining reusable lifecycle cards.
-- [ ] 3.2 Add global Knowledge, Devices and Projects navigation; mount the Knowledge workspace contributor supplied by `pdf-knowledge-parser` without importing its client implementation.
+- [x] 3.2 Add global Knowledge, Devices and Projects navigation; mount the independent Knowledge workspace contributor for the current `pdf-knowledge-parser-mvp` public contract without importing Provider implementation.
 - [x] 3.3 Add a Devices workspace using the existing Device Facade and a Projects workspace with project scope, device scope and multiple Session rows.
 - [x] 3.4 Add project Session creation, selection, rename/title projection and refresh behavior using existing Harness Session and conversation services.
 - [x] 3.5 Reuse `ui-attachment` only for supported conversation attachments; Knowledge source files remain on the separate Knowledge workspace command path.
@@ -42,8 +42,8 @@
 - [x] 6.1 Add keyless project tests for creation, source/device scope, multiple Sessions, Session isolation, audit events and refreshable projections using the fake Knowledge Consumer.
 - [x] 6.2 Add fake-Agent tests for clarification, cited proposal, invalid citation rejection, plan confirmation, Skill gates and pre-approval execution rejection.
 - [x] 6.3 Add browser tests for Knowledge/Devices/Projects navigation, project/session switching, Harness conversation submission, plan review, approval, stop, verification and report.
-- [ ] 6.4 Add a contract test fixture shared with `pdf-knowledge-parser` for capability status, source/version IDs, citation-bearing retrieval and published SOP records.
-- [ ] 6.5 After the parallel change is available, run a composed smoke that mounts its Knowledge workspace, binds imported sources to a project, retrieves a published SOP and produces a human-confirmed plan in a Harness Session.
+- [x] 6.4 Add a contract test fixture shared with `pdf-knowledge-parser-mvp` for capability status, source/version IDs, citation-bearing retrieval and published SOP records.
+- [x] 6.5 Run a composed smoke against the current MVP that mounts its independent Knowledge workspace, binds imported sources to a project, retrieves a published SOP and produces a human-confirmed plan in a Harness Session.
 - [x] 6.6 Add an opt-in real-model smoke using the existing `.env`/Harness credential layer only when `DEEPSEEK_API_KEY` is explicitly available; default tests remain keyless.
 - [x] 6.7 Update English/Chinese package documentation and the implementation Agent Note with the two-line ownership table, capability version and integration test path.
 - [ ] 6.8 Run client module graph, Cordis config, typecheck, focused tests, Web build, Markdown/link/pairing gates and OpenSpec verification before handoff.

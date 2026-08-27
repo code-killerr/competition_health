@@ -10,7 +10,7 @@ export const name = 'client-ui-lab-workbench-invariant'
 /** Invariant registry dependency. */
 export const inject = ['invariants']
 
-/** 工作台的槽位注册、销毁和 HTTP 状态由对应的客户端与 Host 测试覆盖。 */
+/** No runtime invariant: slot registration, teardown, and HTTP state are covered by the client and Host tests. */
 const install: InvariantInstaller = () => {}
 
 /** 注册工作台的 invariant companion。 */

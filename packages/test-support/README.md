@@ -10,6 +10,7 @@ These packages support repository development, tests, and examples rather than p
 | [`agent-loop-testkit/`](agent-loop-testkit/README.md) | Mounts shared prerequisites for AgentLoop tests |
 | [`invariants/`](../runtime-diagnostics/invariants/README.md) | Runs development-time runtime-contract assertions |
 | [`loader-smoke/`](loader-smoke/README.md) | Launches Loader-composed applications for smoke tests |
+| [`lab-knowledge-fixtures/`](lab-knowledge-fixtures/README.md) | Shares keyless PDF and Knowledge contract fixtures |
 | [`llm-mock-server/`](llm-mock-server/README.md) | Provides a deterministic OpenAI-compatible fault server |
 | [`llm-replay/`](llm-replay/README.md) | Replays recorded model responses for keyless tests and demos |
 

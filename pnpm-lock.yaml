@@ -454,6 +454,9 @@ importers:
       '@deepseek-ai/dsh-bash-sandbox':
         specifier: workspace:*
         version: link:../packages/shell/bash-sandbox
+      '@deepseek-ai/dsh-client-ui-lab-knowledge-workspace':
+        specifier: workspace:*
+        version: link:../packages/client/ui-lab-knowledge-workspace
       '@deepseek-ai/dsh-client-ui-lab-workbench':
         specifier: workspace:*
         version: link:../packages/client/ui-lab-workbench
@@ -2194,6 +2197,39 @@ importers:
       react:
         specifier: ^18.2.0
         version: 18.3.1
+
+  packages/client/ui-lab-knowledge-workspace:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-client-locale':
+        specifier: workspace:^
+        version: link:../locale
+      '@deepseek-ai/dsh-client-runtime':
+        specifier: workspace:^
+        version: link:../runtime
+      '@deepseek-ai/dsh-client-ui-lab-workbench':
+        specifier: workspace:^
+        version: link:../ui-lab-workbench
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:^
+        version: link:../ui-slots
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@testing-library/react':
+        specifier: ^16.1.0
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
 
   packages/client/ui-lab-workbench:
     devDependencies:
@@ -8657,6 +8693,24 @@ importers:
       react-dom:
         specifier: ^18.2.0
         version: 18.3.1(react@18.3.1)
+
+  packages/test-support/lab-knowledge-fixtures:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-experimental-lab-domain':
+        specifier: workspace:^
+        version: link:../../experimental/lab-domain
+      '@deepseek-ai/dsh-experimental-lab-knowledge-local':
+        specifier: workspace:^
+        version: link:../../experimental/lab-knowledge-local
+      '@deepseek-ai/dsh-experimental-lab-project':
+        specifier: workspace:^
+        version: link:../../experimental/lab-project
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
 
   packages/test-support/llm-mock-server:
     devDependencies:

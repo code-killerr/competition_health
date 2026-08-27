@@ -26,3 +26,6 @@
 
     - id: ui-lab-workbench
       name: '@deepseek-ai/dsh-client-ui-lab-workbench'
+
+    - id: ui-lab-knowledge-workspace
+      name: '@deepseek-ai/dsh-client-ui-lab-knowledge-workspace'

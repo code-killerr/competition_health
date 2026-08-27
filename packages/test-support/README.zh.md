@@ -10,6 +10,7 @@
 | [`agent-loop-testkit/`](agent-loop-testkit/README.zh.md) | 为 AgentLoop 测试挂载共享先决条件 |
 | [`invariants/`](../runtime-diagnostics/invariants/README.zh.md) | 运行开发期运行时约定断言 |
 | [`loader-smoke/`](loader-smoke/README.zh.md) | 启动由 Loader 组合的应用以执行冒烟测试 |
+| [`lab-knowledge-fixtures/`](lab-knowledge-fixtures/README.zh.md) | 共享无密钥 PDF 与 Knowledge 约定测试前置数据 |
 | [`llm-mock-server/`](llm-mock-server/README.zh.md) | 提供确定性的 OpenAI 兼容故障服务器 |
 | [`llm-replay/`](llm-replay/README.zh.md) | 为无密钥测试和演示回放已记录的模型响应 |
 

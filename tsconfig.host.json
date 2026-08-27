@@ -285,6 +285,7 @@
     { "path": "./packages/experimental/tool-lab-project" },
     { "path": "./packages/experimental/lab-knowledge" },
     { "path": "./packages/experimental/lab-knowledge-local" },
+    { "path": "./packages/test-support/lab-knowledge-fixtures" },
     { "path": "./packages/experimental/tool-lab-knowledge" },
     { "path": "./packages/experimental/lab-planning" },
     { "path": "./packages/experimental/lab-planning-local" },

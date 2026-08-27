@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { brandId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import { createLabKnowledgeConsumer, FakeLabKnowledgeConsumer } from '../src/knowledge.ts'
+import { createKnowledgeContractFixture } from '@deepseek-ai/dsh-lab-knowledge-fixtures'
 
 describe('LabKnowledgeConsumer', () => {
   it('keeps unavailable Knowledge explicit without a minimum-version gate', async () => {
@@ -16,6 +17,14 @@ describe('LabKnowledgeConsumer', () => {
       ],
     })
     await expect(consumer.search({ query: 'confirmed', documentIds: [brandId<'KnowledgeDocumentId'>('doc-1')], confirmed: true, limit: 10 })).resolves.toMatchObject([{ citationId: 'citation-1' }])
+  })
+
+  it('shares capability, source/version, citation and published-SOP records with the MVP fixture', async () => {
+    const consumer = new FakeLabKnowledgeConsumer(createKnowledgeContractFixture())
+    expect(consumer.capability()).toMatchObject({ state: 'available' })
+    await expect(consumer.listImportStatuses()).resolves.toMatchObject([{ documentId: 'document-pdf-fixture', versionId: 'version-pdf-fixture', status: 'READY' }])
+    await expect(consumer.search({ query: 'confirmed', confirmed: true })).resolves.toMatchObject([{ citationId: 'citation-pdf-fixture', documentId: 'document-pdf-fixture', versionId: 'version-pdf-fixture', confirmed: true }])
+    await expect(consumer.listPublishedSops?.()).resolves.toMatchObject([{ sopRevisionId: 'sop-fixture-r1', citationIds: ['citation-pdf-fixture'], status: 'PUBLISHED' }])
   })
 
   it('adapts the typed Knowledge Facade and reports provider failures as unavailable', async () => {

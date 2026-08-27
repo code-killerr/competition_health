@@ -4,6 +4,7 @@ import {
   brandId,
   type ExperimentPlan,
   type ExperimentRequest,
+  type CitationId,
   type KnowledgeSearchRequest,
   type KnowledgeSopDraftId,
   type PlanParameter,
@@ -32,6 +33,7 @@ export type LabWebCommandResult =
   | { readonly kind: 'snapshot'; readonly value: unknown }
   | { readonly kind: 'knowledge-import'; readonly value: unknown }
   | { readonly kind: 'knowledge-search'; readonly value: unknown }
+  | { readonly kind: 'knowledge-fact-confirm'; readonly value: unknown }
   | { readonly kind: 'knowledge-sop'; readonly value: unknown }
   | { readonly kind: 'planning-context'; readonly value: unknown }
   | { readonly kind: 'plan-proposal'; readonly value: unknown }
@@ -45,6 +47,7 @@ export type LabWebCommand = { readonly sessionId?: SessionId } & (
   | { readonly command: 'snapshot'; readonly experimentId: ExperimentRequest['experimentId'] }
   | { readonly command: 'knowledge-import'; readonly name: string; readonly bytes: Uint8Array; readonly metadata: Readonly<Record<string, string>> }
   | { readonly command: 'knowledge-search'; readonly request: KnowledgeSearchRequest }
+  | { readonly command: 'knowledge-fact-confirm'; readonly citationId: CitationId; readonly confirmedBy: string; readonly note?: string }
   | { readonly command: 'knowledge-sop-create'; readonly title: string; readonly steps: CreateSopDraftRequest['steps'] }
   | { readonly command: 'knowledge-sop-get'; readonly draftId: KnowledgeSopDraftId }
   | { readonly command: 'knowledge-sop-list' }
@@ -73,7 +76,7 @@ export type LabWebCommand = { readonly sessionId?: SessionId } & (
 export function parseLabWebCommand(value: unknown): LabWebCommand {
   const object = record(value, 'command')
   const command = literal(object.command, 'command.command', [
-    'snapshot', 'knowledge-import', 'knowledge-search', 'experiment-create', 'planning-context',
+    'snapshot', 'knowledge-import', 'knowledge-search', 'knowledge-fact-confirm', 'experiment-create', 'planning-context',
     'knowledge-sop-create', 'knowledge-sop-get', 'knowledge-sop-list', 'knowledge-sop-update', 'knowledge-sop-publish',
     'plan-propose', 'plan-validate', 'plan-approve', 'plan-reject', 'run-start', 'run-step',
     'skill-validate', 'skill-approve', 'skill-activate', 'run-confirm', 'run-stop', 'run-report',
@@ -92,6 +95,13 @@ export function parseLabWebCommand(value: unknown): LabWebCommand {
         }
       case 'knowledge-search':
         return { command, request: parseSearchRequest(object.request, 'command.request') }
+      case 'knowledge-fact-confirm':
+        return {
+          command,
+          citationId: brandId<'CitationId'>(nonBlankString(object.citationId, 'command.citationId')),
+          confirmedBy: nonBlankString(object.confirmedBy, 'command.confirmedBy'),
+          ...object.note === undefined ? {} : { note: stringValue(object.note, 'command.note') },
+        }
       case 'knowledge-sop-create':
         return { command, title: nonBlankString(object.title, 'command.title'), steps: parseSopSteps(object.steps, 'command.steps') }
       case 'knowledge-sop-get':
@@ -329,6 +339,10 @@ function array(value: unknown, path: string): unknown[] {
   return value
 }
 
+function stringValue(value: unknown, path: string): string {
+  if (typeof value !== 'string') throw new Error(`${path} must be a string`)
+  return value.trim()
+}
 function nonBlankString(value: unknown, path: string): string {
   if (typeof value !== 'string' || value.trim().length === 0) throw new Error(`${path} must be a non-blank string`)
   return value.trim()

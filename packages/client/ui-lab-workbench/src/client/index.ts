@@ -26,6 +26,10 @@ import { createLabWorkbenchStore } from './store.ts'
 import type { LabWorkbenchInjected } from './LabWorkbench.tsx'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface SlotMap {
+    /** 独立 Knowledge workspace 的公共挂载点。 */
+    'lab.knowledge.workspace': { kind: 'single'; scope: 'session' }
+  }
   interface LocaleNamespaceMap {
     /** 实验工作台的阶段与操作文案。 */
     labWorkbench: LabWorkbenchKey
@@ -50,6 +54,9 @@ export function apply(ctx: ClientContext): void {
     id: 'lab-workbench',
     order: 20,
     locale: NS,
+    children: {
+      'lab.knowledge.workspace': { kind: 'single', scope: 'session' },
+    },
     store,
     inject: (sessionId: SessionId, actions: BoundActions<typeof store>): LabWorkbenchInjected => {
       let latestExperimentId = 'experiment-1'
