@@ -1,6 +1,7 @@
 /** 第一阶段实验自动化能力的 opt-in bundle。 */
 
 import type { Context } from '@deepseek-ai/cordis'
+import LocalSubprocess from '@deepseek-ai/dsh-subprocess-local'
 import Storage from '@deepseek-ai/dsh-storage'
 import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
 import * as StorageSqlite from '@deepseek-ai/dsh-storage-sqlite'
@@ -32,6 +33,8 @@ export interface Config {
   readonly skill?: LocalSkill.Config
   /** 本地 Runtime 配置；默认使用 `.lab-data/runtime.sqlite` 保存权威状态。 */
   readonly runtime?: LocalRuntime.Config
+  /** 显式启用本地 Docling PDF 解析；缺省时保持现有 PDF 不可用状态。 */
+  readonly docling?: LocalKnowledge.DoclingConfig
   /** 显式启用实验 Web HTTP Consumer；缺省时只装实验 Service。 */
   readonly web?: WebConsumer.Http.Config
 }
@@ -51,7 +54,15 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   await ctx.plugin(LabSkillService)
   await ctx.plugin(LabDeviceService)
   await ctx.plugin(LabRuntimeService)
-  await ctx.plugin(LocalKnowledge, { path: config.knowledgePath ?? '.lab-data/knowledge.sqlite' })
+  let knowledgeConfig: LocalKnowledge.Config = { path: config.knowledgePath ?? '.lab-data/knowledge.sqlite' }
+  if (config.docling !== undefined) {
+    if (ctx.get('subprocess') === undefined) await ctx.plugin(LocalSubprocess)
+    knowledgeConfig = {
+      path: config.knowledgePath ?? '.lab-data/knowledge.sqlite',
+      documentParser: LocalKnowledge.createDoclingAdapter(ctx, config.docling),
+    }
+  }
+  await ctx.plugin(LocalKnowledge, knowledgeConfig)
   await ctx.plugin(LocalSkill, config.skill)
   await ctx.plugin(MockDevice, config.device)
   await ctx.plugin(LocalPlanning, config.planning)

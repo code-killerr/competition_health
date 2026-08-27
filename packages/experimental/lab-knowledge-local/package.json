@@ -17,7 +17,7 @@
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
-  "files": ["lib/index.js", "lib/invariant.js", "lib/types/**/*.d.ts"],
+  "files": ["lib/index.js", "lib/invariant.js", "lib/types/**/*.d.ts", "runtime/docling_runner.py", "runtime/requirements.txt"],
   "license": "MIT",
   "dependencies": {
     "@deepseek-ai/schemastery": "workspace:^"
@@ -26,12 +26,14 @@
     "@deepseek-ai/dsh-experimental-lab-domain": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-knowledge": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-subprocess": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-experimental-lab-domain": "workspace:^",
     "@deepseek-ai/dsh-experimental-lab-knowledge": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-subprocess": "workspace:^"
   }
 }

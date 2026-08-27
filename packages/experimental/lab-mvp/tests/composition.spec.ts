@@ -63,6 +63,27 @@ describe('lab-mvp composition', () => {
     expect(() => ctx.labRuntime.getRun(brandId<'ExperimentId'>('experiment-1'))).toThrow(LabProviderUnavailableError)
   })
 
+  it('wires the opt-in Docling adapter and reports an unavailable local runtime', async () => {
+    const ctx = new Context()
+    contexts.push(ctx)
+    await ctx.plugin(SkillRegistry)
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(LabMvp, {
+      knowledgePath: ':memory:',
+      storagePath: ':memory:',
+      runtime: { statePath: ':memory:' },
+      docling: { pythonCommand: 'dsh-python-that-is-not-installed' },
+    })
+
+    const result = await ctx.labMvpWeb.dispatch(parseLabWebCommand({
+      command: 'knowledge-import',
+      name: 'protocol.pdf',
+      bytesBase64: Buffer.from('%PDF-1.7\n').toString('base64'),
+    }))
+    expect(result).toMatchObject({ kind: 'knowledge-import', value: { status: 'FAILED', errorCode: 'DOCLING_RUNTIME_UNAVAILABLE' } })
+    expect(ctx.get('subprocess')).toBeDefined()
+  })
+
   it('runs a keyless browser-command workflow through the Facade and back to a report', async () => {
     const ctx = new Context()
     contexts.push(ctx)

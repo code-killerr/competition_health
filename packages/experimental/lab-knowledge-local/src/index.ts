@@ -62,6 +62,8 @@ export interface DocumentParser {
   ): Promise<readonly ParsedDocumentBlock[]>
 }
 
+export * from './docling.ts'
+
 /** 可选的向量生成接缝；首轮没有适配器时只使用 FTS5。 */
 export interface EmbeddingAdapter {
   embed(text: string): Promise<readonly number[]>
@@ -98,6 +100,7 @@ interface DocumentRow {
   readonly version_id: string
   readonly status: KnowledgeImportStatus
   readonly error: string | null
+  readonly error_code?: string | null
   readonly metadata_json: string | null
 }
 
@@ -201,8 +204,14 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
     const documentId = brandId<'KnowledgeDocumentId'>(`document-${hash}`)
     const versionId = brandId<'KnowledgeDocumentVersionId'>(`version-${hash}`)
     const metadata = sourceMetadata(request, source)
-    const existing = db.prepare('SELECT dv.id, dv.id AS version_id, dv.status, dv.error, d.metadata_json FROM document_versions AS dv JOIN documents AS d ON d.id = dv.document_id WHERE dv.content_hash = ?').get(hash) as DocumentRow | undefined
-    if (existing !== undefined) return { documentId, versionId: brandId<'KnowledgeDocumentVersionId'>(existing.version_id), status: existing.status, metadata: parseMetadata(existing.metadata_json) ?? metadata }
+    const existing = db.prepare('SELECT dv.id, dv.id AS version_id, dv.status, dv.error, dv.error_code, d.metadata_json FROM document_versions AS dv JOIN documents AS d ON d.id = dv.document_id WHERE dv.content_hash = ?').get(hash) as DocumentRow | undefined
+    if (existing !== undefined) return {
+      documentId,
+      versionId: brandId<'KnowledgeDocumentVersionId'>(existing.version_id),
+      status: existing.status,
+      metadata: parseMetadata(existing.metadata_json) ?? metadata,
+      ...existing.error_code === null || existing.error_code === undefined ? {} : { errorCode: existing.error_code },
+    }
 
     db.prepare('INSERT OR IGNORE INTO documents (id, name, metadata_json) VALUES (?, ?, ?)').run(documentId, source.name, JSON.stringify(metadata))
     db.prepare('INSERT INTO document_versions (id, document_id, content_hash, status, error, content) VALUES (?, ?, ?, ?, ?, ?)')
@@ -215,8 +224,9 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
       if (blocks.every(block => block.content.trim().length === 0)) throw new Error('parser returned no usable blocks')
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      db.prepare('UPDATE document_versions SET status = ?, error = ? WHERE id = ?').run('FAILED', message, versionId)
-      return { documentId, versionId, status: 'FAILED', metadata }
+      const errorCode = parserErrorCode(error)
+      db.prepare('UPDATE document_versions SET status = ?, error = ?, error_code = ? WHERE id = ?').run('FAILED', message, errorCode ?? null, versionId)
+      return { documentId, versionId, status: 'FAILED', metadata, ...errorCode === undefined ? {} : { errorCode } }
     }
 
     db.prepare('UPDATE document_versions SET status = ? WHERE id = ?').run('INDEXING', versionId)
@@ -255,8 +265,9 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
     } catch (error) {
       db.exec('ROLLBACK')
       const message = error instanceof Error ? error.message : String(error)
-      db.prepare('UPDATE document_versions SET status = ?, error = ? WHERE id = ?').run('FAILED', message, versionId)
-      return { documentId, versionId, status: 'FAILED', metadata }
+      const errorCode = parserErrorCode(error)
+      db.prepare('UPDATE document_versions SET status = ?, error = ?, error_code = ? WHERE id = ?').run('FAILED', message, errorCode ?? null, versionId)
+      return { documentId, versionId, status: 'FAILED', metadata, ...errorCode === undefined ? {} : { errorCode } }
     }
     return { documentId, versionId, status: 'READY', metadata }
   }
@@ -265,21 +276,21 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
   async getImportStatus(documentId: KnowledgeDocumentId, versionId?: KnowledgeDocumentVersionId): Promise<ImportStatusResult | undefined> {
     const db = await this.requireDatabase()
     const row = db.prepare(
-      'SELECT dv.document_id AS id, dv.id AS version_id, dv.status, dv.error, d.metadata_json ' +
+      'SELECT dv.document_id AS id, dv.id AS version_id, dv.status, dv.error, dv.error_code, d.metadata_json ' +
       'FROM document_versions AS dv JOIN documents AS d ON d.id = dv.document_id ' +
       'WHERE dv.document_id = ? AND (? IS NULL OR dv.id = ?) ' +
       'ORDER BY dv.rowid DESC LIMIT 1',
     ).get(documentId, versionId ?? null, versionId ?? null) as (DocumentRow & { id: string }) | undefined
     if (row === undefined) return undefined
     const metadata = parseMetadata(row.metadata_json)
-    return { documentId, versionId: brandId<'KnowledgeDocumentVersionId'>(row.version_id), status: row.status, ...metadata === undefined ? {} : { metadata }, ...row.error === null ? {} : { error: row.error } }
+    return { documentId, versionId: brandId<'KnowledgeDocumentVersionId'>(row.version_id), status: row.status, ...metadata === undefined ? {} : { metadata }, ...row.error === null ? {} : { error: row.error }, ...row.error_code === null || row.error_code === undefined ? {} : { errorCode: row.error_code } }
   }
 
   /** 列出每份资料最近一次导入的状态。 */
   async listImportStatuses(): Promise<readonly ImportStatusResult[]> {
     const db = await this.requireDatabase()
     const rows = db.prepare(
-      'SELECT dv.document_id AS id, dv.id AS version_id, dv.status, dv.error, d.metadata_json ' +
+      'SELECT dv.document_id AS id, dv.id AS version_id, dv.status, dv.error, dv.error_code, d.metadata_json ' +
       'FROM document_versions AS dv JOIN documents AS d ON d.id = dv.document_id ' +
       'WHERE dv.rowid IN (SELECT MAX(rowid) FROM document_versions GROUP BY document_id) ' +
       'ORDER BY d.name ASC',
@@ -292,6 +303,7 @@ export class LocalKnowledgeProvider implements KnowledgeProvider {
         status: row.status,
         ...metadata === undefined ? {} : { metadata },
         ...row.error === null ? {} : { error: row.error },
+        ...row.error_code === null || row.error_code === undefined ? {} : { errorCode: row.error_code },
       }
     })
   }
@@ -726,6 +738,12 @@ async function readSource(request: ImportDocumentRequest): Promise<{ name: strin
   if (request.source.kind === 'bytes') return { name: request.source.name, bytes: request.source.bytes }
   const { readFile } = await import('node:fs/promises')
   return { name: request.source.path, bytes: await readFile(request.source.path) }
+}
+
+function parserErrorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return undefined
+  const code = error.code
+  return typeof code === 'string' ? code : undefined
 }
 
 function ensureColumn(db: DatabaseSync, table: string, column: string, definition: string): void {

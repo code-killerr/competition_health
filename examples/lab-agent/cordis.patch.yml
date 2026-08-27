@@ -5,6 +5,7 @@
       name: '@deepseek-ai/dsh-experimental-lab-mvp'
       config:
         knowledgePath: .lab-data/knowledge.sqlite
+        docling: {}
         device:
           devices:
             - id: dev-dispenser

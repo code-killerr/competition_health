@@ -22,6 +22,8 @@
     { "path": "../lab-device-mock" },
     { "path": "../lab-runtime" },
     { "path": "../lab-runtime-local" },
-    { "path": "../lab-mvp-web" }
+    { "path": "../lab-mvp-web" },
+    { "path": "../../subprocess/subprocess" },
+    { "path": "../../subprocess/subprocess-local" }
   ]
 }

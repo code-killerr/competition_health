@@ -8,6 +8,7 @@
     { "path": "../../../vendor/schemastery" },
     { "path": "../../runtime-diagnostics/invariants" },
     { "path": "../lab-domain" },
-    { "path": "../lab-knowledge" }
+    { "path": "../lab-knowledge" },
+    { "path": "../../subprocess/subprocess" }
   ]
 }
