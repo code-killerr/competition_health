@@ -15,6 +15,8 @@ describe('lab workbench browser API', () => {
       code: 'PROVIDER_UNAVAILABLE',
       status: 503,
     })
-    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({ sessionId: 'session-1' })
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined
+    const requestBody = typeof requestInit?.body === 'string' ? requestInit.body : '{}'
+    expect(JSON.parse(requestBody) as unknown).toMatchObject({ sessionId: 'session-1' })
   })
 })

@@ -1,7 +1,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import { brandId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import { describe, expect, it, vi } from 'vitest'
-import { LabMvpWebService } from '../src/index.ts'
+import { LabMvpWebService, parseLabProjectConversationCommand } from '../src/index.ts'
 
 describe('LabMvpWebService', () => {
   it('keeps snapshot and import/search actions behind existing services', async () => {
@@ -14,7 +14,7 @@ describe('LabMvpWebService', () => {
     }
     const planning = { listProposals: vi.fn().mockReturnValue([]) }
     const devices = { listDevices: vi.fn().mockReturnValue([]) }
-    const runtime = { getRun: vi.fn().mockReturnValue(undefined) }
+    const runtime = { getRun: vi.fn().mockReturnValue(undefined), listRuns: vi.fn().mockReturnValue([]) }
     ctx.provide('labKnowledge', knowledge)
     ctx.provide('labPlanning', planning)
     ctx.provide('labDevices', devices)
@@ -54,6 +54,103 @@ describe('LabMvpWebService', () => {
     const service = new LabMvpWebService(ctx)
     await expect(service.dispatch({ command: 'plan-approve', experimentId: brandId<'ExperimentId'>('experiment-1'), planId: brandId<'PlanId'>('plan-1'), approvedBy: 'reviewer' })).rejects.toThrow(/validated plan/)
     expect(runtime.approvePlan).not.toHaveBeenCalled()
+  })
+
+  it('routes typed Experiment and Run page queries through their owning services', async () => {
+    const ctx = new Context()
+    const experiment = {
+      experimentId: 'experiment-1',
+      projectId: 'project-1',
+      title: 'Calibration',
+      objective: 'Calibrate the bench',
+      status: 'DRAFT',
+      createdInSessionId: 'session-1',
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    const projects = { listExperiments: vi.fn().mockResolvedValue([experiment]) }
+    const runtime = { listRuns: vi.fn().mockReturnValue([]) }
+    ctx.provide('labProjects', projects)
+    ctx.provide('labRuntime', runtime)
+    const service = new LabMvpWebService(ctx)
+
+    await expect(service.dispatchProject(parseLabProjectConversationCommand({ command: 'experiment-list', projectId: 'project-1' }))).resolves.toMatchObject({
+      kind: 'experiment-list', value: [{ experimentId: 'experiment-1', title: 'Calibration' }],
+    })
+    await expect(service.dispatchProject(parseLabProjectConversationCommand({ command: 'run-list', experimentId: 'experiment-1' }))).resolves.toMatchObject({ kind: 'run-list', value: [] })
+    expect(projects.listExperiments).toHaveBeenCalledWith('project-1')
+    expect(runtime.listRuns).toHaveBeenCalledWith('experiment-1')
+  })
+
+  it('projects a project Run action into the Session log and cache', async () => {
+    const ctx = new Context()
+    const appended: unknown[][] = []
+    const run = {
+      runId: brandId<'RunId'>('run-1'),
+      experimentId: brandId<'ExperimentId'>('experiment-1'),
+      runStatus: 'COMPLETED' as const,
+      observations: [],
+      artifacts: [],
+      feedback: { status: 'COMPLETED' as const, valid: true, summary: 'done', issues: [], replanRequested: false },
+      cache: {},
+    }
+    const runtime = { startRun: vi.fn().mockResolvedValue(run) }
+    const projects = { projectForSession: vi.fn().mockResolvedValue(undefined) }
+    const session = { append: vi.fn((...event: unknown[]) => { appended.push(event) }) }
+    ctx.provide('labRuntime', runtime)
+    ctx.provide('labProjects', projects)
+    ctx.provide('sessions', { get: vi.fn(() => session) })
+    ctx.provide('labExperimentCache', { project: vi.fn().mockResolvedValue(undefined) })
+    const service = new LabMvpWebService(ctx)
+
+    await service.dispatchProject(parseLabProjectConversationCommand({
+      command: 'run-start',
+      experimentId: 'experiment-1',
+      planId: 'plan-1',
+      sessionId: 'session-1',
+    }))
+
+    expect(appended).toContainEqual(['lab/run/state', expect.objectContaining({ runId: 'run-1', to: 'COMPLETED' })])
+  })
+
+  it('registers a project Experiment with Runtime before returning it', async () => {
+    const ctx = new Context()
+    const experiment = {
+      experimentId: brandId<'ExperimentId'>('experiment-1'),
+      projectId: brandId<'LabProjectId'>('project-1'),
+      title: 'Calibration',
+      objective: 'Calibrate the bench',
+      status: 'DRAFT' as const,
+      createdInSessionId: brandId<'SessionId'>('session-1'),
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    const projects = {
+      createExperiment: vi.fn().mockResolvedValue({
+        experiment,
+        project: { project: experiment, sources: [], devices: [], sessions: [], sharedFacts: [], evidence: [] },
+      }),
+    }
+    const runtime = { createExperiment: vi.fn().mockResolvedValue(undefined) }
+    const session = { append: vi.fn() }
+    ctx.provide('labProjects', projects)
+    ctx.provide('labRuntime', runtime)
+    ctx.provide('sessions', { get: vi.fn(() => session) })
+    const service = new LabMvpWebService(ctx)
+
+    await service.dispatchProject(parseLabProjectConversationCommand({
+      command: 'experiment-create',
+      projectId: 'project-1',
+      title: 'Calibration',
+      objective: 'Calibrate the bench',
+      sessionId: 'session-1',
+    }))
+
+    expect(runtime.createExperiment).toHaveBeenCalledWith({
+      experimentId: 'experiment-1',
+      objective: 'Calibrate the bench',
+      expectedOutputs: [],
+    })
   })
 
   it('blocks an inactive Skill before Runtime approval side effects', async () => {

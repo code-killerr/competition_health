@@ -12,6 +12,7 @@ function fakePanels(): PanelActions {
   return {
     setSidebar: vi.fn(),
     setDetails: vi.fn(),
+    setActiveAppView: vi.fn(),
     toggleSidebar: vi.fn(),
     setNarrow: vi.fn(),
     openDetails: vi.fn(),
@@ -54,5 +55,58 @@ describe('LayoutController', () => {
 
     expect(stale.toggleSidebar).not.toHaveBeenCalled()
     expect(fresh.toggleSidebar).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens only a live app view and clears it when the entry unloads', () => {
+    const service = new LayoutController()
+    const panels = fakePanels()
+    const ids = ['test-page']
+    let changed: (() => void) | undefined
+    const registry = {
+      entriesOfSlot: vi.fn(() => ids.map(id => ({ options: { id } }))),
+      subscribe: vi.fn((_key: string, listener: () => void) => {
+        changed = listener
+        return () => { changed = undefined }
+      }),
+    }
+    service.attachPanels(panels)
+    const dispose = service.attachAppViews(registry)
+
+    service.openAppView('test-page')
+    expect(service.activeAppView()).toBe('test-page')
+    expect(panels.setActiveAppView).toHaveBeenCalledWith('test-page')
+
+    ids.length = 0
+    changed?.()
+    expect(service.activeAppView()).toBeUndefined()
+    expect(panels.setActiveAppView).toHaveBeenLastCalledWith(undefined)
+    dispose()
+  })
+
+  it('rejects an unknown app view before changing the active selection', () => {
+    const service = new LayoutController()
+    const panels = fakePanels()
+    const registry = {
+      entriesOfSlot: () => [{ options: { id: 'known-page' } }],
+      subscribe: () => () => {},
+    }
+    service.attachPanels(panels)
+    service.attachAppViews(registry)
+
+    expect(() => { service.openAppView('missing-page') }).toThrow('APP_VIEW_NOT_FOUND')
+    expect(service.activeAppView()).toBeUndefined()
+    expect(panels.setActiveAppView).not.toHaveBeenCalled()
+  })
+
+  it('does not publish an active view when root actions are not wired', () => {
+    const service = new LayoutController()
+    const registry = {
+      entriesOfSlot: () => [{ options: { id: 'known-page' } }],
+      subscribe: () => () => {},
+    }
+    service.attachAppViews(registry)
+
+    expect(() => { service.openAppView('known-page') }).toThrow('panel actions not wired')
+    expect(service.activeAppView()).toBeUndefined()
   })
 })

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Client apply wiring under the terminal register form: ctx.layout provided,
-// ONE register() call declares the three child slots + seats the store factory
+// ONE register() call declares the five child slots + seats the store factory
 // + wires the panel actions through the inject hook; teardown cascades
 // (service unprovided + declarations gone + registration cleared). Node half
 // and the invariant companion ride along — one line exposes the aggregate
@@ -40,7 +40,7 @@ describe('ui-layout client apply', () => {
     expect(inject).toEqual(['slots', 'theme'])
   })
 
-  it('provides ctx.layout and registers AppFrame into root with the three child declarations', async () => {
+  it('provides ctx.layout and registers AppFrame with the root application-view declaration', async () => {
     const { ctx, slots } = await bench()
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
@@ -51,6 +51,7 @@ describe('ui-layout client apply', () => {
     expect(slots.spec('sidebar')).toEqual({ kind: 'single', scope: 'root' })
     expect(slots.spec('conversation')).toEqual({ kind: 'single', scope: 'session-maybe' })
     expect(slots.spec('details')).toEqual({ kind: 'single', scope: 'session' })
+    expect(slots.spec('app.view')).toEqual({ kind: 'list', scope: 'root' })
   })
 
   it('injects no business face and attaches the layout actions', async () => {
@@ -58,7 +59,12 @@ describe('ui-layout client apply', () => {
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     const actions = {
-      setSidebar: vi.fn(), setDetails: vi.fn(), toggleSidebar: vi.fn(), openDetails: vi.fn(), closeDetails: vi.fn(),
+      setSidebar: vi.fn(),
+      setDetails: vi.fn(),
+      setActiveAppView: vi.fn(),
+      toggleSidebar: vi.fn(),
+      openDetails: vi.fn(),
+      closeDetails: vi.fn(),
     }
     const injected = (slots.entries('root')[0]!.inject as (actions: never) => object)(actions as never)
     expect(injected).toEqual({})

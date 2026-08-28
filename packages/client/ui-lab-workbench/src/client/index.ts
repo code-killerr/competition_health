@@ -8,7 +8,11 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { LabWorkbench } from './LabWorkbench.tsx'
-import { LabNavigation } from './LabNavigation.tsx'
+import { LabGlobalNavigation } from './LabGlobalNavigation.tsx'
+import type { LabGlobalNavigationInjected } from './LabGlobalNavigation.tsx'
+import { LabProjectsView } from './LabProjectsView.tsx'
+import type { LabProjectSummary, LabProjectsInjected } from './LabProjectsView.tsx'
+import { LabUiContext } from './LabUiContext.ts'
 import {
   LabApiError,
   sendLabProjectCommand,
@@ -38,17 +42,44 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 export type { LabWorkbenchKey } from './locales.ts'
 export type { LabKnowledgeWorkspaceOwnerProps } from './LabWorkbench.tsx'
+export { LabUiContext } from './LabUiContext.ts'
+export type { LabProjectSummary, LabProjectsInjected } from './LabProjectsView.tsx'
 
 const NS = 'labWorkbench'
 
 /** 工作台所需的客户端 Service。 */
-export const inject = ['slots', 'locale', 'sessions']
+export const inject = ['slots', 'locale', 'sessions', 'layout', 'workspaces']
 
 /** 注册实验工作台及其唯一状态实例。 */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-lab-workbench: dictionaries')
 
   const store = createLabWorkbenchStore()
+  const ui = new LabUiContext()
+  ctx.effect(() => ctx.reflect.provide('labUi', ui), 'ui-lab-workbench: presentation selection')
+
+  const pageInjected = (): LabProjectsInjected => ({
+    ui,
+    listProjects: listProjectSummaries,
+    createProject: createProjectSummary,
+  })
+  const registerProjects = (): (() => void) => ctx.slots.register({
+    name: 'app.view',
+    id: 'lab-projects',
+    order: 10,
+    locale: NS,
+    inject: pageInjected,
+  }, LabProjectsView)
+  ctx.slots.inject('app.view', registerProjects)
+
+  const registerGlobalNavigation = (): (() => void) => ctx.slots.register({
+    name: 'sidebar.navigation',
+    id: 'lab-global-navigation',
+    order: 10,
+    locale: NS,
+    inject: (): LabGlobalNavigationInjected => ({ openAppView: (viewId) => { ctx.layout.openAppView(viewId) } }),
+  }, LabGlobalNavigation)
+  ctx.slots.inject('sidebar.navigation', registerGlobalNavigation)
 
   const register = (): (() => void) => ctx.slots.register({
     name: 'conversation.view',
@@ -60,7 +91,7 @@ export function apply(ctx: ClientContext): void {
     },
     store,
     inject: (sessionId: SessionId, actions: BoundActions<typeof store>): LabWorkbenchInjected => {
-      let latestExperimentId = 'experiment-1'
+      let latestExperimentId: string | undefined
       const withSession = (command: LabCommand): LabCommand => ({ ...command, sessionId })
       const withProjectSession = (command: LabProjectCommand): LabProjectCommand => ({ ...command, sessionId })
       const run = async (label: string, command: LabCommand): Promise<void> => {
@@ -69,7 +100,7 @@ export function apply(ctx: ClientContext): void {
         try {
           const result = await sendLabCommand(withSession(command))
           applyResult(actions, command, result.value)
-          if (command.command !== 'snapshot' && command.command !== 'knowledge-search') await refresh(latestExperimentId)
+          if (command.command !== 'snapshot' && command.command !== 'knowledge-search' && latestExperimentId !== undefined) await refresh(latestExperimentId)
         } catch (error) {
           actions.setError(formatError(error))
         } finally {
@@ -99,8 +130,8 @@ export function apply(ctx: ClientContext): void {
             if (projectId !== undefined) actions.setProjectId(projectId)
             if (projectName !== undefined) actions.setProjectName(projectName)
             actions.setProjectView(view)
-            actions.setSelectedSourceKeysText(view.sources.map(source => `${String(source.documentId ?? '')}:${String(source.versionId ?? '')}`).join('\n'))
-            actions.setSelectedDeviceIdsText(view.devices.map(device => String(device.deviceId ?? device.id ?? '')).filter(value => value !== '').join(', '))
+            actions.setSelectedSourceKeysText(view.sources.map(source => `${stringValue(source.documentId)}:${stringValue(source.versionId)}`).join('\n'))
+            actions.setSelectedDeviceIdsText(view.devices.map(device => stringValue(device.deviceId, stringValue(device.id))).filter(value => value !== '').join(', '))
             return result.value
           }
         } catch (error) {
@@ -125,16 +156,15 @@ export function apply(ctx: ClientContext): void {
       }
       const openProject = async (projectId: string): Promise<void> => { await projectRun('project-open', { command: 'project-open', projectId }) }
       const createProject = async (name: string): Promise<void> => {
-        const projectId = 'project-showcase-' + Date.now().toString(36)
-        await projectRun('project-create', { command: 'project-create', projectId, name })
+        await projectRun('project-create', { command: 'project-create', name })
       }
       const updateProjectScope = async (
         projectId: string,
         sources: readonly { readonly documentId: string; readonly versionId: string }[],
         deviceIds: readonly string[],
       ): Promise<void> => { await projectRun('project-scope-update', { command: 'project-scope-update', projectId, sources, deviceIds }) }
-      const associateSession = async (projectId: string, targetSessionId: string, title?: string): Promise<void> => { await projectRun('project-session-associate', {
-        command: 'project-session-associate',
+      const associateSession = async (projectId: string, targetSessionId: string, title?: string): Promise<void> => { await projectRun('project-session-attach', {
+        command: 'project-session-attach',
         projectId,
         targetSessionId,
         ...title === undefined ? {} : { title },
@@ -167,7 +197,7 @@ export function apply(ctx: ClientContext): void {
           if (!Array.isArray(object.skillDrafts) || !isRecord(object.plan)) throw new Error('本地计划 JSON 必须包含 plan 对象和 skillDrafts 数组')
           input = {
             request,
-            plan: object.plan as LabPlan,
+            plan: object.plan,
             skillDrafts: object.skillDrafts as LabSkillDraft[],
           }
         } catch (error) {
@@ -226,19 +256,50 @@ export function apply(ctx: ClientContext): void {
   }, LabWorkbench)
 
   ctx.slots.inject('conversation.view', register)
-
-  const registerNavigation = (): (() => void) => ctx.slots.register({
-    name: 'sidebar.footer.action',
-    id: 'lab-navigation',
-    order: 20,
-    locale: NS,
-  }, LabNavigation)
-  ctx.slots.inject('sidebar.footer.action', registerNavigation)
-
 }
 
 function formatError(error: unknown): string {
   return error instanceof LabApiError ? error.code + ': ' + error.message : error instanceof Error ? error.message : String(error)
+}
+
+async function listProjectSummaries(): Promise<readonly LabProjectSummary[]> {
+  const result = await sendLabProjectCommand({ command: 'project-list' })
+  if (result.kind !== 'project-list' || !Array.isArray(result.value)) throw new LabApiError('INVALID_RESPONSE', '项目列表响应格式无效')
+  return result.value.map(value => projectSummary(value))
+}
+
+async function createProjectSummary(workspaceId: string, name: string): Promise<LabProjectSummary> {
+  const result = await sendLabProjectCommand({ command: 'project-create', workspaceId, name })
+  if (result.kind !== 'project') throw new LabApiError('INVALID_RESPONSE', '项目创建响应格式无效')
+  return projectSummary(result.value)
+}
+
+function projectSummary(value: unknown): LabProjectSummary {
+  const object = asRecord(value)
+  const project = asRecord(object.project)
+  const sessions = array(object.sessions)
+  const experiments = array(object.experiments)
+  const projectId = stringField(project.projectId, 'project.projectId')
+  const workspaceId = stringField(project.workspaceId, 'project.workspaceId')
+  const status = project.status === 'ARCHIVED' ? 'ARCHIVED' : project.status === 'ACTIVE' ? 'ACTIVE' : undefined
+  if (status === undefined) throw new LabApiError('INVALID_RESPONSE', '项目状态无效')
+  return {
+    projectId,
+    workspaceId,
+    name: stringField(project.name, 'project.name'),
+    description: typeof project.description === 'string' ? project.description : '',
+    status,
+    sessionCount: sessions.length,
+    experimentCount: experiments.length,
+  }
+}
+
+function stringField(value: unknown, path: string): string {
+  if (typeof value !== 'string' || value.trim() === '') throw new LabApiError('INVALID_RESPONSE', `${path} 缺少有效字符串`)
+  return value
+}
+function stringValue(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback
 }
 function applyResult(actions: BoundActions<ReturnType<typeof createLabWorkbenchStore>>, command: LabCommand, value: unknown): void {
   if (command.command === 'snapshot' || command.command === 'experiment-create') {

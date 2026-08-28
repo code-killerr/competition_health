@@ -21,8 +21,11 @@ export type DoclingParserErrorPhase = 'input' | 'process' | 'output'
 
 /** 带有稳定错误码、阶段和可重试标记的文档解析异常。 */
 export class DoclingParserError extends Error {
+  /** 供导入状态消费的稳定错误码。 */
   readonly code: DoclingParserErrorCode
+  /** 错误发生的解析阶段。 */
   readonly phase: DoclingParserErrorPhase
+  /** 是否可以通过重试恢复。 */
   readonly retryable: boolean
 
   constructor(code: DoclingParserErrorCode, phase: DoclingParserErrorPhase, retryable: boolean, detail?: string) {
@@ -87,9 +90,13 @@ export interface DoclingAdapterConfig {
 /** 可由实验 bundle 传入的受信任 Docling 运行时配置。 */
 export type DoclingConfig = Omit<DoclingAdapterConfig, 'runner'>
 
-/** 从已挂载的 Host subprocess 服务创建本地 Docling Adapter。 */
+/** 从已挂载的 Host subprocess 服务创建本地 Docling Adapter。
+ * @param ctx - 提供受控 subprocess 服务的 Cordis context。
+ * @param config - 受信任部署提供的 Docling 配置。
+ * @returns - 可供 Knowledge Provider 使用的 Docling Adapter。
+ */
 export function createDoclingAdapter(ctx: Context, config: DoclingConfig = {}): DoclingAdapter {
-  const subprocess = ctx.get('subprocess') as SubprocessRuntime | undefined
+  const subprocess = ctx.get('subprocess')
   if (subprocess === undefined) throw new DoclingParserError('DOCLING_RUNTIME_UNAVAILABLE', 'process', false, 'subprocess service is not mounted')
   return new DoclingAdapter({ ...config, runner: new SubprocessDoclingProcessRunner(subprocess) })
 }
@@ -109,7 +116,7 @@ export class SubprocessDoclingProcessRunner implements DoclingProcessRunner {
     }
 
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), request.timeoutMs)
+    const timeout = setTimeout(() => { controller.abort() }, request.timeoutMs)
     let handle
     try {
       handle = this.subprocess.spawn({
@@ -238,7 +245,13 @@ export class DoclingAdapter implements DocumentParser {
         if (tableRow !== undefined && (typeof tableRow !== 'number' || !Number.isInteger(tableRow) || tableRow < 1)) {
           throw new DoclingParserError('DOCLING_OUTPUT_INVALID', 'output', false, `invalid table row at index ${index}`)
         }
-        blocks.push({ ...commonBlock(candidate, content), kind: 'table', ...validTitlePath === undefined ? {} : { titlePath: validTitlePath }, tableHeaders: tableHeaders as readonly string[], ...tableRow === undefined ? {} : { tableRow: tableRow as number } })
+        blocks.push({
+          ...commonBlock(candidate, content),
+          kind: 'table',
+          ...validTitlePath === undefined ? {} : { titlePath: validTitlePath },
+          tableHeaders,
+          ...tableRow === undefined ? {} : { tableRow },
+        })
       } else {
         blocks.push({ ...commonBlock(candidate, content), kind: 'text', ...validTitlePath === undefined ? {} : { titlePath: validTitlePath } })
       }

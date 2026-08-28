@@ -488,7 +488,7 @@ Source: [`packages/hooks/hook-protocol/src/types.ts:31`](../packages/hooks/hook-
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:333`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:385`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labexperimentrequested--log-only"></a>
 
@@ -504,7 +504,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:333`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:239`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:291`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labknowledgeconfirmed--log-only"></a>
 
@@ -520,7 +520,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:239`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:291`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:343`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labplanapproved--log-only"></a>
 
@@ -537,7 +537,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:291`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:256`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:308`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labplanproposed--log-only"></a>
 
@@ -556,7 +556,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:256`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:246`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:298`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labplanrejected--log-only"></a>
 
@@ -574,7 +574,173 @@ Source: [`packages/experimental/lab-domain/src/types.ts:246`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:264`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:316`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labprojectarchived--log-only"></a>
+
+#### `lab/project/archived` — log-only
+
+```ts persistence-catalog
+/** Project archive event; Project Sessions and logs remain available. */
+'lab/project/archived': {
+  version: 1
+  projectId: LabProjectId
+  archivedBy: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:210`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectcreated--log-only"></a>
+
+#### `lab/project/created` — log-only
+
+```ts persistence-catalog
+/** Project creation audit event. */
+'lab/project/created': {
+  version: 1
+  projectId: LabProjectId
+  workspaceId: WorkspaceId
+  name: string
+  sessionId: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:202`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectevidenceprojected--log-only"></a>
+
+#### `lab/project/evidence/projected` — log-only
+
+```ts persistence-catalog
+/** Rebuildable proposal/approval/run/report projection. */
+'lab/project/evidence/projected': {
+  version: 1
+  projection: LabProjectEvidenceProjection
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:273`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectexperiment-created--log-only"></a>
+
+#### `lab/project/experiment-created` — log-only
+
+```ts persistence-catalog
+/** Project-owned Experiment creation event. */
+'lab/project/experiment-created': {
+  version: 1
+  projectId: LabProjectId
+  experimentId: ExperimentId
+  title: string
+  objective: string
+  createdInSessionId: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:216`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectexperiment-session-linked--log-only"></a>
+
+#### `lab/project/experiment-session-linked` — log-only
+
+```ts persistence-catalog
+/** Additional Session provenance for a Project Experiment. */
+'lab/project/experiment-session-linked': {
+  version: 1
+  projectId: LabProjectId
+  experimentId: ExperimentId
+  sessionId: SessionId
+  role: LabExperimentSessionRole
+  linkedBy: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:225`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectfact-published--log-only"></a>
+
+#### `lab/project/fact-published` — log-only
+
+```ts persistence-catalog
+/** Explicitly published project fact. */
+'lab/project/fact-published': {
+  version: 1
+  projectId: LabProjectId
+  factId: LabProjectFactId
+  citationIds: readonly CitationId[]
+  sourceSessionId?: SessionId
+  approvedBy: string
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:264`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectscope-updated--log-only"></a>
+
+#### `lab/project/scope-updated` — log-only
+
+```ts persistence-catalog
+/** Explicit project Knowledge/device scope replacement. */
+'lab/project/scope-updated': {
+  version: 1
+  projectId: LabProjectId
+  sources: readonly { documentId: KnowledgeDocumentId; versionId: KnowledgeDocumentVersionId }[]
+  deviceIds: readonly DeviceId[]
+  updatedBy: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:234`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectsession-attached--log-only"></a>
+
+#### `lab/project/session-attached` — log-only
+
+```ts persistence-catalog
+/** Project-to-Session attach event. */
+'lab/project/session-attached': {
+  version: 1
+  projectId: LabProjectId
+  sessionId: SessionId
+  title: string
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:242`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectsession-detached--log-only"></a>
+
+#### `lab/project/session-detached` — log-only
+
+```ts persistence-catalog
+/** Project-to-Session detach event. */
+'lab/project/session-detached': {
+  version: 1
+  projectId: LabProjectId
+  sessionId: SessionId
+  detachedBy: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:249`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectsession-renamed--log-only"></a>
+
+#### `lab/project/session-renamed` — log-only
+
+```ts persistence-catalog
+/** Project Session title change event. */
+'lab/project/session-renamed': {
+  version: 1
+  projectId: LabProjectId
+  sessionId: SessionId
+  title: string
+  renamedBy: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:256`](../packages/experimental/lab-domain/src/project.ts)
 
 <a id="labrunfeedback--log-only"></a>
 
@@ -595,7 +761,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:264`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:311`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:363`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labrunobservation--log-only"></a>
 
@@ -617,7 +783,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:311`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:298`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:350`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labrunstate--log-only"></a>
 
@@ -636,7 +802,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:298`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:323`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:375`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labskillactivated--log-only"></a>
 
@@ -651,7 +817,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:323`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:285`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:337`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labskillapproved--log-only"></a>
 
@@ -666,7 +832,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:285`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:279`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:331`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labskillvalidated--log-only"></a>
 
@@ -681,7 +847,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:279`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:273`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:325`](../packages/experimental/lab-domain/src/types.ts)
 
 ### `llm/*`
 

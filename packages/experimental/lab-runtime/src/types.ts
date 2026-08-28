@@ -2,6 +2,8 @@
 
 import type {
   DeviceId,
+  ArtifactManifest,
+  ArtifactId,
   ExperimentCacheProjection,
   ExperimentId,
   OperationId,
@@ -53,6 +55,7 @@ export interface RuntimeObservation {
   readonly operationId: OperationId
   readonly valid: boolean
   readonly evidence: readonly string[]
+  readonly artifactIds: readonly ArtifactId[]
   readonly status: 'WAITING' | 'COMPLETED' | 'FAILED' | 'STOPPED'
   readonly error?: string
   readonly replanRequested?: boolean
@@ -65,6 +68,19 @@ export interface RuntimeFeedback {
   readonly summary: string
   readonly issues: readonly string[]
   readonly replanRequested: boolean
+}
+
+/** 结构化运行报告，供页面和 Tool 共同读取。 */
+export interface LabRunReport {
+  readonly experimentId: ExperimentId
+  readonly planId: PlanId
+  readonly runId: RunId
+  readonly status: RunStatus
+  readonly executionGraph: ExecutionGraph
+  readonly observations: readonly RuntimeObservation[]
+  readonly evidenceMode: 'MANUAL' | 'CONTROLLED'
+  readonly feedback: RuntimeFeedback
+  readonly replanRequest?: ReplanRequest
 }
 
 /** 需要 Planner 重新生成计划的结构化请求。 */
@@ -91,12 +107,13 @@ export interface ApprovePlanRequest {
 
 /** Runtime 权威状态的可持久化快照；缓存投影不包含在此接口中。 */
 export interface RuntimeExperimentState {
+  readonly version: 2
   readonly request: ExperimentRequest
   approvedPlan?: {
     readonly request: ApprovePlanRequest
     readonly executionGraph: ExecutionGraph
   }
-  run?: RunView
+  runs: readonly RunView[]
 }
 
 /** 可替换的 Runtime 状态仓储；生产实现使用 SQLite，测试可使用内存实现。 */
@@ -110,15 +127,28 @@ export interface LabRuntimeStateStore {
 export interface RunView {
   readonly experimentId: ExperimentId
   readonly planId: PlanId
-  readonly runId?: RunId
+  readonly runId: RunId
+  readonly launchingSessionId?: import('@deepseek-ai/dsh-session').SessionId
+  readonly retryOfRunId?: RunId
+  readonly createdAt: number
+  readonly updatedAt: number
   readonly planStatus: PlanStatus
   readonly runStatus?: RunStatus
   readonly executionGraph: ExecutionGraph
   readonly observations: readonly RuntimeObservation[]
+  readonly artifacts: readonly ArtifactManifest[]
   readonly currentStepId?: PlanStepId
   readonly cache: ExperimentCacheProjection
   readonly feedback: RuntimeFeedback
   readonly replanRequest?: ReplanRequest
+}
+
+/** One request to start a new immutable Run. */
+export interface StartRunRequest {
+  readonly experimentId: ExperimentId
+  readonly planId: PlanId
+  readonly launchingSessionId?: import('@deepseek-ai/dsh-session').SessionId
+  readonly retryOfRunId?: RunId
 }
 
 /** Runtime Provider 的最小 Service Definition。 */
@@ -126,7 +156,7 @@ export interface LabRuntimeProvider {
   readonly name: string
   createExperiment(request: ExperimentRequest): Promise<void>
   approvePlan(request: ApprovePlanRequest): Promise<void>
-  startRun(experimentId: ExperimentId, planId: PlanId): Promise<RunView>
+  startRun(input: StartRunRequest): Promise<RunView>
   confirmStep(
     runId: RunId,
     evidence: readonly string[],
@@ -136,7 +166,9 @@ export interface LabRuntimeProvider {
   ): Promise<RunView>
   executeNextStep(runId: RunId): Promise<RunView>
   stopRun(runId: RunId, requestedBy: string): Promise<RunView>
-  getRun(experimentId: ExperimentId): RunView | undefined
-  buildReport(runId: RunId): Promise<Readonly<Record<string, unknown>>>
+  getRun(runId: RunId): RunView | undefined
+  listRuns(experimentId: ExperimentId): readonly RunView[]
+  retryRun(runId: RunId, actor: string): Promise<RunView>
+  buildReport(runId: RunId): Promise<LabRunReport>
   dispose?(): Promise<void> | void
 }

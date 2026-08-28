@@ -204,14 +204,30 @@ export interface LabProjectView {
 /** Project-scoped command DTO sent to the dedicated project protocol. */
 export type LabProjectCommand = { readonly sessionId?: string } & (
   | { readonly command: 'project-list' }
-  | { readonly command: 'project-create'; readonly projectId: string; readonly name: string; readonly description?: string }
+  | { readonly command: 'project-create'; readonly workspaceId?: string; readonly name: string; readonly description?: string }
   | { readonly command: 'project-open'; readonly projectId: string }
   | { readonly command: 'project-scope-update'; readonly projectId: string; readonly sources: readonly { readonly documentId: string; readonly versionId: string }[]; readonly deviceIds: readonly string[] }
   | { readonly command: 'project-session-create'; readonly projectId: string; readonly title?: string }
-  | { readonly command: 'project-session-associate'; readonly projectId: string; readonly targetSessionId: string; readonly title?: string }
+  | { readonly command: 'project-session-attach'; readonly projectId: string; readonly targetSessionId: string; readonly title?: string }
+  | { readonly command: 'project-session-detach'; readonly projectId: string; readonly targetSessionId: string }
+  | { readonly command: 'project-archive'; readonly projectId: string }
   | { readonly command: 'project-session-rename'; readonly projectId: string; readonly targetSessionId: string; readonly title: string }
   | { readonly command: 'project-context'; readonly projectId: string }
   | { readonly command: 'project-planning-context'; readonly projectId: string; readonly request: LabExperimentRequest }
+  | { readonly command: 'experiment-list'; readonly projectId: string }
+  | { readonly command: 'experiment-open'; readonly projectId: string; readonly experimentId: string }
+  | { readonly command: 'experiment-create'; readonly projectId: string; readonly title: string; readonly objective: string }
+  | { readonly command: 'experiment-derive'; readonly projectId: string; readonly sourceExperimentId: string; readonly title: string; readonly objective: string }
+  | { readonly command: 'experiment-session-link'; readonly projectId: string; readonly experimentId: string; readonly targetSessionId: string; readonly role: 'created' | 'continued' | 'reviewed' }
+  | { readonly command: 'run-list'; readonly experimentId: string }
+  | { readonly command: 'run-open'; readonly runId: string }
+  | { readonly command: 'run-start'; readonly experimentId: string; readonly planId: string }
+  | { readonly command: 'run-stop'; readonly runId: string }
+  | { readonly command: 'run-retry'; readonly runId: string }
+  | { readonly command: 'run-compare'; readonly leftRunId: string; readonly rightRunId: string }
+  | { readonly command: 'run-report'; readonly runId: string }
+  | { readonly command: 'artifact-list'; readonly runId: string }
+  | { readonly command: 'artifact-open'; readonly runId: string; readonly artifactId: string }
 )
 /** A command sent to the general laboratory Web Facade. */
 export type LabCommand = { readonly sessionId?: string } & (
@@ -271,7 +287,7 @@ export async function sendLabCommand(command: LabCommand, signal?: AbortSignal):
   const response = await fetch('/api/lab', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(command),
+    body: JSON.stringify({ namespace: 'lab', ...command }),
     ...signal === undefined ? {} : { signal },
   })
   let body: LabSuccessEnvelope | LabErrorEnvelope
@@ -283,7 +299,7 @@ export async function sendLabCommand(command: LabCommand, signal?: AbortSignal):
   if (!body.ok) {
     throw new LabApiError(body.error?.code ?? 'INTERNAL_ERROR', body.error?.message ?? '实验 API 请求失败', response.status)
   }
-  if (body.result === undefined || typeof body.result.kind !== 'string') {
+  if (typeof body.result.kind !== 'string') {
     throw new LabApiError('INVALID_RESPONSE', '实验 API 返回缺少结果类型', response.status)
   }
   return body.result
@@ -308,14 +324,14 @@ export function toSnapshot(value: unknown): LabSnapshot {
       const review = record(item)
       return {
         ...review,
-        plan: record(review.plan) as LabPlan,
+        plan: record(review.plan),
         ...Array.isArray(review.skillRevisions)
-          ? { skillRevisions: review.skillRevisions.map(item => record(item) as LabSkillRevision) }
+          ? { skillRevisions: review.skillRevisions.map(item => record(item)) }
           : {},
-        ...recordOrUndefined(review.validation) === undefined ? {} : { validation: record(review.validation) as LabValidation },
-      } as LabPlanReview
+        ...recordOrUndefined(review.validation) === undefined ? {} : { validation: record(review.validation) },
+      }
     }),
-    ...run === undefined ? {} : { run: run as LabRun },
+    ...run === undefined ? {} : { run },
     ...report === undefined ? {} : { report },
   }
 }
@@ -365,7 +381,7 @@ export async function sendLabProjectCommand(command: LabProjectCommand, signal?:
   const response = await fetch('/api/lab', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(command),
+    body: JSON.stringify({ namespace: 'project', ...command }),
     ...signal === undefined ? {} : { signal },
   })
   let body: LabSuccessEnvelope | LabErrorEnvelope
@@ -377,7 +393,7 @@ export async function sendLabProjectCommand(command: LabProjectCommand, signal?:
   if (!body.ok) {
     throw new LabApiError(body.error?.code ?? 'INTERNAL_ERROR', body.error?.message ?? '实验 API 请求失败', response.status)
   }
-  if (body.result === undefined || typeof body.result.kind !== 'string') {
+  if (typeof body.result.kind !== 'string') {
     throw new LabApiError('INVALID_RESPONSE', '实验 API 返回缺少结果类型', response.status)
   }
   return body.result

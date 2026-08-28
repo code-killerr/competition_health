@@ -619,6 +619,197 @@ export interface Config {
 
 来源：[`packages/experimental/agent-team/src/types.ts:125`](../packages/experimental/agent-team/src/types.ts)
 
+<a id="deepseek-aidsh-experimental-lab-device-mock"></a>
+
+## `@deepseek-ai/dsh-experimental-lab-device-mock`
+
+Requires: `labDevices`
+
+```ts config-catalog
+/** Mock Provider 配置。默认不创建任何设备。 */
+export interface Config {
+  /** 启动时注册的模拟设备。 */
+  readonly devices?: MockDeviceConfig[]
+}
+
+/** 一个模拟设备的配置。 */
+export interface MockDeviceConfig {
+  /** 设备的稳定标识。 */
+  readonly id: string
+  /** 展示名称。 */
+  readonly name: string
+  /** 设备支持的操作能力名称。 */
+  readonly capabilities?: string[]
+  /** 启动时的健康状态。 */
+  readonly healthy?: boolean
+  /** 是否在执行阶段模拟通信失败。 */
+  readonly communicationFailure?: boolean
+}
+```
+
+Source: [`packages/experimental/lab-device-mock/src/index.ts:30`](../packages/experimental/lab-device-mock/src/index.ts)
+
+<a id="deepseek-aidsh-experimental-lab-knowledge-local"></a>
+
+## `@deepseek-ai/dsh-experimental-lab-knowledge-local`
+
+Requires: `labKnowledge`
+
+```ts config-catalog
+/** 本地知识 Provider 配置。 */
+export interface Config {
+  /** SQLite 数据库路径；测试可显式传 `:memory:`。 */
+  readonly path: string
+  /** 可选向量适配器。 */
+  readonly embeddingAdapter?: EmbeddingAdapter
+  /** 可选文档解析器；未提供时仅使用内置文本/CSV 解析。 */
+  readonly documentParser?: DocumentParser
+  /** 混合检索的关键词权重。 */
+  readonly keywordWeight?: number
+  /** 混合检索的向量权重。 */
+  readonly embeddingWeight?: number
+}
+
+/** 可选的向量生成接缝；首轮没有适配器时只使用 FTS5。 */
+export interface EmbeddingAdapter {
+  embed(text: string): Promise<readonly number[]>
+}
+
+/** 文档解析器接缝；解析失败必须由 Provider 显式记录。 */
+export interface DocumentParser {
+  /** 解析器的稳定名称。 */
+  readonly name: string
+  supports(name: string): boolean
+  parse(
+    input: { readonly name: string; readonly bytes: Iterable<number> },
+  ): Promise<readonly ParsedDocumentBlock[]>
+}
+
+/** 解析后供 Knowledge Provider 持久化的标准区块。 */
+export interface ParsedDocumentBlock {
+  /** 文档内可复现的区块位置。 */
+  readonly location: string
+  /** 区块正文。 */
+  readonly content: string
+  /** 区块内容类型。 */
+  readonly kind?: 'text' | 'table'
+  /** 区块所在页码。 */
+  readonly page?: number
+  /** 从文档标题层级推导的路径。 */
+  readonly titlePath?: readonly string[]
+  /** 表格列名；表格区块必须与行数据一起提供。 */
+  readonly tableHeaders?: readonly string[]
+  /** 表格中的一基行号；表头占用第 1 行。 */
+  readonly tableRow?: number
+}
+```
+
+Source: [`packages/experimental/lab-knowledge-local/src/index.ts:73`](../packages/experimental/lab-knowledge-local/src/index.ts)
+
+<a id="deepseek-aidsh-experimental-lab-mvp"></a>
+
+## `@deepseek-ai/dsh-experimental-lab-mvp`
+
+```ts config-catalog
+/** Bundle 的可配置项。 */
+export interface Config {
+  /** Provider-owned SQLite 路径；memory 路径适合组合测试。 */
+  readonly knowledgePath?: string
+  /** Harness Storage SQLite 路径；缓存投影使用其中的独立 domain。 */
+  readonly storagePath?: string
+  /** 本地规划 Provider 配置。 */
+  readonly planning?: LocalPlanning.Config
+  /** Mock 设备配置。 */
+  readonly device?: MockDevice.Config
+  /** 本地 Skill Provider 配置。 */
+  readonly skill?: LocalSkill.Config
+  /** 本地 Runtime 配置；默认使用 `.lab-data/runtime.sqlite` 保存权威状态。 */
+  readonly runtime?: LocalRuntime.Config
+  /** 显式提供文档解析器；用于组合测试和可替换的 MVP 解析运行时。 */
+  readonly documentParser?: LocalKnowledge.DocumentParser
+  /** 显式启用本地 Docling PDF 解析；缺省时保持现有 PDF 不可用状态。 */
+  readonly docling?: LocalKnowledge.DoclingConfig
+  /** 显式启用实验 Web HTTP Consumer；缺省时只装实验 Service。 */
+  readonly web?: WebConsumer.Http.Config
+}
+```
+
+Depends on: [`LocalKnowledge`](../packages/experimental/lab-knowledge-local/src/index.ts) · [`LocalPlanning`](../packages/experimental/lab-planning-local/src/index.ts) · [`LocalRuntime`](../packages/experimental/lab-runtime-local/src/index.ts) · [`LocalSkill`](../packages/experimental/lab-skill-local/src/index.ts) · [`MockDevice`](../packages/experimental/lab-device-mock/src/index.ts) · [`WebConsumer`](../packages/experimental/lab-mvp-web/src/index.ts)
+
+Source: [`packages/experimental/lab-mvp/src/index.ts:23`](../packages/experimental/lab-mvp/src/index.ts)
+
+<a id="deepseek-aidsh-experimental-lab-planning-local"></a>
+
+## `@deepseek-ai/dsh-experimental-lab-planning-local`
+
+Requires: `labPlanning` · `labKnowledge` · `labSkills` · `labDevices`
+
+```ts config-catalog
+/** 本地规划 Provider 配置。 */
+export interface Config {
+  /** 每个规划检索词返回的最大引用数。 */
+  readonly contextLimit?: number
+}
+```
+
+Source: [`packages/experimental/lab-planning-local/src/index.ts:20`](../packages/experimental/lab-planning-local/src/index.ts)
+
+<a id="deepseek-aidsh-experimental-lab-project"></a>
+
+## `@deepseek-ai/dsh-experimental-lab-project`
+
+Requires: `storageDomain`
+
+```ts config-catalog
+/** 项目服务的部署和测试选项。 */
+export interface LabProjectServiceConfig {
+  /** 持久化元数据使用的时间源。 */
+  readonly clock?: () => number
+  /** Host 负责提供的 Project ID 生成器。 */
+  readonly idGenerator?: () => LabProjectId
+  /** Host 负责提供的 Experiment ID 生成器。 */
+  readonly experimentIdGenerator?: () => ExperimentId
+}
+```
+
+Depends on: [`ExperimentId`](../packages/experimental/lab-domain/src/index.ts) · [`LabProjectId`](subsystems/lab-automation.zh.md)
+
+Source: [`packages/experimental/lab-project/src/index.ts:252`](../packages/experimental/lab-project/src/index.ts)
+
+<a id="deepseek-aidsh-experimental-lab-runtime-local"></a>
+
+## `@deepseek-ai/dsh-experimental-lab-runtime-local`
+
+Requires: `labRuntime` · `labDevices`
+
+```ts config-catalog
+/** 本地 Runtime 配置；SQLite 是生产默认权威记录，测试可显式使用内存路径。 */
+export interface Config {
+  /** Runtime 权威状态 SQLite 路径。 */
+  readonly statePath?: string
+}
+```
+
+Source: [`packages/experimental/lab-runtime-local/src/index.ts:42`](../packages/experimental/lab-runtime-local/src/index.ts)
+
+<a id="deepseek-aidsh-experimental-lab-skill-local"></a>
+
+## `@deepseek-ai/dsh-experimental-lab-skill-local`
+
+Requires: `labSkills` · `skills`
+
+```ts config-catalog
+/** 本地 Provider 的可配置项。 */
+export interface Config {
+  /** 注册到 Harness ctx.skills 的 Provider 名称。 */
+  readonly providerName?: string
+  /** 与其他 Harness Skill Provider 合并时使用的优先级。 */
+  readonly rank?: number
+}
+```
+
+Source: [`packages/experimental/lab-skill-local/src/index.ts:31`](../packages/experimental/lab-skill-local/src/index.ts)
+
 <a id="deepseek-aidsh-experimental-tool-agent-team"></a>
 
 ## `@deepseek-ai/dsh-experimental-tool-agent-team`
@@ -3243,6 +3434,8 @@ export interface Config {
 - `@deepseek-ai/dsh-client-ui-goal`（[`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-input-trigger`（[`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-jobs`（[`packages/client/ui-jobs/src/index.ts`](../packages/client/ui-jobs/src/index.ts)）
+- `@deepseek-ai/dsh-client-ui-lab-knowledge-workspace`（[`packages/client/ui-lab-knowledge-workspace/src/index.ts`](../packages/client/ui-lab-knowledge-workspace/src/index.ts)）
+- `@deepseek-ai/dsh-client-ui-lab-workbench`（[`packages/client/ui-lab-workbench/src/index.ts`](../packages/client/ui-lab-workbench/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-layout`（[`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-message-feedback`（[`packages/client/ui-message-feedback/src/index.ts`](../packages/client/ui-message-feedback/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-model-selection`（[`packages/client/ui-model-selection/src/index.ts`](../packages/client/ui-model-selection/src/index.ts)）
@@ -3269,6 +3462,17 @@ export interface Config {
 - `@deepseek-ai/dsh-command-goal` — 需要 `commands` · `goals`（[`packages/goal/command-goal/src/index.ts`](../packages/goal/command-goal/src/index.ts)）
 - `@deepseek-ai/dsh-commands`（[`packages/interaction/commands/src/index.ts`](../packages/interaction/commands/src/index.ts)）
 - `@deepseek-ai/dsh-cordis-client-runner`（[`packages/extensions/cordis-client-runner/src/index.ts`](../packages/extensions/cordis-client-runner/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-lab-cache`（[`packages/experimental/lab-cache/src/index.ts`](../packages/experimental/lab-cache/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-lab-device`（[`packages/experimental/lab-device/src/index.ts`](../packages/experimental/lab-device/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-lab-knowledge`（[`packages/experimental/lab-knowledge/src/index.ts`](../packages/experimental/lab-knowledge/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-lab-mvp-web` — requires `labKnowledge` · `labDevices` · `labPlanning` · `labSkills` · `labRuntime` · `labProjects` · `labExperimentCache`（[`packages/experimental/lab-mvp-web/src/index.ts`](../packages/experimental/lab-mvp-web/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-lab-planning`（[`packages/experimental/lab-planning/src/index.ts`](../packages/experimental/lab-planning/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-lab-runtime`（[`packages/experimental/lab-runtime/src/index.ts`](../packages/experimental/lab-runtime/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-lab-skill`（[`packages/experimental/lab-skill/src/index.ts`](../packages/experimental/lab-skill/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-tool-lab` — requires `agents` · `tools` · `labRuntime` · `labPlanning` · `labSkills`（[`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-tool-lab-knowledge` — requires `agents` · `tools` · `labKnowledge`（[`packages/experimental/tool-lab-knowledge/src/index.ts`](../packages/experimental/tool-lab-knowledge/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-tool-lab-planning` — requires `agents` · `tools` · `labPlanning` · `labDevices` · `labSkills`（[`packages/experimental/tool-lab-planning/src/index.ts`](../packages/experimental/tool-lab-planning/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-tool-lab-project` — requires `agents` · `tools` · `labProjects` · `labKnowledge` · `labDevices`（[`packages/experimental/tool-lab-project/src/index.ts`](../packages/experimental/tool-lab-project/src/index.ts)）
 - `@deepseek-ai/dsh-fs-e2b` — 需要 `e2b`（[`packages/e2b/fs-e2b/src/index.ts`](../packages/e2b/fs-e2b/src/index.ts)）
 - `@deepseek-ai/dsh-fs-observation-policy`（[`packages/fs/fs-observation-policy/src/index.ts`](../packages/fs/fs-observation-policy/src/index.ts)）
 - `@deepseek-ai/dsh-goal-round-driver` — 需要 `agents` · `goals` · `sessions`（[`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts)）
@@ -3332,8 +3536,10 @@ export interface Config {
 - `@deepseek-ai/dsh-client-web`（[`packages/client/web/src/index.ts`](../packages/client/web/src/index.ts)）
 - `@deepseek-ai/dsh-cmdline`（[`packages/boot/cmdline/src/index.ts`](../packages/boot/cmdline/src/index.ts)）
 - `@deepseek-ai/dsh-code-runtime-python`（[`packages/code-runtime/code-runtime-python/src/index.ts`](../packages/code-runtime/code-runtime-python/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-lab-domain`（[`packages/experimental/lab-domain/src/index.ts`](../packages/experimental/lab-domain/src/index.ts)）
 - `@deepseek-ai/dsh-home-paths`（[`packages/util/home-paths/src/index.ts`](../packages/util/home-paths/src/index.ts)）
 - `@deepseek-ai/dsh-hook-protocol`（[`packages/hooks/hook-protocol/src/index.ts`](../packages/hooks/hook-protocol/src/index.ts)）
+- `@deepseek-ai/dsh-lab-knowledge-fixtures`（[`packages/test-support/lab-knowledge-fixtures/src/index.ts`](../packages/test-support/lab-knowledge-fixtures/src/index.ts)）
 - `@deepseek-ai/dsh-launch-environment`（[`packages/util/launch-environment/src/index.ts`](../packages/util/launch-environment/src/index.ts)）
 - `@deepseek-ai/dsh-llm-mock-server`（[`packages/test-support/llm-mock-server/src/index.ts`](../packages/test-support/llm-mock-server/src/index.ts)）
 - `@deepseek-ai/dsh-loader-smoke`（[`packages/test-support/loader-smoke/src/index.ts`](../packages/test-support/loader-smoke/src/index.ts)）

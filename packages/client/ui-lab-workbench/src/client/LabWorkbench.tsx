@@ -2,7 +2,7 @@
 
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsLocale, PropsRenderSlots, PropsStore, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
-import { useEffect, useMemo, type ReactNode } from 'react'
+import { useMemo, type JSX, type ReactNode } from 'react'
 import type { LabExperimentRequest, LabSearchResult } from './api.ts'
 import type { LabPage, LabWorkbenchState } from './store.ts'
 import { firstPlanId, planReviews, runView } from './store.ts'
@@ -59,14 +59,6 @@ export type LabWorkbenchProps =
 /** 渲染会话视图中的实验工作台。 */
 export function LabWorkbench(props: LabWorkbenchProps): JSX.Element {
   const state = props.useStore(snapshot => snapshot)
-  useEffect(() => {
-    const applyNavigation = (event: Event): void => {
-      const page = (event as CustomEvent<unknown>).detail
-      if (isLabPage(page)) props.actions.setPage(page)
-    }
-    window.addEventListener('lab:navigate', applyNavigation)
-    return () => { window.removeEventListener('lab:navigate', applyNavigation) }
-  }, [props.actions])
   const labels = useMemo<Record<LabPage, string>>(() => ({
     overview: props.t('overview'),
     conversations: props.t('conversations'),
@@ -164,7 +156,7 @@ function SummaryValue(props: { readonly label: string; readonly value: string })
 
 function nextPage(state: LabWorkbenchState): LabPage {
   if (state.projectId.trim() === '' || state.projectView === undefined) return 'projects'
-  if (state.projectView?.sources.length === 0) return 'knowledge'
+  if (state.projectView.sources.length === 0) return 'knowledge'
   if (state.snapshot?.planReviews.length === 0) return 'experiments'
   if (state.snapshot?.run === undefined) return 'runs'
   return 'evidence'
@@ -172,7 +164,7 @@ function nextPage(state: LabWorkbenchState): LabPage {
 
 function nextAction(props: LabWorkbenchProps, state: LabWorkbenchState): string {
   if (state.projectId.trim() === '' || state.projectView === undefined) return props.t('createProjectPrompt')
-  if ((state.projectView?.sources.length ?? 0) === 0) return props.t('selectKnowledgePrompt')
+  if (state.projectView.sources.length === 0) return props.t('selectKnowledgePrompt')
   if ((state.snapshot?.planReviews.length ?? 0) === 0) return props.t('createPlanPrompt')
   if (state.snapshot?.run === undefined) return props.t('approveRunPrompt')
   return props.t('inspectEvidencePrompt')
@@ -205,7 +197,7 @@ function DeviceStage({ props, state, busy }: StageProps): JSX.Element {
           <input
             value={state.selectedDeviceIdsText}
             onChange={(event) => { props.actions.setSelectedDeviceIdsText(event.currentTarget.value) }}
-            placeholder="device-1, device-2"
+            aria-label={props.t('selectedDevices')}
           />
         </label>
         <ActionButton
@@ -217,16 +209,16 @@ function DeviceStage({ props, state, busy }: StageProps): JSX.Element {
       </Panel>
       <Panel title={props.t('status')} hint={props.t('devices')}>
         <StatusList items={state.snapshot?.devices ?? []} empty={props.t('empty')} renderItem={(device, index) => (
-          <div key={String(device.id ?? index)} className={css.listRow}>
-            <span>{String(device.name ?? device.id ?? props.t('devices'))}</span>
+          <div key={textValue(device.id, String(index))} className={css.listRow}>
+            <span>{textValue(device.name, textValue(device.id, props.t('devices')))}</span>
             <StatusBadge value={device.status} />
           </div>
         )} />
       </Panel>
       <Panel title={props.t('sources')} hint={props.t('scope')}>
         <StatusList items={state.projectView?.sources ?? []} empty={props.t('empty')} renderItem={(source, index) => (
-          <div key={String(source.versionId ?? index)} className={css.listRow}>
-            <span>{String(source.documentId ?? props.t('sourceName'))}:{String(source.versionId ?? '—')}</span>
+          <div key={textValue(source.versionId, String(index))} className={css.listRow}>
+            <span>{textValue(source.documentId, props.t('sourceName'))}:{textValue(source.versionId, '—')}</span>
             <StatusBadge value={source.status} />
           </div>
         )} />
@@ -239,7 +231,7 @@ function ProjectStage({ props, state, busy }: StageProps): JSX.Element {
   const projectId = state.projectId.trim()
   const sessionId = String(props.sessionId)
   const sessionTitle = state.sessionTitle.trim()
-  const currentSession = state.projectView?.sessions.find(session => String(session.sessionId) === sessionId)
+  const currentSession = state.projectView?.sessions.find(session => textValue(session.sessionId) === sessionId)
   return (
     <div className={css.stageGrid}>
       <Panel title={props.t('projects')} hint={props.t('stageHint')}>
@@ -254,12 +246,15 @@ function ProjectStage({ props, state, busy }: StageProps): JSX.Element {
         </div>
         <StatusList items={state.projectViews} empty={props.t('empty')} renderItem={(view, index) => {
           const project = view.project ?? {}
-          const listedProjectId = String(project.projectId ?? 'project-' + String(index + 1))
+          const listedProjectId = textValue(project.projectId)
+          const listedProjectKey = listedProjectId === '' ? String(index) : listedProjectId
           return (
-            <button key={listedProjectId} type="button" className={css.listRow} onClick={() => { void props.openProject(listedProjectId) }}>
-              <span>{String(project.name ?? listedProjectId)}</span>
-              <StatusBadge value={project.status} />
-            </button>
+            listedProjectId === ''
+              ? <div key={listedProjectKey} className={css.listRow}><span>{textValue(project.name, props.t('projectName'))}</span><StatusBadge value={project.status} /></div>
+              : <button key={listedProjectKey} type="button" className={css.listRow} onClick={() => { void props.openProject(listedProjectId) }}>
+                <span>{textValue(project.name, listedProjectId)}</span>
+                <StatusBadge value={project.status} />
+              </button>
           )
         }} />
         <JsonPreview value={state.projectView?.project} empty={props.t('empty')} />
@@ -281,10 +276,10 @@ function ProjectStage({ props, state, busy }: StageProps): JSX.Element {
           </ActionButton>
         </div>
         <StatusList items={state.projectView?.sessions ?? []} empty={props.t('empty')} renderItem={(session, index) => (
-          <button key={String(session.sessionId ?? index)} type="button" className={css.listRow} onClick={() => {
+          <button key={textValue(session.sessionId, String(index))} type="button" className={css.listRow} onClick={() => {
             if (typeof session.sessionId === 'string') props.openSession(session.sessionId)
           }}>
-            <span>{String(session.title ?? session.sessionId ?? props.t('sessionTitle'))}</span>
+            <span>{textValue(session.title, textValue(session.sessionId, props.t('sessionTitle')))}</span>
             <StatusBadge value={session.status} />
           </button>
         )} />
@@ -330,8 +325,8 @@ function KnowledgeStage({ props, state }: StageProps): JSX.Element {
           </span>
         </div>
         <StatusList items={state.snapshot?.knowledge ?? []} empty={props.t('empty')} renderItem={(item, index) => (
-          <div key={String(item.versionId ?? item.documentId ?? index)} className={css.listRow}>
-            <span>{String(item.sourceName ?? item.documentId ?? props.t('sourceName'))}</span>
+          <div key={textValue(item.versionId, textValue(item.documentId, String(index)))} className={css.listRow}>
+            <span>{textValue(item.sourceName, textValue(item.documentId, props.t('sourceName')))}</span>
             <StatusBadge value={item.status} />
           </div>
         )} />
@@ -340,16 +335,16 @@ function KnowledgeStage({ props, state }: StageProps): JSX.Element {
         <ResultList results={state.searchResults} empty={props.t('empty')} />
         <div className={css.subheading}>{props.t('conflicts')}</div>
         <StatusList items={state.conflicts} empty={props.t('empty')} renderItem={(item, index) => (
-          <div key={String(item.conflictId ?? index)} className={css.listRow}>
-            <span>{String(item.conflictId ?? props.t('conflicts'))}</span>
+          <div key={textValue(item.conflictId, String(index))} className={css.listRow}>
+            <span>{textValue(item.conflictId, props.t('conflicts'))}</span>
             <StatusBadge value={item.status} />
           </div>
         )} />
       </Panel>
       <Panel title={props.t('scope')} hint={props.t('selectedSources')}>
         <StatusList items={state.projectView?.sources ?? []} empty={props.t('empty')} renderItem={(source, index) => (
-          <div key={String(source.versionId ?? index)} className={css.listRow}>
-            <span>{String(source.documentId ?? props.t('sourceName'))}:{String(source.versionId ?? '—')}</span>
+          <div key={textValue(source.versionId, String(index))} className={css.listRow}>
+            <span>{textValue(source.documentId, props.t('sourceName'))}:{textValue(source.versionId, '—')}</span>
             <StatusBadge value={source.status} />
           </div>
         )} />
@@ -405,8 +400,8 @@ function PlanStage({ props, state, reviews, activePlanId, busy }: StageProps & {
       <Panel title={props.t('generatedPlan')} hint={props.t('deterministicDemo')}>
         <p className={css.description}>{props.t('planGenerationNotice')}</p>
         <StatusList items={state.searchResults} empty={props.t('noCitations')} renderItem={(citation, index) => (
-          <div key={String(citation.citationId ?? index)} className={css.listRow}>
-            <span>{String(citation.excerpt ?? citation.citationId ?? props.t('citations'))}</span>
+          <div key={textValue(citation.citationId, String(index))} className={css.listRow}>
+            <span>{textValue(citation.excerpt, textValue(citation.citationId, props.t('citations')))}</span>
             <StatusBadge value={citation.confirmed === true ? props.t('confirmed') : props.t('pending')} />
           </div>
         )} />
@@ -424,7 +419,7 @@ function PlanStage({ props, state, reviews, activePlanId, busy }: StageProps & {
           const planId = review.plan.planId ?? 'unknown-plan'
           return (
             <button key={planId} type="button" className={planId === activePlanId ? css.planCardActive : css.planCard} onClick={() => { props.actions.setActivePlan(planId) }}>
-              <span className={css.cardTitle}>{String(review.plan.objective ?? planId)}</span>
+              <span className={css.cardTitle}>{review.plan.objective ?? planId}</span>
               <span className={css.cardMeta}>{planId} · revision {String(review.plan.revision ?? '?')}</span>
               <span className={css.cardMeta}>{props.t('citations')}: {(review.plan.citations ?? []).join(', ') || props.t('empty')}</span>
               <span className={css.cardMeta}>{props.t('assumptions')}: {(review.plan.assumptions ?? []).join(', ') || props.t('empty')}</span>
@@ -449,10 +444,10 @@ function PlanStage({ props, state, reviews, activePlanId, busy }: StageProps & {
           <>
             <JsonPreview value={active.validation} empty={props.t('empty')} />
             {(active.skillRevisions ?? []).map((skill, index) => {
-              const revisionId = skill.revisionId ?? `skill-${String(index)}`
+              const revisionId = textValue(skill.revisionId)
               return (
-                <div key={revisionId} className={css.listRow}>
-                  <span>{String(skill.name ?? revisionId)} · {String(skill.status ?? '—')}</span>
+                <div key={revisionId || String(index)} className={css.listRow}>
+                  <span>{textValue(skill.name, revisionId || props.t('steps'))} · {textValue(skill.status, '—')}</span>
                   <div className={css.buttonRow}>
                     <ActionButton disabled={busy || skill.status !== 'DRAFT'} onClick={() => { void props.validateSkill(revisionId) }}>{props.t('skillValidate')}</ActionButton>
                     <ActionButton disabled={busy || skill.status !== 'VALIDATED' || state.reviewer.trim() === ''} onClick={() => { void props.approveSkill(revisionId, state.reviewer) }}>{props.t('skillApprove')}</ActionButton>
@@ -462,11 +457,11 @@ function PlanStage({ props, state, reviews, activePlanId, busy }: StageProps & {
               )
             })}
             {(active.plan.steps ?? []).map((step, index) => (
-              <div key={String(step.stepId ?? index)} className={css.stepCard}>
+              <div key={textValue(step.stepId, String(index))} className={css.stepCard}>
                 <span className={css.stepNumber}>{String(index + 1).padStart(2, '0')}</span>
                 <div>
-                  <strong>{String(step.title ?? step.stepId ?? props.t('steps'))}</strong>
-                  <p>{String(step.operationKind ?? '')} · {String(step.operationResource ?? '')}</p>
+                  <strong>{textValue(step.title, textValue(step.stepId, props.t('steps')))}</strong>
+                  <p>{textValue(step.operationKind)} · {textValue(step.operationResource)}</p>
                   <small>{(step.citations ?? []).join(', ') || props.t('empty')}</small>
                 </div>
                 {step.requiresApproval === true && <StatusBadge value={props.t('approve')} />}
@@ -485,7 +480,7 @@ function ExecutionStage({ props, state, run, runId, planId, busy }: StageProps &
     <div className={css.stageGrid}>
       <Panel title={props.t('execution')} hint={props.t('stageHint')}>
         {run === undefined && <EmptyState text={props.t('noRun')} />}
-        {run !== undefined && <div className={css.runStatus}><StatusBadge value={run.runStatus} /><span>{String(currentStepId ?? props.t('steps'))}</span></div>}
+        {run !== undefined && <div className={css.runStatus}><StatusBadge value={run.runStatus} /><span>{currentStepId ?? props.t('steps')}</span></div>}
         <div className={css.buttonRow}>
           <ActionButton disabled={busy || planId === undefined} onClick={() => { void props.startRun(state.experimentId, planId ?? '') }}>{props.t('startRun')}</ActionButton>
           <ActionButton disabled={busy || runId === undefined} onClick={() => { void props.executeStep(runId ?? '') }}>{props.t('nextStep')}</ActionButton>
@@ -507,8 +502,8 @@ function ExecutionStage({ props, state, run, runId, planId, busy }: StageProps &
       </Panel>
       <Panel title={props.t('devices')} hint={props.t('status')}>
         <StatusList items={state.snapshot?.devices ?? []} empty={props.t('empty')} renderItem={(device, index) => (
-          <div key={String(device.id ?? index)} className={css.listRow}>
-            <span>{String(device.name ?? device.id ?? props.t('devices'))}</span>
+          <div key={textValue(device.id, String(index))} className={css.listRow}>
+            <span>{textValue(device.name, textValue(device.id, props.t('devices')))}</span>
             <StatusBadge value={device.status} />
           </div>
         )} />
@@ -548,7 +543,7 @@ function ActionButton(props: { readonly children: ReactNode; readonly onClick: (
 }
 
 function StatusBadge(props: { readonly value?: unknown }): JSX.Element {
-  return <span className={css.badge}>{String(props.value ?? '—')}</span>
+  return <span className={css.badge}>{textValue(props.value, '—')}</span>
 }
 
 function StatusList<T extends object>(props: {
@@ -563,9 +558,9 @@ function ResultList(props: { readonly results: readonly import('./api.ts').LabSe
   return props.results.length === 0 ? <EmptyState text={props.empty} /> : (
     <div className={css.list}>
       {props.results.map((result, index) => (
-        <div key={String(result.citationId ?? index)} className={css.resultRow}>
-          <span>{String(result.citationId ?? props.empty)}</span>
-          <span>{String(result.excerpt ?? '')}</span>
+        <div key={textValue(result.citationId, String(index))} className={css.resultRow}>
+          <span>{textValue(result.citationId, props.empty)}</span>
+          <span>{textValue(result.excerpt)}</span>
           <StatusBadge value={result.score} />
         </div>
       ))}
@@ -580,6 +575,10 @@ function JsonPreview(props: { readonly value?: unknown; readonly empty: string }
 
 function EmptyState(props: { readonly text: string }): JSX.Element {
   return <div className={css.empty}>{props.text}</div>
+}
+
+function textValue(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback
 }
 
 /** Build the deterministic keyless plan submitted by the showcase button. */
@@ -618,10 +617,6 @@ function buildRequest(state: LabWorkbenchState): LabExperimentRequest {
 }
 
 const PROJECT_PAGES: readonly LabPage[] = ['overview', 'conversations', 'knowledge', 'experiments', 'runs', 'evidence']
-
-function isLabPage(value: unknown): value is LabPage {
-  return typeof value === 'string' && [...PROJECT_PAGES, 'devices', 'projects'].includes(value as LabPage)
-}
 
 function parseSourceKeys(value: string): readonly { readonly documentId: string; readonly versionId: string }[] {
   return splitComma(value).flatMap((item) => {

@@ -12,7 +12,11 @@ The system SHALL deliver the showcase through the existing `examples/lab-web` co
 - **THEN** every page reflects the same Project and record identities without browser-only state copies or manual re-entry
 
 ### Requirement: Global and Project navigation use Harness-native layout slots
-The laboratory client SHALL register global Projects, Knowledge and Devices navigation through public Harness layout and workspace slots. A Project SHALL expose Overview, Conversations, Experiments, Runs and Evidence views without using hash fragments as the primary router.
+The Harness client SHALL provide a root-scoped application-view registry and an additive primary-navigation region. The laboratory client SHALL register Projects, Knowledge and Devices through those public contracts. A Project SHALL expose Overview, Conversations, Experiments, Runs and Evidence views without using `sidebar.footer.action`, process-local browser events or hash fragments as the primary router.
+
+#### Scenario: Navigate before a Session exists
+- **WHEN** no Harness Session is current and a user selects Projects, Knowledge or Devices
+- **THEN** the selected root application view opens in the center column and the Workspace/Session browser remains available
 
 #### Scenario: Switch Project views
 - **WHEN** a user moves between a Project conversation, Experiment and Run detail

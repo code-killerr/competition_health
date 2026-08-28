@@ -194,7 +194,7 @@ function install(
         const caller = callingAgent(exec.agent, 'lab_run_start')
         const experimentId = brandId<'ExperimentId'>(string(args.experiment_id, 'experiment_id'))
         const planId = brandId<'PlanId'>(string(args.plan_id, 'plan_id'))
-        const run = await runtime.startRun(experimentId, planId)
+        const run = await runtime.startRun({ experimentId, planId })
         appendState(caller, run, 'CREATED')
         await appendCache(caller, run, cache)
         appendFeedback(caller, run)
@@ -299,7 +299,7 @@ function install(
 }
 
 function appendState(agent: Agent, run: RunView, from: RunView['runStatus'], reason?: string): void {
-  if (run.runId === undefined || run.runStatus === undefined) throw new Error('runtime returned a run without a state')
+  if (run.runStatus === undefined) throw new Error('runtime returned a run without a state')
   agent.session.append('lab/run/state', {
     version: 1,
     experimentId: run.experimentId,
@@ -317,7 +317,6 @@ async function appendCache(agent: Agent, run: RunView, cache: LabExperimentCache
 }
 
 function appendObservation(agent: Agent, run: RunView, observation: RunView['observations'][number]): void {
-  if (run.runId === undefined) throw new Error('runtime returned an observation without a run id')
   agent.session.append('lab/run/observation', {
     version: 1,
     experimentId: run.experimentId,
@@ -333,7 +332,7 @@ function appendObservation(agent: Agent, run: RunView, observation: RunView['obs
 }
 
 function appendFeedback(agent: Agent, run: RunView): void {
-  if (run.runId === undefined || run.runStatus === undefined) throw new Error('runtime returned a run without feedback state')
+  if (run.runStatus === undefined) throw new Error('runtime returned a run without feedback state')
   agent.session.append('lab/run/feedback', {
     version: 1,
     experimentId: run.experimentId,

@@ -22,7 +22,7 @@ export class SqliteRuntimeStateStore implements LabRuntimeStateStore {
   async load(): Promise<readonly RuntimeExperimentState[]> {
     const database = await this.requireDatabase()
     return (database.prepare('SELECT state_json FROM experiments ORDER BY experiment_id').all() as Array<{ state_json: string }>)
-      .map(row => JSON.parse(row.state_json) as RuntimeExperimentState)
+      .map(row => decodeState(JSON.parse(row.state_json) as unknown))
   }
 
   /** 整体替换一个实验状态。 */
@@ -54,6 +54,13 @@ export class SqliteRuntimeStateStore implements LabRuntimeStateStore {
     if (this.closed) throw new Error('runtime state store is closed')
     return this.database
   }
+}
+
+function decodeState(value: unknown): RuntimeExperimentState {
+  if (typeof value !== 'object' || value === null || !('version' in value) || value.version !== 2) {
+    throw new Error('unsupported runtime state version')
+  }
+  return value as RuntimeExperimentState
 }
 
 /** 测试和显式内存组合使用的 Runtime 状态仓储。 */

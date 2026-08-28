@@ -45,6 +45,10 @@ function text(result: Awaited<ReturnType<typeof execute>>): string {
   return result.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('')
 }
 
+function parseJson(value: string): unknown {
+  return JSON.parse(value) as unknown
+}
+
 describe('tool-lab-knowledge', () => {
   it('registers only read-only retrieval tools in Agent scope', async () => {
     const { ctx, agent } = await setup()
@@ -62,7 +66,9 @@ describe('tool-lab-knowledge', () => {
     })
     const search = await execute(ctx, agent, 'lab_knowledge_search', { query: 'alpha' })
     expect(search.isError).toBe(false)
-    const results = JSON.parse(text(search)) as Array<{ citationId: string }>
-    expect(results).toEqual(expect.arrayContaining([expect.objectContaining({ citationId: expect.any(String) })]))
+    const results = parseJson(text(search))
+    expect(results).toEqual(expect.arrayContaining([
+      expect.objectContaining({ citationId: expect.any(String) as unknown }) as unknown,
+    ]) as unknown)
   })
 })

@@ -21,12 +21,14 @@ import type {
   ExecutionStepSpec,
   ExperimentRequest,
   LabRuntimeProvider,
+  LabRunReport,
   LabRuntimeStateStore,
   ReplanRequest,
   RuntimeExperimentState,
   RunView,
   RuntimeFeedback,
   RuntimeObservation,
+  StartRunRequest,
 } from '@deepseek-ai/dsh-experimental-lab-runtime'
 import { validateRuntimeEvidence } from '@deepseek-ai/dsh-experimental-lab-runtime'
 import { InMemoryRuntimeStateStore, SqliteRuntimeStateStore } from './sqlite-store.ts'
@@ -66,7 +68,11 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
   private readonly stateStore: LabRuntimeStateStore
   private readonly ready: Promise<void>
 
-  constructor(private readonly devices?: DeviceGateway, stateStore: LabRuntimeStateStore = new InMemoryRuntimeStateStore()) {
+  constructor(
+    private readonly devices?: DeviceGateway,
+    stateStore: LabRuntimeStateStore = new InMemoryRuntimeStateStore(),
+    private readonly clock: () => number = Date.now,
+  ) {
     this.stateStore = stateStore
     this.executors = new Map([
       ['device', (experiment, run, step) => this.executeDeviceStep(experiment, run, step)],
@@ -89,7 +95,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
     await this.ready
     if (request.objective.trim().length === 0) throw new Error('experiment objective must be non-blank')
     if (this.experiments.has(request.experimentId)) throw new Error('experiment "' + request.experimentId + '" already exists')
-    const experiment = { request }
+    const experiment: StoredExperiment = { version: 2, request, runs: [] }
     this.experiments.set(request.experimentId, experiment)
     await this.persist(experiment)
   }
@@ -103,7 +109,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
     if (request.planId.trim().length === 0) throw new Error('plan id must be non-blank')
     if (request.approvedBy.trim().length === 0) throw new Error('plan approval requires an accountable reviewer')
     if (request.skillRevisionIds.length === 0) throw new Error('plan approval requires at least one Skill revision')
-    if (experiment.run !== undefined) throw new Error('a plan cannot be changed after a run has started')
+    if (experiment.runs.length > 0) throw new Error('a plan cannot be changed after a run has started')
 
     const steps = [...request.executionSteps ?? []]
     const snapshots = [...request.skillSnapshots ?? []]
@@ -130,23 +136,22 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
   }
 
   /** 从已批准计划创建一个锁定运行实例。
- * @param experimentId - experiment to run.
- * @param planId - approved plan revision.
+ * @param input - experiment, approved plan and optional retry provenance.
  * @returns - newly created run view.
  */
-  async startRun(experimentId: ExperimentId, planId: PlanId): Promise<RunView> {
+  async startRun(input: StartRunRequest): Promise<RunView> {
     await this.ready
-    const experiment = this.requireExperiment(experimentId)
+    const experiment = this.requireExperiment(input.experimentId)
     const approvedPlan = experiment.approvedPlan
-    if (approvedPlan?.request.planId !== planId) throw new Error('only the approved plan revision can start a run')
-    if (experiment.run !== undefined) throw new Error('an experiment already has an active or completed run')
+    if (approvedPlan?.request.planId !== input.planId) throw new Error('only the approved plan revision can start a run')
+    if (experiment.runs.some(run => !isTerminal(run.runStatus))) throw new Error('an experiment already has an active or non-terminal run')
 
     const runId = brandId<'RunId'>('run-' + String(++this.runCounter))
     const firstStep = approvedPlan.executionGraph.steps[0]
     const runStatus = firstStep === undefined ? 'WAITING_CONFIRMATION' : initialStatus(firstStep)
     const view = this.view(
-      experimentId,
-      planId,
+      input.experimentId,
+      input.planId,
       runId,
       'LOCKED',
       runStatus,
@@ -154,8 +159,10 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       [],
       firstStep?.stepId,
       approvedPlan.request.skillRevisionIds,
+      input.launchingSessionId,
+      input.retryOfRunId,
     )
-    experiment.run = view
+    experiment.runs = [...experiment.runs, view]
     await this.persist(experiment)
     return cloneRun(view)
   }
@@ -174,7 +181,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
   private async executeNextStepReady(runId: RunId): Promise<RunView> {
     await Promise.resolve()
     const experiment = this.findByRun(runId)
-    const run = this.requireRun(experiment)
+    const run = this.requireRun(experiment, runId)
     if (isTerminal(run.runStatus)) throw new Error('run is already in a terminal state')
     const step = this.currentStep(run)
     if (step === undefined) throw new Error('run has no execution steps')
@@ -188,6 +195,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
         operationId: operationIdFor(requireRunId(run), step.stepId, 'approval'),
         valid: true,
         evidence: [],
+        artifactIds: [],
         status: 'WAITING',
       }
       const next = this.view(
@@ -200,8 +208,11 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
         [...run.observations, waiting],
         step.stepId,
         run.cache.skillRevisionIds,
+        run.launchingSessionId,
+        run.retryOfRunId,
+        run.createdAt,
       )
-      experiment.run = next
+      this.replaceRun(experiment, runId, next)
       return cloneRun(next)
     }
 
@@ -245,7 +256,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
     if (evidence.length === 0) throw new Error('step confirmation requires evidence')
     if (confirmedBy.trim().length === 0) throw new Error('step confirmation requires an accountable actor')
     const experiment = this.findByRun(runId)
-    const run = this.requireRun(experiment)
+    const run = this.requireRun(experiment, runId)
     if (run.runStatus !== 'WAITING_CONFIRMATION') throw new Error('run is not waiting for confirmation')
 
     const current = this.currentStep(run)
@@ -260,8 +271,11 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
         run.observations,
         undefined,
         run.cache.skillRevisionIds,
+        run.launchingSessionId,
+        run.retryOfRunId,
+        run.createdAt,
       )
-      experiment.run = next
+      this.replaceRun(experiment, runId, next)
       return cloneRun(next)
     }
     if (stepId !== undefined && stepId !== current.stepId) throw new Error('confirmation step does not match the current step')
@@ -276,6 +290,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
         operationId: confirmedOperationId,
         valid: true,
         evidence: [...evidence],
+        artifactIds: [],
         status: 'COMPLETED',
       }
       const observations = run.observations.map(observation =>
@@ -291,8 +306,11 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
         observations,
         current.stepId,
         run.cache.skillRevisionIds,
+        run.launchingSessionId,
+        run.retryOfRunId,
+        run.createdAt,
       )
-      experiment.run = next
+      this.replaceRun(experiment, runId, next)
       return cloneRun(next)
     }
 
@@ -303,6 +321,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       operationId: confirmedOperationId,
       valid: validation.valid,
       evidence: [...evidence],
+      artifactIds: [],
       status: validation.valid ? 'COMPLETED' : 'FAILED',
       ...validation.valid ? {} : { error: validation.issues.join('; ') },
     }
@@ -313,7 +332,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       current,
       [...run.observations.filter(observation => observation.stepId !== current.stepId), confirmedObservation],
     )
-    experiment.run = next
+    this.replaceRun(experiment, runId, next)
     return cloneRun(next)
   }
 
@@ -326,7 +345,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
     await this.ready
     if (requestedBy.trim().length === 0) throw new Error('stop request requires an accountable actor')
     const experiment = this.findByRun(runId)
-    const run = this.requireRun(experiment)
+    const run = this.requireRun(experiment, runId)
     const current = this.currentStep(run)
     let observations = [...run.observations]
     const waitingExecution = current === undefined ? undefined : run.observations.find(observation =>
@@ -355,8 +374,11 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       observations,
       current?.stepId,
       run.cache.skillRevisionIds,
+      run.launchingSessionId,
+      run.retryOfRunId,
+      run.createdAt,
     )
-    experiment.run = next
+    this.replaceRun(experiment, runId, next)
     await this.persist(experiment)
     return cloneRun(next)
   }
@@ -365,24 +387,50 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
  * @param experimentId - experiment whose run is requested.
  * @returns - run view, when one exists.
  */
-  getRun(experimentId: ExperimentId): RunView | undefined {
-    const run = this.experiments.get(experimentId)?.run
-    return run === undefined ? undefined : cloneRun(run)
+  getRun(runId: RunId): RunView | undefined {
+    for (const experiment of this.experiments.values()) {
+      const run = experiment.runs.find(item => item.runId === runId)
+      if (run !== undefined) return cloneRun(run)
+    }
+    return undefined
+  }
+
+  /** List all immutable Runs for one Experiment. */
+  listRuns(experimentId: ExperimentId): readonly RunView[] {
+    const experiment = this.experiments.get(experimentId)
+    return experiment === undefined ? [] : experiment.runs.map(cloneRun)
+  }
+
+  /** Retry a terminal Run as a new Run while retaining the original record. */
+  async retryRun(runId: RunId, actor: string): Promise<RunView> {
+    await this.ready
+    if (actor.trim().length === 0) throw new Error('run retry requires an accountable actor')
+    const experiment = this.findByRun(runId)
+    const source = this.requireRun(experiment, runId)
+    if (!isTerminal(source.runStatus)) throw new Error('only a terminal state can be retried')
+    return this.startRun({
+      experimentId: source.experimentId,
+      planId: source.planId,
+      ...source.launchingSessionId === undefined ? {} : { launchingSessionId: source.launchingSessionId },
+      retryOfRunId: runId,
+    })
   }
 
   /** 生成包含执行图和结构化观察的审计报告。
  * @param runId - run to report.
  * @returns - structured report fields and observations.
  */
-  async buildReport(runId: RunId): Promise<Readonly<Record<string, unknown>>> {
+  async buildReport(runId: RunId): Promise<LabRunReport> {
     await this.ready
     const experiment = this.findByRun(runId)
-    const run = this.requireRun(experiment)
+    const run = this.requireRun(experiment, runId)
+    const status = run.runStatus
+    if (status === undefined) throw new Error('runtime report requires a run status')
     return {
       experimentId: run.experimentId,
       planId: run.planId,
       runId,
-      status: run.runStatus,
+      status,
       executionGraph: cloneGraph(run.executionGraph),
       observations: run.observations.map(observation => cloneObservation(observation)),
       evidenceMode: run.executionGraph.steps.length === 0 ? 'MANUAL' : 'CONTROLLED',
@@ -400,8 +448,9 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
   private async restore(): Promise<void> {
     for (const state of await this.stateStore.load()) {
       this.experiments.set(state.request.experimentId, structuredClone(state))
-      const runId = state.run?.runId
-      if (runId !== undefined) this.runCounter = Math.max(this.runCounter, runNumber(runId))
+      for (const run of state.runs) {
+        this.runCounter = Math.max(this.runCounter, runNumber(run.runId))
+      }
     }
   }
 
@@ -421,8 +470,11 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       run.observations,
       step.stepId,
       run.cache.skillRevisionIds,
+      run.launchingSessionId,
+      run.retryOfRunId,
+      run.createdAt,
     )
-    experiment.run = next
+    this.replaceRun(experiment, requireRunId(run), next)
     return cloneRun(next)
   }
   private async executeDeviceStep(experiment: StoredExperiment, run: RunView, step: ExecutionStepSpec): Promise<RunView> {
@@ -477,6 +529,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
         operationId: receipt.operationId,
         valid: true,
         evidence: [...receipt.evidence],
+        artifactIds: [],
         status: 'COMPLETED',
       }
       const validation = validateRuntimeEvidence(step, observation.evidence)
@@ -496,6 +549,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
         operationId: receipt.operationId,
         valid: false,
         evidence: [...receipt.evidence],
+        artifactIds: [],
         status: 'WAITING',
       }
       const next = this.view(
@@ -508,8 +562,11 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
         [...run.observations.filter(item => item.stepId !== step.stepId), observation],
         step.stepId,
         run.cache.skillRevisionIds,
+        run.launchingSessionId,
+        run.retryOfRunId,
+        run.createdAt,
       )
-      experiment.run = next
+      this.replaceRun(experiment, requireRunId(run), next)
       return cloneRun(next)
     }
     const status = receipt.status === 'stopped' ? 'STOPPED' : 'FAILED'
@@ -518,6 +575,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       operationId: receipt.operationId,
       valid: false,
       evidence: [...receipt.evidence],
+      artifactIds: [],
       status,
       ...status === 'FAILED' ? { error: 'device operation failed' } : {},
     }
@@ -532,8 +590,11 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
         [...run.observations.filter(item => item.stepId !== step.stepId), observation],
         step.stepId,
         run.cache.skillRevisionIds,
+        run.launchingSessionId,
+        run.retryOfRunId,
+        run.createdAt,
       )
-      experiment.run = next
+      this.replaceRun(experiment, requireRunId(run), next)
       return cloneRun(next)
     }
     return this.finishFailedStep(experiment, run, step, observation)
@@ -559,12 +620,15 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       [...run.observations.filter(item => item.stepId !== step.stepId), failureObservation],
       step.stepId,
       run.cache.skillRevisionIds,
+      run.launchingSessionId,
+      run.retryOfRunId,
+      run.createdAt,
     )
     const replanRequest: ReplanRequest | undefined = step.failurePolicy === 'REPLAN'
       ? { runId: requireRunId(run), stepId: step.stepId, reason: failureObservation.error ?? 'step result did not satisfy its validation policy' }
       : undefined
     const stored = replanRequest === undefined ? next : { ...next, replanRequest }
-    experiment.run = stored
+    this.replaceRun(experiment, requireRunId(run), stored)
     return cloneRun(stored)
   }
 
@@ -573,7 +637,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       ...run.observations.filter(item => item.stepId !== step.stepId),
       observation,
     ])
-    experiment.run = next
+    this.replaceRun(experiment, requireRunId(run), next)
     return cloneRun(next)
   }
 
@@ -591,6 +655,9 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       observations,
       nextStep?.stepId,
       run.cache.skillRevisionIds,
+      run.launchingSessionId,
+      run.retryOfRunId,
+      run.createdAt,
     )
   }
 
@@ -631,14 +698,19 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
   }
 
   private findByRun(runId: RunId): StoredExperiment {
-    const experiment = [...this.experiments.values()].find(item => item.run?.runId === runId)
+    const experiment = [...this.experiments.values()].find(item => item.runs.some(run => run.runId === runId))
     if (experiment === undefined) throw new Error('unknown run "' + runId + '"')
     return experiment
   }
 
-  private requireRun(experiment: StoredExperiment): RunView {
-    if (experiment.run === undefined) throw new Error('run has not started')
-    return experiment.run
+  private requireRun(experiment: StoredExperiment, runId?: RunId): RunView {
+    const run = runId === undefined ? experiment.runs.at(-1) : experiment.runs.find(item => item.runId === runId)
+    if (run === undefined) throw new Error('run has not started')
+    return run
+  }
+
+  private replaceRun(experiment: StoredExperiment, runId: RunId, next: RunView): void {
+    experiment.runs = experiment.runs.map(run => run.runId === runId ? next : run)
   }
 
   private view(
@@ -651,6 +723,9 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
     observations: readonly RuntimeObservation[],
     currentStepId: PlanStepId | undefined,
     skillRevisionIds: readonly SkillRevisionId[],
+    launchingSessionId?: RunView['launchingSessionId'],
+    retryOfRunId?: RunId,
+    createdAt = this.clock(),
   ): RunView {
     if (runStatus === undefined) throw new Error('runtime view requires a run status')
     const updatedBy = brandId<'SessionId'>('lab-runtime-local:' + experimentId)
@@ -670,9 +745,14 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       runId,
       planStatus,
       runStatus,
+      createdAt,
+      updatedAt: this.clock(),
       executionGraph: cloneGraph(executionGraph),
       observations: observations.map(observation => cloneObservation(observation)),
+      artifacts: [],
       ...currentStepId === undefined ? {} : { currentStepId },
+      ...launchingSessionId === undefined ? {} : { launchingSessionId },
+      ...retryOfRunId === undefined ? {} : { retryOfRunId },
       cache,
       feedback: feedbackFor(runStatus, observations),
     }
@@ -686,9 +766,7 @@ function isControlledOperation(kind: OperationKind): kind is ControlledOperation
   return kind === 'device' || kind === 'human' || kind === 'approval'
 }
 function requireRunId(run: RunView): RunId {
-  const runId = run.runId
-  if (runId === undefined) throw new Error('runtime view requires a run id')
-  return runId
+  return run.runId
 }
 function initialStatus(step: ExecutionStepSpec): 'RUNNING' | 'WAITING_CONFIRMATION' {
   return step.operationKind === 'human' || step.operationKind === 'approval' || step.requiresApproval
@@ -715,6 +793,7 @@ function failedObservation(step: ExecutionStepSpec, runId: RunId, error: string)
     operationId: operationIdFor(runId, step.stepId, 'device'),
     valid: false,
     evidence: [],
+    artifactIds: [],
     status: 'FAILED',
     error,
   }
@@ -749,6 +828,7 @@ function cloneObservation(observation: RuntimeObservation): RuntimeObservation {
     operationId: observation.operationId,
     valid: observation.valid,
     evidence: [...observation.evidence],
+    artifactIds: [...observation.artifactIds],
     status: observation.status,
     ...observation.error === undefined ? {} : { error: observation.error },
     ...observation.replanRequested === undefined ? {} : { replanRequested: observation.replanRequested },
@@ -760,6 +840,7 @@ function cloneRun(run: RunView): RunView {
     ...run,
     executionGraph: cloneGraph(run.executionGraph),
     observations: run.observations.map(observation => cloneObservation(observation)),
+    artifacts: run.artifacts.map(artifact => ({ ...artifact })),
     ...run.currentStepId === undefined ? {} : { currentStepId: run.currentStepId },
     cache: {
       ...run.cache,

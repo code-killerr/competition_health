@@ -16,50 +16,78 @@ describe('project conversation protocol', () => {
       projectId: 'project-1',
       sources: [{ documentId: 'doc-1', versionId: 'version-1' }],
     })
-    expect(() => parseLabProjectConversationCommand({ command: 'project-create', projectId: ' ', name: 'Project' })).toThrow(/projectId/)
+    expect(() => parseLabProjectConversationCommand({ command: 'project-create', projectId: 'project-1', name: 'Project' })).toThrow(/must not accept projectId/)
     expect(() => parseLabProjectConversationCommand({ command: 'project-planning-context', projectId: 'project-1', request: { experimentId: 'experiment-1' } })).toThrow(/objective/)
+    expect(parseLabProjectConversationCommand({ command: 'experiment-create', projectId: 'project-1', title: 'Calibration', objective: 'Calibrate the bench' })).toMatchObject({
+      command: 'experiment-create', projectId: 'project-1', title: 'Calibration', objective: 'Calibrate the bench',
+    })
+    expect(parseLabProjectConversationCommand({ command: 'experiment-session-link', projectId: 'project-1', experimentId: 'experiment-1', targetSessionId: 'session-1', role: 'continued' })).toMatchObject({
+      command: 'experiment-session-link', role: 'continued',
+    })
+    expect(parseLabProjectConversationCommand({ command: 'run-list', experimentId: 'experiment-1' })).toMatchObject({ command: 'run-list', experimentId: 'experiment-1' })
+    expect(parseLabProjectConversationCommand({ command: 'run-compare', leftRunId: 'run-1', rightRunId: 'run-2' })).toMatchObject({ command: 'run-compare', leftRunId: 'run-1', rightRunId: 'run-2' })
+    expect(parseLabProjectConversationCommand({ command: 'artifact-open', runId: 'run-1', artifactId: 'artifact-1' })).toMatchObject({ command: 'artifact-open', runId: 'run-1', artifactId: 'artifact-1' })
   })
 
   it('routes project commands through the Web Facade and scopes planning retrieval', async () => {
     const ctx = new Context()
-    const projects = new LabProjectService(ctx, () => 100)
+    const projects = new LabProjectService(ctx, { clock: () => 100 })
     await projects.attach(new InMemoryLabProjectStore())
     const search = vi.fn().mockResolvedValue([])
     const appended = vi.fn()
+    const actor = brandId<'SessionId'>('session-1')
     const createdSession = { id: brandId<'SessionId'>('session-created') }
+    const projectWorkspace = { id: brandId<'WorkspaceId'>('workspace-1'), path: '/workspace/project', sessionIds: [actor] }
     ctx.provide('labKnowledge', {
       listImportStatuses: vi.fn().mockResolvedValue([{ documentId: 'doc-1', versionId: 'version-1', status: 'READY' }]),
       search,
       listConflicts: vi.fn().mockResolvedValue([]),
     })
     ctx.provide('labDevices', { listDevices: () => [{ id: 'device-1', name: 'Bench', healthy: true, reserved: false, capabilities: [] }] })
-    ctx.provide('sessions', { get: vi.fn(() => ({ append: appended })), create: vi.fn(() => createdSession) })
+    ctx.provide('workspaceRegistry', {
+      get: vi.fn((id: string) => id === projectWorkspace.id ? projectWorkspace : undefined),
+      list: vi.fn(() => [projectWorkspace]),
+    })
+    ctx.provide('sessions', {
+      get: vi.fn(() => ({ append: appended })),
+      create: vi.fn(() => { projectWorkspace.sessionIds.push(createdSession.id); return createdSession }),
+    })
     const web = new LabMvpWebService(ctx)
-    const actor = brandId<'SessionId'>('session-1')
 
-    await expect(web.dispatchProject(parseLabProjectConversationCommand({ command: 'project-create', projectId: 'project-1', name: 'Project', sessionId: actor }))).resolves.toMatchObject({ kind: 'project' })
+    const created = await web.dispatchProject(parseLabProjectConversationCommand({ command: 'project-create', workspaceId: 'workspace-1', name: 'Project', sessionId: actor }))
+    expect(created).toMatchObject({ kind: 'project' })
+    const projectId = (created.value as { project: { projectId: string } }).project.projectId
     await expect(web.dispatchProject(parseLabProjectConversationCommand({
       command: 'project-scope-update',
-      projectId: 'project-1',
+      projectId,
       sources: [{ documentId: 'doc-1', versionId: 'version-1' }],
       deviceIds: ['device-1'],
       sessionId: actor,
     }))).resolves.toMatchObject({ kind: 'project', value: { sources: [{ documentId: 'doc-1' }] } })
     await expect(web.dispatchProject(parseLabProjectConversationCommand({
-      command: 'project-session-associate',
-      projectId: 'project-1',
+      command: 'project-session-attach',
+      projectId,
       targetSessionId: 'session-1',
       sessionId: actor,
     }))).resolves.toMatchObject({ kind: 'project', value: { sessions: [{ sessionId: 'session-1' }] } })
     await expect(web.dispatchProject(parseLabProjectConversationCommand({
       command: 'project-session-create',
-      projectId: 'project-1',
+      projectId,
       title: 'Follow-up',
       sessionId: actor,
-    }))).resolves.toMatchObject({ kind: 'project', value: { sessions: expect.arrayContaining([expect.objectContaining({ sessionId: 'session-created', title: 'Follow-up' })]) } })
+    }))).resolves.toMatchObject({
+      kind: 'project',
+      value: { sessions: expect.arrayContaining([expect.objectContaining({ sessionId: 'session-created', title: 'Follow-up' })]) as unknown },
+    })
+    await expect(web.dispatchProject(parseLabProjectConversationCommand({
+      command: 'project-session-detach', projectId, targetSessionId: 'session-created', sessionId: actor,
+    }))).resolves.toMatchObject({ kind: 'project', value: { sessions: [{ sessionId: 'session-1' }] } })
+    await expect(web.dispatchProject(parseLabProjectConversationCommand({
+      command: 'project-archive', projectId, sessionId: actor,
+    }))).resolves.toMatchObject({ kind: 'project', value: { project: { status: 'ARCHIVED' } } })
     const planning = await web.dispatchProject(parseLabProjectConversationCommand({
       command: 'project-planning-context',
-      projectId: 'project-1',
+      projectId,
       sessionId: actor,
       request: {
         experimentId: 'experiment-1',
@@ -84,8 +112,10 @@ describe('project conversation protocol', () => {
   })
   it('keeps empty project scope operable while Knowledge is unavailable', async () => {
     const ctx = new Context()
-    const projects = new LabProjectService(ctx, () => 100)
+    const projects = new LabProjectService(ctx, { clock: () => 100 })
     await projects.attach(new InMemoryLabProjectStore())
+    const projectWorkspace = { id: brandId<'WorkspaceId'>('workspace-unavailable'), path: '/workspace/unavailable', sessionIds: [] }
+    ctx.provide('workspaceRegistry', { get: () => projectWorkspace, list: () => [projectWorkspace] })
     ctx.provide('labKnowledge', {
       listImportStatuses: vi.fn().mockRejectedValue(new Error('Knowledge provider is loading')),
       search: vi.fn().mockRejectedValue(new Error('Knowledge provider is loading')),
@@ -93,14 +123,16 @@ describe('project conversation protocol', () => {
     })
     ctx.provide('labDevices', { listDevices: () => [] })
     const web = new LabMvpWebService(ctx)
-    await expect(web.dispatchProject(parseLabProjectConversationCommand({
+    const created = await web.dispatchProject(parseLabProjectConversationCommand({
       command: 'project-create',
-      projectId: 'project-unavailable',
+      workspaceId: 'workspace-unavailable',
       name: 'Unavailable Knowledge project',
-    }))).resolves.toMatchObject({ kind: 'project' })
+    }))
+    expect(created).toMatchObject({ kind: 'project' })
+    const projectId = (created.value as { project: { projectId: string } }).project.projectId
     await expect(web.dispatchProject(parseLabProjectConversationCommand({
       command: 'project-scope-update',
-      projectId: 'project-unavailable',
+      projectId,
       sources: [],
       deviceIds: [],
     }))).resolves.toMatchObject({ kind: 'project', value: { sources: [], devices: [] } })

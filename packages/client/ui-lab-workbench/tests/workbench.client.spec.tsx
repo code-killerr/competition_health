@@ -11,6 +11,8 @@ afterEach(cleanup)
 function renderWorkbench(stage: LabStage = 'knowledge', localPlanText = '', snapshot?: LabSnapshot, withSearch = false, requestedBy = '', projectView?: LabProjectView) {
   const handle = createLabWorkbenchStore()
   const instance = handle.create()
+  instance.actions.setProjectId('project-1')
+  instance.actions.setExperimentId('experiment-1')
   instance.actions.setStage(stage)
   instance.actions.setLocalPlanText(localPlanText)
   instance.actions.setObjective('Controlled bench procedure')

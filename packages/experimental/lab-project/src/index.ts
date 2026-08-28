@@ -4,8 +4,8 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { z } from 'zod'
 import { defineDomain } from '@deepseek-ai/dsh-storage-domain'
 import type { Domain } from '@deepseek-ai/dsh-storage-domain'
-import type { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
-import { brandId, type CitationId, type DeviceId, type KnowledgeDocumentId, type KnowledgeDocumentVersionId } from '@deepseek-ai/dsh-experimental-lab-domain'
+import { randomUUID } from 'node:crypto'
+import { brandId, type CitationId, type DeviceId, type ExperimentId, type KnowledgeDocumentId, type KnowledgeDocumentVersionId, type WorkspaceId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type {
   LabProject,
   LabProjectAudit,
@@ -17,19 +17,43 @@ import type {
   LabProjectId,
   LabProjectSession,
   LabProjectSource,
-  LabProjectStatus,
   LabProjectView,
-  LabProjectSessionStatus,
+  LabProjectSessionAttachResult,
+  LabExperimentRecord,
+  LabExperimentSessionLink,
+  LabExperimentSessionRole,
 } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 
 const projectRecord = z.object({
   projectId: z.string(),
+  workspaceId: z.string(),
   name: z.string(),
   description: z.string(),
   status: z.enum(['ACTIVE', 'ARCHIVED']),
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
+})
+
+const experimentRecord = z.object({
+  experimentId: z.string(),
+  projectId: z.string(),
+  title: z.string(),
+  objective: z.string(),
+  status: z.enum(['DRAFT', 'ACTIVE', 'COMPLETED', 'ARCHIVED']),
+  createdInSessionId: z.string(),
+  derivedFromExperimentId: z.string().optional(),
+  createdAt: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative(),
+})
+
+const experimentSessionLinkRecord = z.object({
+  projectId: z.string(),
+  experimentId: z.string(),
+  sessionId: z.string(),
+  role: z.enum(['created', 'continued', 'reviewed']),
+  linkedBy: z.string(),
+  linkedAt: z.number().int().nonnegative(),
 })
 
 const sourceRecord = z.object({
@@ -71,7 +95,8 @@ const auditRecord = z.object({
   auditId: z.string(),
   projectId: z.string(),
   kind: z.enum([
-    'project-created', 'scope-updated', 'session-associated', 'session-renamed',
+    'project-created', 'project-archived', 'scope-updated', 'session-attached', 'session-detached', 'session-renamed',
+    'experiment-created', 'experiment-session-linked',
     'fact-published', 'evidence-projected',
   ]),
   sessionId: z.string(),
@@ -92,6 +117,8 @@ const evidenceRecord = z.object({
 
 const projectStateSchema = z.object({
   projects: z.array(projectRecord),
+  experiments: z.array(experimentRecord),
+  experimentSessions: z.array(experimentSessionLinkRecord),
   sources: z.array(sourceRecord),
   devices: z.array(deviceRecord),
   sessions: z.array(sessionRecord),
@@ -105,10 +132,10 @@ type StoredProjectState = z.infer<typeof projectStateSchema>
 /** Storage Domain for authoritative project associations and rebuildable evidence. */
 export const labProjectDomainSpec = defineDomain({
   name: 'lab_projects',
-  version: 1,
+  version: 2,
   global: {
     schema: projectStateSchema,
-    initial: emptyStoredState(),
+    initial: emptyProjectState('stored'),
   },
   tables: {},
 })
@@ -116,6 +143,8 @@ export const labProjectDomainSpec = defineDomain({
 /** In-memory form of the project domain, with opaque identifiers restored. */
 export interface LabProjectState {
   readonly projects: readonly LabProject[]
+  readonly experiments: readonly LabExperimentRecord[]
+  readonly experimentSessions: readonly LabExperimentSessionLink[]
   readonly sources: readonly LabProjectSource[]
   readonly devices: readonly LabProjectDevice[]
   readonly sessions: readonly LabProjectSession[]
@@ -133,10 +162,25 @@ export interface LabProjectStore {
 
 /** Project creation input. */
 export interface CreateLabProjectRequest {
-  readonly projectId: LabProjectId
+  readonly workspaceId?: WorkspaceId
   readonly name: string
   readonly description?: string
   readonly createdBy: SessionId
+}
+
+/** Host workspace projection required for Project ownership checks. */
+export interface LabProjectWorkspace {
+  readonly id: WorkspaceId
+  readonly path: string
+  readonly sessionIds: readonly SessionId[]
+}
+
+/** Narrow Host Workspace registry face consumed by the Project service. */
+export interface LabProjectWorkspaceRegistry {
+  /** @param workspaceId - Workspace to resolve. @returns the Host record, when registered. */
+  get(workspaceId: WorkspaceId): LabProjectWorkspace | undefined
+  /** @returns registered Host Workspaces in their authoritative order. */
+  list(): readonly LabProjectWorkspace[]
 }
 
 /** Explicit Knowledge scope selection. */
@@ -153,11 +197,30 @@ export interface UpdateLabProjectScopeRequest {
 }
 
 /** Project Session association input. */
-export interface AssociateLabProjectSessionRequest {
+export interface AttachLabProjectSessionRequest {
   readonly projectId: LabProjectId
   readonly sessionId: SessionId
   readonly title?: string
-  readonly associatedBy: SessionId
+  readonly attachedBy: SessionId
+}
+
+/** Project Experiment creation input; the Host generates the Experiment ID. */
+export interface CreateLabExperimentRequest {
+  readonly projectId: LabProjectId
+  readonly title: string
+  readonly objective: string
+  readonly createdInSessionId: SessionId
+  readonly createdBy: SessionId
+  readonly derivedFromExperimentId?: ExperimentId
+}
+
+/** Link another Project Session to an existing Experiment. */
+export interface LinkLabExperimentSessionRequest {
+  readonly projectId: LabProjectId
+  readonly experimentId: ExperimentId
+  readonly sessionId: SessionId
+  readonly role: LabExperimentSessionRole
+  readonly linkedBy: SessionId
 }
 
 /** Project fact publication input. */
@@ -181,20 +244,38 @@ export class LabProjectReferenceError extends Error {
     this.name = 'LabProjectReferenceError'
   }
 }
+
+/** 项目服务的部署和测试选项。 */
+export interface LabProjectServiceConfig {
+  /** 持久化元数据使用的时间源。 */
+  readonly clock?: () => number
+  /** Host 负责提供的 Project ID 生成器。 */
+  readonly idGenerator?: () => LabProjectId
+  /** Host 负责提供的 Experiment ID 生成器。 */
+  readonly experimentIdGenerator?: () => ExperimentId
+}
+
 /** Durable project/session association and scope service. */
 export class LabProjectService extends Service {
-  private state: LabProjectState = emptyState()
+  private state: LabProjectState = emptyProjectState('runtime')
   private store: LabProjectStore = new InMemoryLabProjectStore()
   private ready: Promise<void> = Promise.resolve()
   private readonly clock: () => number
+  private readonly idGenerator: () => LabProjectId
+  private readonly experimentIdGenerator: () => ExperimentId
 
   /**
    * @param ctx - Cordis context owning the project service.
-   * @param clock - time source used for durable metadata and deterministic tests.
+   * @param config - 持久化元数据和测试所需的可选服务配置。
    */
-  constructor(ctx: Context, clock: () => number = Date.now) {
+  constructor(
+    ctx: Context,
+    config: LabProjectServiceConfig = {},
+  ) {
     super(ctx, 'labProjects')
-    this.clock = clock
+    this.clock = config.clock ?? Date.now
+    this.idGenerator = config.idGenerator ?? (() => brandId<'LabProjectId'>(`project-${randomUUID()}`))
+    this.experimentIdGenerator = config.experimentIdGenerator ?? (() => brandId<'ExperimentId'>(`experiment-${randomUUID()}`))
   }
 
   /** Attach the existing Storage/SQLite domain and restore its state.
@@ -213,12 +294,13 @@ export class LabProjectService extends Service {
   async create(request: CreateLabProjectRequest): Promise<LabProjectView> {
     await this.ready
     const name = nonBlank(request.name, 'project name')
-    if (this.state.projects.some(project => project.projectId === request.projectId)) {
-      throw new Error(`project "${request.projectId}" already exists`)
-    }
+    const workspace = this.resolveWorkspace(request.workspaceId, request.createdBy)
+    const projectId = this.idGenerator()
+    if (this.state.projects.some(project => project.projectId === projectId)) throw new Error(`project "${projectId}" already exists`)
     const now = this.clock()
     const project: LabProject = {
-      projectId: request.projectId,
+      projectId,
+      workspaceId: workspace.id,
       name,
       description: request.description?.trim() ?? '',
       status: 'ACTIVE',
@@ -228,10 +310,102 @@ export class LabProjectService extends Service {
     const state = {
       ...this.state,
       projects: [...this.state.projects, project],
-      audits: [...this.state.audits, this.audit(project.projectId, 'project-created', request.createdBy, now, { name })],
+      audits: [...this.state.audits, this.audit(project.projectId, 'project-created', request.createdBy, now, { name, workspaceId: workspace.id })],
     }
     await this.commit(state)
     return this.view(project.projectId)
+  }
+
+  /** Create a Project-owned Experiment with a Host-generated identity.
+   * @param request - Experiment metadata and the creating Session.
+   * @returns the created Experiment and its updated Project view.
+   */
+  async createExperiment(
+    request: CreateLabExperimentRequest,
+  ): Promise<{ readonly experiment: LabExperimentRecord; readonly project: LabProjectView }> {
+    await this.ready
+    const project = this.requireProject(request.projectId)
+    if (project.status === 'ARCHIVED') throw new Error(`project "${request.projectId}" is archived`)
+    this.requireSession(request.projectId, request.createdInSessionId)
+    const title = nonBlank(request.title, 'experiment title')
+    const objective = nonBlank(request.objective, 'experiment objective')
+    if (request.derivedFromExperimentId !== undefined) {
+      const source = this.state.experiments.find(item => item.experimentId === request.derivedFromExperimentId)
+      if (source === undefined) throw new Error(`unknown experiment "${request.derivedFromExperimentId}"`)
+      if (source.projectId !== request.projectId) {
+        throw new LabProjectReferenceError(`experiment "${request.derivedFromExperimentId}" belongs to another project`)
+      }
+    }
+    const experimentId = this.experimentIdGenerator()
+    if (this.state.experiments.some(item => item.experimentId === experimentId)) throw new Error(`experiment "${experimentId}" already exists`)
+    const now = this.clock()
+    const experiment: LabExperimentRecord = {
+      experimentId,
+      projectId: request.projectId,
+      title,
+      objective,
+      status: 'DRAFT',
+      createdInSessionId: request.createdInSessionId,
+      ...request.derivedFromExperimentId === undefined ? {} : { derivedFromExperimentId: request.derivedFromExperimentId },
+      createdAt: now,
+      updatedAt: now,
+    }
+    const link: LabExperimentSessionLink = {
+      projectId: request.projectId,
+      experimentId,
+      sessionId: request.createdInSessionId,
+      role: 'created',
+      linkedBy: request.createdBy,
+      linkedAt: now,
+    }
+    const state = {
+      ...this.state,
+      experiments: [...this.state.experiments, experiment],
+      experimentSessions: [...this.state.experimentSessions, link],
+      audits: [
+        ...this.state.audits,
+        this.audit(request.projectId, 'experiment-created', request.createdBy, now, { experimentId, title }),
+        this.audit(request.projectId, 'experiment-session-linked', request.createdBy, now, { experimentId, sessionId: request.createdInSessionId, role: 'created' }),
+      ],
+    }
+    await this.commit(state)
+    return { experiment: clone(experiment), project: this.view(request.projectId) }
+  }
+
+  /** Link a Project Session to an Experiment without crossing Project ownership.
+   * @param request - Experiment Session provenance link.
+   * @returns the updated Project view.
+   */
+  async linkExperimentSession(request: LinkLabExperimentSessionRequest): Promise<LabProjectView> {
+    await this.ready
+    this.requireProject(request.projectId)
+    this.requireSession(request.projectId, request.sessionId)
+    const experiment = this.state.experiments.find(item => item.experimentId === request.experimentId)
+    if (experiment === undefined) throw new Error(`unknown experiment "${request.experimentId}"`)
+    if (experiment.projectId !== request.projectId) throw new LabProjectReferenceError(`experiment "${request.experimentId}" belongs to another project`)
+    const existing = this.state.experimentSessions.find(
+      link => link.experimentId === request.experimentId && link.sessionId === request.sessionId,
+    )
+    if (existing?.role === request.role) return this.view(request.projectId)
+    const now = this.clock()
+    const link: LabExperimentSessionLink = { ...request, linkedAt: now }
+    const state = {
+      ...this.state,
+      experimentSessions: [...this.state.experimentSessions.filter(item => item !== existing), link],
+      audits: [...this.state.audits, this.audit(request.projectId, 'experiment-session-linked', request.linkedBy, now, { experimentId: request.experimentId, sessionId: request.sessionId, role: request.role })],
+    }
+    await this.commit(state)
+    return this.view(request.projectId)
+  }
+
+  /** List Project Experiments in creation order.
+   * @param projectId - Project whose Experiments are requested.
+   * @returns Experiment records owned by the Project.
+   */
+  async listExperiments(projectId: LabProjectId): Promise<readonly LabExperimentRecord[]> {
+    await this.ready
+    this.requireProject(projectId)
+    return this.state.experiments.filter(item => item.projectId === projectId).map(clone)
   }
 
   /** List active and archived projects in creation order.
@@ -283,17 +457,28 @@ export class LabProjectService extends Service {
     return this.view(project.projectId)
   }
 
-  /** Associate one distinct Harness Session with a project.
+  /** Attach one distinct Harness Session to a project when its Workspace matches.
    * @param request - project/session association request.
-   * @returns - updated project view.
+   * @returns - attach result or an actionable Workspace mismatch.
    */
-  async associateSession(request: AssociateLabProjectSessionRequest): Promise<LabProjectView> {
+  async attachSession(request: AttachLabProjectSessionRequest): Promise<LabProjectSessionAttachResult> {
     await this.ready
-    this.requireProject(request.projectId)
+    const project = this.requireProject(request.projectId)
+    const projectWorkspace = this.requireWorkspace(project.workspaceId)
+    const sessionWorkspace = this.workspaceForSession(request.sessionId)
+    if (sessionWorkspace?.id !== projectWorkspace.id) {
+      return {
+        status: 'conflict',
+        code: 'WORKSPACE_MISMATCH',
+        projectWorkspaceId: projectWorkspace.id,
+        ...sessionWorkspace === undefined ? {} : { sessionWorkspaceId: sessionWorkspace.id },
+        action: { kind: 'create-session-in-project-workspace', workspaceId: projectWorkspace.id },
+      }
+    }
     const existing = this.state.sessions.find(session => session.sessionId === request.sessionId)
     if (existing !== undefined) {
       if (existing.projectId !== request.projectId) throw new LabProjectReferenceError(`session "${request.sessionId}" already belongs to another project`)
-      return this.view(request.projectId)
+      return { status: 'attached', project: this.view(request.projectId) }
     }
     const order = this.state.sessions
       .filter(session => session.projectId === request.projectId)
@@ -311,13 +496,51 @@ export class LabProjectService extends Service {
     const state = {
       ...this.state,
       sessions: [...this.state.sessions, session],
-      audits: [...this.state.audits, this.audit(request.projectId, 'session-associated', request.associatedBy, now, {
+      audits: [...this.state.audits, this.audit(request.projectId, 'session-attached', request.attachedBy, now, {
         sessionId: request.sessionId,
         title: session.title,
       })],
     }
     await this.commit(state)
-    return this.view(request.projectId)
+    return { status: 'attached', project: this.view(request.projectId) }
+  }
+
+  /** Detach a Session association without changing the Session log or cwd.
+   * @param projectId - project to change.
+   * @param sessionId - associated Session to detach.
+   * @param detachedBy - actor recorded in the audit log.
+   * @returns the updated project view.
+   */
+  async detachSession(projectId: LabProjectId, sessionId: SessionId, detachedBy: SessionId): Promise<LabProjectView> {
+    await this.ready
+    this.requireSession(projectId, sessionId)
+    const now = this.clock()
+    const state = {
+      ...this.state,
+      sessions: this.state.sessions.filter(session => session.projectId !== projectId || session.sessionId !== sessionId),
+      audits: [...this.state.audits, this.audit(projectId, 'session-detached', detachedBy, now, { sessionId })],
+    }
+    await this.commit(state)
+    return this.view(projectId)
+  }
+
+  /** Archive a Project while retaining all associated Session logs and records.
+   * @param projectId - project to archive.
+   * @param archivedBy - actor recorded in the audit log.
+   * @returns the archived project view.
+   */
+  async archive(projectId: LabProjectId, archivedBy: SessionId): Promise<LabProjectView> {
+    await this.ready
+    const project = this.requireProject(projectId)
+    if (project.status === 'ARCHIVED') return this.view(projectId)
+    const now = this.clock()
+    const state = {
+      ...this.state,
+      projects: this.state.projects.map(item => item.projectId === projectId ? { ...item, status: 'ARCHIVED' as const, updatedAt: now } : item),
+      audits: [...this.state.audits, this.audit(projectId, 'project-archived', archivedBy, now, {})],
+    }
+    await this.commit(state)
+    return this.view(projectId)
   }
 
   /** Rename a project Session without changing Harness Session messages.
@@ -453,6 +676,30 @@ export class LabProjectService extends Service {
     return project
   }
 
+  private requireWorkspace(workspaceId: WorkspaceId): LabProjectWorkspace {
+    const registry = this.workspaceRegistry()
+    const workspace = registry.get(workspaceId)
+    if (workspace === undefined) throw new Error(`unknown workspace "${workspaceId}"`)
+    return workspace
+  }
+
+  private resolveWorkspace(workspaceId: WorkspaceId | undefined, sessionId: SessionId): LabProjectWorkspace {
+    if (workspaceId !== undefined) return this.requireWorkspace(workspaceId)
+    const workspace = this.workspaceForSession(sessionId)
+    if (workspace === undefined) throw new Error(`a registered workspace is required for Session "${sessionId}"`)
+    return workspace
+  }
+
+  private workspaceForSession(sessionId: SessionId): LabProjectWorkspace | undefined {
+    return this.workspaceRegistry().list().find(workspace => workspace.sessionIds.includes(sessionId))
+  }
+
+  private workspaceRegistry(): LabProjectWorkspaceRegistry {
+    const registry = this.ctx.get('workspaceRegistry') as LabProjectWorkspaceRegistry | undefined
+    if (registry === undefined) throw new Error('workspace registry is unavailable')
+    return registry
+  }
+
   private requireSession(projectId: LabProjectId, sessionId: SessionId): LabProjectSession {
     const session = this.state.sessions.find(item => item.sessionId === sessionId)
     if (session === undefined) throw new Error(`session "${sessionId}" is not associated with a project`)
@@ -472,6 +719,8 @@ export class LabProjectService extends Service {
         .map(clone),
       sharedFacts: this.state.facts.filter(fact => fact.projectId === projectId).map(clone),
       evidence: this.state.evidence.filter(item => item.projectId === projectId).map(clone),
+      experiments: this.state.experiments.filter(experiment => experiment.projectId === projectId).map(clone),
+      experimentSessions: this.state.experimentSessions.filter(link => link.projectId === projectId).map(clone),
     }
   }
 
@@ -495,7 +744,7 @@ export class LabProjectService extends Service {
 
 /** In-memory project store for keyless tests. */
 export class InMemoryLabProjectStore implements LabProjectStore {
-  private state = emptyState()
+  private state = emptyProjectState('runtime')
 
   /** Load a detached state snapshot. */
   load(): Promise<LabProjectState> { return Promise.resolve(cloneState(this.state)) }
@@ -523,7 +772,7 @@ export const inject = ['storageDomain']
 /** Install the project service and open its Storage Domain. */
 export async function apply(ctx: Context): Promise<void> {
   await ctx.plugin(LabProjectService)
-  const storageDomain = ctx.get('storageDomain') as DomainFacility | undefined
+  const storageDomain = ctx.get('storageDomain')
   if (storageDomain === undefined) throw new Error('lab-project requires storageDomain')
   const domain = await storageDomain.open(labProjectDomainSpec)
   const service = ctx.get('labProjects')
@@ -538,17 +787,19 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-function emptyStoredState(): StoredProjectState {
-  return { projects: [], sources: [], devices: [], sessions: [], facts: [], audits: [], evidence: [] }
-}
-
-function emptyState(): LabProjectState {
-  return { projects: [], sources: [], devices: [], sessions: [], facts: [], audits: [], evidence: [] }
+function emptyProjectState(kind: 'stored'): StoredProjectState
+function emptyProjectState(kind: 'runtime'): LabProjectState
+function emptyProjectState(_kind: 'stored' | 'runtime'): StoredProjectState | LabProjectState {
+  return {
+    projects: [], experiments: [], experimentSessions: [], sources: [], devices: [], sessions: [], facts: [], audits: [], evidence: [],
+  }
 }
 
 function encodeState(state: LabProjectState): StoredProjectState {
   return {
     projects: state.projects.map(project => ({ ...project })),
+    experiments: state.experiments.map(experiment => ({ ...experiment })),
+    experimentSessions: state.experimentSessions.map(link => ({ ...link })),
     sources: state.sources.map(source => ({ ...source })),
     devices: state.devices.map(device => ({ ...device })),
     sessions: state.sessions.map(session => ({ ...session })),
@@ -564,7 +815,30 @@ function encodeState(state: LabProjectState): StoredProjectState {
 
 function decodeState(state: StoredProjectState): LabProjectState {
   return {
-    projects: state.projects.map(project => ({ ...project, projectId: brandId<'LabProjectId'>(project.projectId), status: project.status as LabProjectStatus })),
+    projects: state.projects.map(project => ({
+      ...project,
+      projectId: brandId<'LabProjectId'>(project.projectId),
+      workspaceId: brandId<'WorkspaceId'>(project.workspaceId),
+      status: project.status,
+    })),
+    experiments: state.experiments.map(experiment => ({
+      experimentId: brandId<'ExperimentId'>(experiment.experimentId),
+      projectId: brandId<'LabProjectId'>(experiment.projectId),
+      title: experiment.title,
+      objective: experiment.objective,
+      status: experiment.status,
+      createdInSessionId: brandId<'SessionId'>(experiment.createdInSessionId),
+      ...experiment.derivedFromExperimentId === undefined ? {} : { derivedFromExperimentId: brandId<'ExperimentId'>(experiment.derivedFromExperimentId) },
+      createdAt: experiment.createdAt,
+      updatedAt: experiment.updatedAt,
+    })),
+    experimentSessions: state.experimentSessions.map(link => ({
+      ...link,
+      projectId: brandId<'LabProjectId'>(link.projectId),
+      experimentId: brandId<'ExperimentId'>(link.experimentId),
+      sessionId: brandId<'SessionId'>(link.sessionId),
+      linkedBy: brandId<'SessionId'>(link.linkedBy),
+    })),
     sources: state.sources.map(source => ({
       ...source,
       projectId: brandId<'LabProjectId'>(source.projectId),
@@ -578,7 +852,12 @@ function decodeState(state: StoredProjectState): LabProjectState {
       deviceId: brandId<'DeviceId'>(device.deviceId),
       selectedBy: brandId<'SessionId'>(device.selectedBy),
     })),
-    sessions: state.sessions.map(session => ({ ...session, projectId: brandId<'LabProjectId'>(session.projectId), sessionId: brandId<'SessionId'>(session.sessionId), status: session.status as LabProjectSessionStatus })),
+    sessions: state.sessions.map(session => ({
+      ...session,
+      projectId: brandId<'LabProjectId'>(session.projectId),
+      sessionId: brandId<'SessionId'>(session.sessionId),
+      status: session.status,
+    })),
     facts: state.facts.map((fact) => {
       const sourceSessionId = fact.sourceSessionId
       return {

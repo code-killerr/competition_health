@@ -10,3 +10,24 @@
 - 拥有带版本的 `lab_experiment_cache` Storage domain；
 - 为 Web 与 Agent Consumer 提供最小投影写入器；
 - 不读取 Provider 数据库、不执行 Skill，也不创建 Agent loop。
+
+## 模型体验
+
+### 受控实验上下文
+
+#### 模型可见内容
+
+当实验工具或 Web Facade 请求 `ctx.labExperimentCache.get()` 时，模型可以看到当前实验投影。
+
+#### Token 影响
+
+只暴露选定实验的有界状态、引用、Skill 修订和更新者；Storage Domain 细节留在宿主侧。
+
+#### KV Cache 影响
+
+稳定的实验和运行标识让重复投影更紧凑，并保持前缀友好。
+
+## 已知限制与暂缓事项
+
+- 投影不是第二个权威来源；调用方必须先追加对应的 Session 事件，再写入投影。
+- 没有 Storage 时，该服务在无 Key 组合测试中保持显式 no-op。

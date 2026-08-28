@@ -3,6 +3,14 @@
 
 opt-in 实验工作台使用的最小 Host Consumer。它保留只读 `snapshot()`，并增加类型化命令 Facade 与 loopback `/api/lab` 路由。它编排已有 Knowledge、Planning、Skill、Device、Runtime、Session 和 Storage Consumer，不直接访问 Provider 数据库或设备。
 
+Project 命令使用已注册的 Workspace 记录和 Host 生成的 Project ID。`project-session-attach` 在 Workspace 冲突时返回不移动 Session 的结果，`project-session-detach` 保留 Session 日志，`project-archive` 保留全部 Project Session 供后续查看。
+
+Project 协议还提供面向页面的类型化查询和动作：Experiment 列表/详情/创建/派生/关联、Run 列表/详情/启动/停止/重试/比较、结构化报告和 Host 授权的 Artifact 元数据。页面直接接收领域记录和 Run 视图，不再隐式选择“当前 Run”，也不提交浏览器生成的业务 id。
+
+## HTTP 命令封装
+
+loopback 端点接收带可选 `namespace` 字段的 JSON 对象。通用 Knowledge、规划、Skill、设备和 Runtime 命令使用 `namespace: "lab"`；Project、Experiment、Run 和 Artifact 页面命令使用 `namespace: "project"`。服务器会在传给 Facade 的类型化命令中移除该 namespace。
+
 ## 模型体验
 
 ### 受控实验上下文

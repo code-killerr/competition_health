@@ -65,6 +65,32 @@ flowchart LR
   pkg_storage_domain["storage-domain"]
   svc_storageDomain["ctx.storageDomain<br/>Domain data facility"]
   pkg_workspace["workspace"]
+  pkg_lab_device["lab-device"]
+  svc_labDevices["ctx.labDevices<br/>Experimental laboratory device capability"]
+  pkg_lab_device_mock["lab-device-mock"]
+  pkg_lab_planning_local["lab-planning-local"]
+  pkg_lab_runtime_local["lab-runtime-local"]
+  pkg_tool_lab_planning["tool-lab-planning"]
+  pkg_lab_mvp_web["lab-mvp-web"]
+  pkg_lab_knowledge["lab-knowledge"]
+  svc_labKnowledge["ctx.labKnowledge<br/>Experimental laboratory knowledge and retrieval"]
+  pkg_lab_knowledge_local["lab-knowledge-local"]
+  pkg_tool_lab_knowledge["tool-lab-knowledge"]
+  pkg_lab_planning["lab-planning"]
+  svc_labPlanning["ctx.labPlanning<br/>Experimental laboratory planning and review"]
+  pkg_tool_lab["tool-lab"]
+  pkg_lab_skill["lab-skill"]
+  svc_labSkills["ctx.labSkills<br/>Experimental laboratory Skill lifecycle"]
+  pkg_lab_skill_local["lab-skill-local"]
+  pkg_lab_runtime["lab-runtime"]
+  svc_labRuntime["ctx.labRuntime<br/>Experimental controlled laboratory Runtime"]
+  pkg_lab_cache["lab-cache"]
+  svc_labExperimentCache["ctx.labExperimentCache<br/>Experimental Session and Storage projection cache"]
+  pkg_lab_project["lab-project"]
+  svc_labProjects["ctx.labProjects<br/>Experimental Project and multi-Session records"]
+  pkg_tool_lab_project["tool-lab-project"]
+  svc_labMvpWeb["ctx.labMvpWeb<br/>Experimental laboratory Web snapshot Consumer"]
+  pkg_lab_mvp["lab-mvp"]
   svc_messageFeedback["ctx.messageFeedback<br/>Lifecycle-bound message feedback"]
   svc_workspaceRegistry["ctx.workspaceRegistry<br/>Workspace entity registry"]
   svc_sessionQuery["ctx.sessionQuery<br/>Session reads, traces, filters, and search"]
@@ -241,6 +267,19 @@ flowchart LR
   pkg_invariants --> svc_invariants
   pkg_jobs --> svc_jobs
   pkg_jobs_local --> svc_jobs
+  pkg_lab_cache --> svc_labExperimentCache
+  pkg_lab_device --> svc_labDevices
+  pkg_lab_device_mock --> svc_labDevices
+  pkg_lab_knowledge --> svc_labKnowledge
+  pkg_lab_knowledge_local --> svc_labKnowledge
+  pkg_lab_mvp_web --> svc_labMvpWeb
+  pkg_lab_planning --> svc_labPlanning
+  pkg_lab_planning_local --> svc_labPlanning
+  pkg_lab_project --> svc_labProjects
+  pkg_lab_runtime --> svc_labRuntime
+  pkg_lab_runtime_local --> svc_labRuntime
+  pkg_lab_skill --> svc_labSkills
+  pkg_lab_skill_local --> svc_labSkills
   pkg_llm --> svc_llm
   pkg_llm_deepseek --> svc_llm
   pkg_llm_pi_ai --> svc_llm
@@ -341,6 +380,25 @@ flowchart LR
   svc_jobs --> pkg_tool_jobs
   svc_jobs --> pkg_tool_subagent
   svc_jobs --> pkg_tool_terminal
+  svc_labDevices --> pkg_lab_mvp_web
+  svc_labDevices --> pkg_lab_planning_local
+  svc_labDevices --> pkg_lab_runtime_local
+  svc_labDevices --> pkg_tool_lab_planning
+  svc_labExperimentCache --> pkg_lab_mvp_web
+  svc_labKnowledge --> pkg_lab_mvp_web
+  svc_labKnowledge --> pkg_lab_planning_local
+  svc_labKnowledge --> pkg_tool_lab_knowledge
+  svc_labMvpWeb --> pkg_lab_mvp
+  svc_labPlanning --> pkg_lab_mvp_web
+  svc_labPlanning --> pkg_tool_lab
+  svc_labPlanning --> pkg_tool_lab_planning
+  svc_labProjects --> pkg_lab_mvp_web
+  svc_labProjects --> pkg_tool_lab_project
+  svc_labRuntime --> pkg_lab_mvp_web
+  svc_labRuntime --> pkg_tool_lab
+  svc_labSkills --> pkg_lab_runtime_local
+  svc_labSkills --> pkg_tool_lab
+  svc_labSkills --> pkg_tool_lab_planning
   svc_llm --> pkg_agent_loop
   svc_llm --> pkg_compaction_basic
   svc_lsp --> pkg_tool_lsp
@@ -424,7 +482,6 @@ flowchart LR
   svc_workspaceRegistry --> pkg_apiproxy
   svc_fs -. event gate .-> pkg_fs_observation_policy
 ```
-
 | ctx 键 | 角色 | 所属包 | 实现 | 直接消费方 | 配套插件 | 说明 |
 | --- | --- | --- | --- | --- | --- | --- |
 | `ctx.attachments` | `seam` | [`attachment`](../packages/attachment/attachment) | [`attachment-local`](../packages/attachment/attachment-local) | `host-runtime`, [`llm-pi-ai`](../packages/llm/llm-pi-ai) | - | 宿主会在会话事件之前提交已接受的图片；提供方适配器将已授权的持久引用解析为提供方原生内容。 |
@@ -442,6 +499,14 @@ flowchart LR
 | `ctx.sessionTelemetry` | `seam` | [`session-telemetry`](../packages/session/session-telemetry) | [`session-telemetry-otel`](../packages/session/session-telemetry-otel) | - | - | 该 seam 捕获会话记录、进行脱敏并交给一个后端；没有其他组件消费该服务，其输出会离开当前进程。 |
 | `ctx.storage` | `seam` | [`storage`](../packages/storage/storage) | [`storage-json`](../packages/storage/storage-json), [`storage-sqlite`](../packages/storage/storage-sqlite) | [`storage-domain`](../packages/storage/storage-domain) | - | 各后端以不同名称并列注册；数据形态（领域优先）挂载到枢纽上，并将类型化操作转换为不透明的 KV 单元原语。 |
 | `ctx.storageDomain` | `core` | [`storage-domain`](../packages/storage/storage-domain) | - | [`workspace`](../packages/workspace/workspace), [`message-feedback`](../packages/feedback/message-feedback) | - | 等待所有已配置后端就绪，然后将领域形态发布为一个受生命周期约束的服务，用于类型化持久状态。 |
+| `ctx.labDevices` | `seam` | `lab-device` | `lab-device-mock` | `lab-planning-local`, `lab-runtime-local`, `tool-lab-planning`, `lab-mvp-web` | - | 实验设备 seam 提供只读能力事实和受控命令；Runtime 负责执行顺序，Mock Provider 提供确定性回执。 |
+| `ctx.labKnowledge` | `seam` | `lab-knowledge` | `lab-knowledge-local` | `lab-planning-local`, `tool-lab-knowledge`, `lab-mvp-web` | - | Knowledge Service 负责版本化文档、带引用检索、冲突和确认；解析器、SQLite、FTS5 及可选 embedding 均由 Provider 管理。 |
+| `ctx.labPlanning` | `seam` | `lab-planning` | `lab-planning-local` | `tool-lab-planning`, `tool-lab`, `lab-mvp-web` | - | Planning Service 保存提案并执行确定性校验和人工评审，但不启动或执行 Run。 |
+| `ctx.labSkills` | `seam` | `lab-skill` | `lab-skill-local` | `tool-lab-planning`, `tool-lab`, `lab-runtime-local` | - | Skill Service 负责声明式修订、资源注册、生命周期状态和不可变 Run 快照；Harness 的 ctx.skills 仍是发现桥接。 |
+| `ctx.labRuntime` | `seam` | `lab-runtime` | `lab-runtime-local` | `tool-lab`, `lab-mvp-web` | - | Runtime 锁定已批准计划、推进受控操作、校验证据、执行失败策略并反馈结果，不调用模型。 |
+| `ctx.labExperimentCache` | `core` | `lab-cache` | - | `lab-mvp-web` | - | Cache 为 Web 和 Agent Consumer 管理可重建的实验投影；Session 事件仍是权威来源，Storage 对无 Key 组合可选。 |
+| `ctx.labProjects` | `core` | `lab-project` | - | `lab-mvp-web`, `tool-lab-project` | - | Project Service 管理 Workspace 范围身份、Session 关联、源和设备选择、已批准事实、审计及工作流证据，但不搬移 Session 日志。 |
+| `ctx.labMvpWeb` | `bundle` | `lab-mvp-web` | - | `lab-mvp` | - | Web Consumer 从类型化 Service 组装只读的 Knowledge、Planning、设备、Run、报告和反馈快照。 |
 | `ctx.messageFeedback` | `core` | [`message-feedback`](../packages/feedback/message-feedback) | - | - | - | 拥有本地逐 assistant 消息反馈、生命周期与目标校验、逐条目 compare-and-set 及 Host 一元 Remote 契约，且不进入 Session 历史或遥测。 |
 | `ctx.workspaceRegistry` | `core` | [`workspace`](../packages/workspace/workspace) | - | `apiproxy` | - | 通过领域设施拥有带 WorkspaceId 品牌类型的记录；稳定的 sessionIds 账户驱动 Host RPC 与 GUI 投影。 |
 | `ctx.sessionQuery` | `seam` | [`session-query`](../packages/session-query/session-query) | [`session-query-sqlite`](../packages/session-query/session-query-sqlite) | [`session-reference`](../packages/context/session-reference), [`tool-session-query`](../packages/session-query/tool-session-query) | - | 该接口提供精确读取、过滤和追踪；具体后端还提供全文协调、排序、摘要片段和游标世代，而模型消费方负责工作区权限与不含游标的渲染。 |

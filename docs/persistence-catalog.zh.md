@@ -476,6 +476,381 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 来源：[`packages/hooks/hook-protocol/src/types.ts:31`](../packages/hooks/hook-protocol/src/types.ts)
 
+### `lab/*`
+
+<a id="labcacheprojected--log-only"></a>
+
+#### `lab/cache/projected` — log-only
+
+```ts persistence-catalog
+/** 当前实验缓存投影更新。 */
+'lab/cache/projected': {
+  version: 1
+  projection: ExperimentCacheProjection
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:385`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labexperimentrequested--log-only"></a>
+
+#### `lab/experiment/requested` — log-only
+
+```ts persistence-catalog
+/** 用户输入的实验需求，属于模型可见事实。 */
+'lab/experiment/requested': {
+  version: 1
+  experimentId: ExperimentId
+  objective: string
+  sessionId: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:291`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labknowledgeconfirmed--log-only"></a>
+
+#### `lab/knowledge/confirmed` — log-only
+
+```ts persistence-catalog
+/** 人工确认的知识引用。 */
+'lab/knowledge/confirmed': {
+  version: 1
+  citationId: CitationId
+  confirmedBy: string
+  note?: string
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:343`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labplanapproved--log-only"></a>
+
+#### `lab/plan/approved` — log-only
+
+```ts persistence-catalog
+/** 人工确认的计划或 Skill 修订。 */
+'lab/plan/approved': {
+  version: 1
+  experimentId: ExperimentId
+  planId: PlanId
+  approvedBy: string
+  skillRevisionIds: readonly SkillRevisionId[]
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:308`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labplanproposed--log-only"></a>
+
+#### `lab/plan/proposed` — log-only
+
+```ts persistence-catalog
+/** Agent 生成并提交的计划草案。 */
+'lab/plan/proposed': {
+  version: 1
+  experimentId: ExperimentId
+  planId: PlanId
+  revision: number
+  supersedesPlanId?: PlanId
+  citationIds: readonly CitationId[]
+  skillRevisionIds: readonly SkillRevisionId[]
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:298`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labplanrejected--log-only"></a>
+
+#### `lab/plan/rejected` — log-only
+
+```ts persistence-catalog
+/** 人工拒绝的计划修订及其可选替代修订。 */
+'lab/plan/rejected': {
+  version: 1
+  experimentId: ExperimentId
+  planId: PlanId
+  rejectedBy: SessionId
+  reason: string
+  replacementPlanId?: PlanId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:316`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labprojectarchived--log-only"></a>
+
+#### `lab/project/archived` — log-only
+
+```ts persistence-catalog
+/** Project archive event; Project Sessions and logs remain available. */
+'lab/project/archived': {
+  version: 1
+  projectId: LabProjectId
+  archivedBy: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:210`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectcreated--log-only"></a>
+
+#### `lab/project/created` — log-only
+
+```ts persistence-catalog
+/** Project creation audit event. */
+'lab/project/created': {
+  version: 1
+  projectId: LabProjectId
+  workspaceId: WorkspaceId
+  name: string
+  sessionId: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:202`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectevidenceprojected--log-only"></a>
+
+#### `lab/project/evidence/projected` — log-only
+
+```ts persistence-catalog
+/** Rebuildable proposal/approval/run/report projection. */
+'lab/project/evidence/projected': {
+  version: 1
+  projection: LabProjectEvidenceProjection
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:273`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectexperiment-created--log-only"></a>
+
+#### `lab/project/experiment-created` — log-only
+
+```ts persistence-catalog
+/** Project-owned Experiment creation event. */
+'lab/project/experiment-created': {
+  version: 1
+  projectId: LabProjectId
+  experimentId: ExperimentId
+  title: string
+  objective: string
+  createdInSessionId: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:216`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectexperiment-session-linked--log-only"></a>
+
+#### `lab/project/experiment-session-linked` — log-only
+
+```ts persistence-catalog
+/** Additional Session provenance for a Project Experiment. */
+'lab/project/experiment-session-linked': {
+  version: 1
+  projectId: LabProjectId
+  experimentId: ExperimentId
+  sessionId: SessionId
+  role: LabExperimentSessionRole
+  linkedBy: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:225`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectfact-published--log-only"></a>
+
+#### `lab/project/fact-published` — log-only
+
+```ts persistence-catalog
+/** Explicitly published project fact. */
+'lab/project/fact-published': {
+  version: 1
+  projectId: LabProjectId
+  factId: LabProjectFactId
+  citationIds: readonly CitationId[]
+  sourceSessionId?: SessionId
+  approvedBy: string
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:264`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectscope-updated--log-only"></a>
+
+#### `lab/project/scope-updated` — log-only
+
+```ts persistence-catalog
+/** Explicit project Knowledge/device scope replacement. */
+'lab/project/scope-updated': {
+  version: 1
+  projectId: LabProjectId
+  sources: readonly { documentId: KnowledgeDocumentId; versionId: KnowledgeDocumentVersionId }[]
+  deviceIds: readonly DeviceId[]
+  updatedBy: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:234`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectsession-attached--log-only"></a>
+
+#### `lab/project/session-attached` — log-only
+
+```ts persistence-catalog
+/** Project-to-Session attach event. */
+'lab/project/session-attached': {
+  version: 1
+  projectId: LabProjectId
+  sessionId: SessionId
+  title: string
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:242`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectsession-detached--log-only"></a>
+
+#### `lab/project/session-detached` — log-only
+
+```ts persistence-catalog
+/** Project-to-Session detach event. */
+'lab/project/session-detached': {
+  version: 1
+  projectId: LabProjectId
+  sessionId: SessionId
+  detachedBy: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:249`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labprojectsession-renamed--log-only"></a>
+
+#### `lab/project/session-renamed` — log-only
+
+```ts persistence-catalog
+/** Project Session title change event. */
+'lab/project/session-renamed': {
+  version: 1
+  projectId: LabProjectId
+  sessionId: SessionId
+  title: string
+  renamedBy: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:256`](../packages/experimental/lab-domain/src/project.ts)
+
+<a id="labrunfeedback--log-only"></a>
+
+#### `lab/run/feedback` — log-only
+
+```ts persistence-catalog
+/** 运行结果验证、失败策略和最终反馈。 */
+'lab/run/feedback': {
+  version: 1
+  experimentId: ExperimentId
+  runId: RunId
+  status: RunStatus
+  valid: boolean
+  summary: string
+  issues: readonly string[]
+  replanRequested: boolean
+  replanRequest?: { stepId: PlanStepId; reason: string }
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:363`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labrunobservation--log-only"></a>
+
+#### `lab/run/observation` — log-only
+
+```ts persistence-catalog
+/** 实验步骤执行结果和验证结论。 */
+'lab/run/observation': {
+  version: 1
+  experimentId: ExperimentId
+  runId: RunId
+  stepId: PlanStepId
+  operationId: OperationId
+  valid: boolean
+  evidence: readonly string[]
+  status?: 'WAITING' | 'COMPLETED' | 'FAILED' | 'STOPPED'
+  error?: string
+  replanRequested?: boolean
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:350`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labrunstate--log-only"></a>
+
+#### `lab/run/state` — log-only
+
+```ts persistence-catalog
+/** 运行状态转移，供运行时间线重建。 */
+'lab/run/state': {
+  version: 1
+  experimentId: ExperimentId
+  runId: RunId
+  from?: RunStatus
+  to: RunStatus
+  requestedBy?: SessionId
+  reason?: string
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:375`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labskillactivated--log-only"></a>
+
+#### `lab/skill/activated` — log-only
+
+```ts persistence-catalog
+/** Skill 修订进入可供计划锁定的 ACTIVE 状态。 */
+'lab/skill/activated': {
+  version: 1
+  skillRevisionId: SkillRevisionId
+  activatedBy: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:337`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labskillapproved--log-only"></a>
+
+#### `lab/skill/approved` — log-only
+
+```ts persistence-catalog
+/** 人工批准 Skill 修订。 */
+'lab/skill/approved': {
+  version: 1
+  skillRevisionId: SkillRevisionId
+  approvedBy: string
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:331`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labskillvalidated--log-only"></a>
+
+#### `lab/skill/validated` — log-only
+
+```ts persistence-catalog
+/** Skill 草案通过确定性校验。 */
+'lab/skill/validated': {
+  version: 1
+  skillRevisionId: SkillRevisionId
+  validatedBy: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:325`](../packages/experimental/lab-domain/src/types.ts)
+
 ### `llm/*`
 
 <a id="llmretry--log-only"></a>

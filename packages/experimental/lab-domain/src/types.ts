@@ -15,6 +15,8 @@ export type LabSkillId = Branded<'LabSkillId'>
 export type SkillRevisionId = Branded<'SkillRevisionId'>
 /** 设备标识。 */
 export type DeviceId = Branded<'DeviceId'>
+/** Harness Workspace 标识。 */
+export type WorkspaceId = Branded<'WorkspaceId'>
 /** 知识文档标识。 */
 export type KnowledgeDocumentId = Branded<'KnowledgeDocumentId'>
 /** 知识文档版本标识。 */
@@ -31,6 +33,24 @@ export type KnowledgeConflictId = Branded<'KnowledgeConflictId'>
 export type RunId = Branded<'RunId'>
 /** 操作幂等标识。 */
 export type OperationId = Branded<'OperationId'>
+/** 运行产物标识。 */
+export type ArtifactId = Branded<'ArtifactId'>
+
+/** 运行产物的安全展示类别。 */
+export type ArtifactKind = 'text' | 'json' | 'image' | 'file'
+
+/** 只描述已由 Host 授权的运行产物，不承载可执行内容。 */
+export interface ArtifactManifest {
+  readonly artifactId: ArtifactId
+  readonly runId: RunId
+  readonly kind: ArtifactKind
+  readonly displayName: string
+  readonly uri: string
+  readonly mediaType: string
+  readonly size: number
+  readonly digest: string
+  readonly createdAt: number
+}
 
 /** 为领域对象创建 branded id。
  * @param id - string value to brand as a domain identifier.

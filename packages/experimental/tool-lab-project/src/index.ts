@@ -29,8 +29,8 @@ function jsonOutput<const S extends ValueSchemaSpec>(schema: S): {
 }
 
 function jsonValue(value: unknown): JsonValue {
-  const serialized = JSON.stringify(value)
-  if (serialized === undefined) throw new Error('project context is not JSON serializable')
+  const serialized: unknown = JSON.stringify(value)
+  if (typeof serialized !== 'string') throw new Error('project context is not JSON serializable')
   return JSON.parse(serialized) as JsonValue
 }
 
@@ -189,4 +189,3 @@ function parseStrings(value: unknown, path: string): string[] {
   if (!Array.isArray(value)) throw new Error(`${path} must be an array`)
   return value.map((item, index) => string(item, `${path}[${index}]`))
 }
-

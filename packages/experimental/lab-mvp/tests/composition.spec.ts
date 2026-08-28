@@ -60,7 +60,7 @@ describe('lab-mvp composition', () => {
     expect(() => ctx.labPlanning.buildContext({} as never)).toThrow(LabProviderUnavailableError)
     expect(() => ctx.labSkills.resolveRevision(brandId<'SkillRevisionId'>('revision-1'))).toThrow(LabProviderUnavailableError)
     expect(() => ctx.labDevices.listDevices()).toThrow(LabProviderUnavailableError)
-    expect(() => ctx.labRuntime.getRun(brandId<'ExperimentId'>('experiment-1'))).toThrow(LabProviderUnavailableError)
+    expect(() => ctx.labRuntime.getRun(brandId<'RunId'>('run-1'))).toThrow(LabProviderUnavailableError)
   })
 
   it('wires the opt-in Docling adapter and reports an unavailable local runtime', async () => {
@@ -123,7 +123,7 @@ describe('lab-mvp composition', () => {
     expect(citation).toBeDefined()
     expect(context).toMatchObject({
       kind: 'planning-context',
-      value: { citations: expect.arrayContaining([expect.objectContaining({ citationId: citation })]) },
+      value: { citations: expect.arrayContaining([expect.objectContaining({ citationId: citation })]) as unknown },
     })
     await expect(send({
       command: 'plan-propose',

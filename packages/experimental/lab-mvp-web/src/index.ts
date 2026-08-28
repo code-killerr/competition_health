@@ -1,13 +1,14 @@
 /** 实验自动化平台 Web Facade；浏览器只能通过本服务访问实验能力。 */
 
 import { Context, Service } from '@deepseek-ai/cordis'
-import { brandId, type DeviceId, type ExperimentId, type ExperimentPlan, type ExperimentRequest, type KnowledgeConflict, type KnowledgeSearchRequest, type KnowledgeSearchResult, type LabProjectEvidenceProjection, type LabProjectId } from '@deepseek-ai/dsh-experimental-lab-domain'
+import { brandId, type DeviceId, type ExperimentId, type ExperimentPlan, type ExperimentRequest, type KnowledgeConflict, type KnowledgeSearchRequest, type KnowledgeSearchResult, type LabExperimentRecord, type LabProjectEvidenceProjection, type LabProjectId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { DeviceView } from '@deepseek-ai/dsh-experimental-lab-device'
+import type { LabExperimentCacheService } from '@deepseek-ai/dsh-experimental-lab-cache'
 import type { ImportStatusResult } from '@deepseek-ai/dsh-experimental-lab-knowledge'
-import { createLabKnowledgeConsumer, type KnowledgeCapabilityStatus, type LabKnowledgeConsumer } from '@deepseek-ai/dsh-experimental-lab-project'
-import type { LabProjectConversationCommand, LabProjectConversationResult } from './project-protocol.ts'
+import { createLabKnowledgeConsumer, type KnowledgeCapabilityStatus, type LabKnowledgeConsumer, type LabProjectWorkspaceRegistry } from '@deepseek-ai/dsh-experimental-lab-project'
+import type { LabProjectConversationCommand, LabProjectConversationResult, LabRunComparison } from './project-protocol.ts'
 import type { PlanProposalResult, PlanningContext } from '@deepseek-ai/dsh-experimental-lab-planning'
-import type { ExecutionStepSpec, RunView } from '@deepseek-ai/dsh-experimental-lab-runtime'
+import type { ExecutionStepSpec, LabRunReport, RunView } from '@deepseek-ai/dsh-experimental-lab-runtime'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { LabWebCommand, LabWebCommandResult } from './protocol.ts'
 
@@ -26,7 +27,7 @@ export interface LabMvpWebSnapshot {
   readonly planningContext?: PlanningContext
   readonly planReviews: readonly PlanProposalResult[]
   readonly run?: RunView
-  readonly report?: Readonly<Record<string, unknown>>
+  readonly report?: LabRunReport
 }
 
 /** Web Consumer Facade 服务。 */
@@ -49,7 +50,7 @@ export class LabMvpWebService extends Service {
       capabilities: device.capabilities.map(capability => ({ ...capability, parameters: { ...capability.parameters } })),
     }))
     const planReviews = this.ctx.labPlanning.listProposals(experimentId)
-    const run = this.ctx.labRuntime.getRun(experimentId)
+    const run = this.ctx.labRuntime.listRuns(experimentId).at(-1)
     const report = run?.runId === undefined ? undefined : await this.ctx.labRuntime.buildReport(run.runId)
     return {
       knowledge,
@@ -148,14 +149,15 @@ export class LabMvpWebService extends Service {
         return { kind: 'project-list', value: await this.ctx.labProjects.list() }
       case 'project-create': {
         const value = await this.ctx.labProjects.create({
-          projectId: command.projectId,
+          ...command.workspaceId === undefined ? {} : { workspaceId: command.workspaceId },
           name: command.name,
           ...command.description === undefined ? {} : { description: command.description },
           createdBy: actor,
         })
         this.sessionFor(command)?.append('lab/project/created', {
           version: 1,
-          projectId: command.projectId,
+          projectId: value.project.projectId,
+          workspaceId: value.project.workspaceId,
           name: command.name,
           sessionId: actor,
         })
@@ -180,17 +182,21 @@ export class LabMvpWebService extends Service {
         return { kind: 'project', value }
       }
       case 'project-session-create': {
-        await this.ctx.labProjects.open(command.projectId)
+        const project = await this.ctx.labProjects.open(command.projectId)
+        const workspace = this.workspaceRegistry().get(project.project.workspaceId)
+        if (workspace === undefined) throw new Error(`workspace "${project.project.workspaceId}" is unavailable for project Session creation`)
         const sessions = this.ctx.get('sessions')
         if (sessions === undefined) throw new Error('session service is unavailable for project Session creation')
-        const created = sessions.create()
-        const value = await this.ctx.labProjects.associateSession({
+        const created = sessions.create(undefined, { meta: { cwd: workspace.path } })
+        const result = await this.ctx.labProjects.attachSession({
           projectId: command.projectId,
           sessionId: created.id,
           ...command.title === undefined ? {} : { title: command.title },
-          associatedBy: actor,
+          attachedBy: actor,
         })
-        this.sessionFor(command)?.append('lab/project/session-associated', {
+        if (result.status === 'conflict') throw new Error('new project Session did not resolve to the project Workspace')
+        const value = result.project
+        this.sessionFor(command)?.append('lab/project/session-attached', {
           version: 1,
           projectId: command.projectId,
           sessionId: created.id,
@@ -198,19 +204,40 @@ export class LabMvpWebService extends Service {
         })
         return { kind: 'project', value }
       }
-      case 'project-session-associate': {
+      case 'project-session-attach': {
         this.assertTargetSession(command.targetSessionId)
-        const value = await this.ctx.labProjects.associateSession({
+        const result = await this.ctx.labProjects.attachSession({
           projectId: command.projectId,
           sessionId: command.targetSessionId,
           ...command.title === undefined ? {} : { title: command.title },
-          associatedBy: actor,
+          attachedBy: actor,
         })
-        this.sessionFor(command)?.append('lab/project/session-associated', {
+        if (result.status === 'conflict') return { kind: 'project-session-attach-conflict', value: result }
+        const value = result.project
+        this.sessionFor(command)?.append('lab/project/session-attached', {
           version: 1,
           projectId: command.projectId,
           sessionId: command.targetSessionId,
           title: value.sessions.find(session => session.sessionId === command.targetSessionId)?.title ?? 'Conversation',
+        })
+        return { kind: 'project', value }
+      }
+      case 'project-session-detach': {
+        const value = await this.ctx.labProjects.detachSession(command.projectId, command.targetSessionId, actor)
+        this.sessionFor(command)?.append('lab/project/session-detached', {
+          version: 1,
+          projectId: command.projectId,
+          sessionId: command.targetSessionId,
+          detachedBy: actor,
+        })
+        return { kind: 'project', value }
+      }
+      case 'project-archive': {
+        const value = await this.ctx.labProjects.archive(command.projectId, actor)
+        this.sessionFor(command)?.append('lab/project/archived', {
+          version: 1,
+          projectId: command.projectId,
+          archivedBy: actor,
         })
         return { kind: 'project', value }
       }
@@ -230,11 +257,149 @@ export class LabMvpWebService extends Service {
         return { kind: 'project-context', value: await this.projectContext(command.projectId, command.sessionId) }
       case 'project-planning-context':
         return { kind: 'project-context', value: await this.projectPlanningContext(command.projectId, command.request, command.sessionId) }
+      case 'experiment-list':
+        return { kind: 'experiment-list', value: await this.ctx.labProjects.listExperiments(command.projectId) }
+      case 'experiment-open': {
+        const experiment = await this.experimentInProject(command.projectId, command.experimentId)
+        return { kind: 'experiment', value: experiment }
+      }
+      case 'experiment-create': {
+        const result = await this.ctx.labProjects.createExperiment({
+          projectId: command.projectId,
+          title: command.title,
+          objective: command.objective,
+          createdInSessionId: actor,
+          createdBy: actor,
+        })
+        await this.registerRuntimeExperiment(result.experiment)
+        this.sessionFor(command)?.append('lab/project/experiment-created', {
+          version: 1,
+          projectId: command.projectId,
+          experimentId: result.experiment.experimentId,
+          title: result.experiment.title,
+          objective: result.experiment.objective,
+          createdInSessionId: actor,
+        })
+        return { kind: 'experiment-project', value: result.project }
+      }
+      case 'experiment-derive': {
+        const result = await this.ctx.labProjects.createExperiment({
+          projectId: command.projectId,
+          title: command.title,
+          objective: command.objective,
+          createdInSessionId: actor,
+          createdBy: actor,
+          derivedFromExperimentId: command.sourceExperimentId,
+        })
+        await this.registerRuntimeExperiment(result.experiment)
+        this.sessionFor(command)?.append('lab/project/experiment-created', {
+          version: 1,
+          projectId: command.projectId,
+          experimentId: result.experiment.experimentId,
+          title: result.experiment.title,
+          objective: result.experiment.objective,
+          createdInSessionId: actor,
+        })
+        return { kind: 'experiment-project', value: result.project }
+      }
+      case 'experiment-session-link': {
+        const value = await this.ctx.labProjects.linkExperimentSession({
+          projectId: command.projectId,
+          experimentId: command.experimentId,
+          sessionId: command.targetSessionId,
+          role: command.role,
+          linkedBy: actor,
+        })
+        this.sessionFor(command)?.append('lab/project/experiment-session-linked', {
+          version: 1,
+          projectId: command.projectId,
+          experimentId: command.experimentId,
+          sessionId: command.targetSessionId,
+          role: command.role,
+          linkedBy: actor,
+        })
+        return { kind: 'experiment-project', value }
+      }
+      case 'run-list':
+        return { kind: 'run-list', value: this.ctx.labRuntime.listRuns(command.experimentId) }
+      case 'run-open': {
+        const run = this.ctx.labRuntime.getRun(command.runId)
+        if (run === undefined) throw new Error(`run "${command.runId}" is not available`)
+        return { kind: 'run', value: run }
+      }
+      case 'run-start': {
+        const run = await this.ctx.labRuntime.startRun({
+          experimentId: command.experimentId,
+          planId: command.planId,
+          launchingSessionId: actor,
+        })
+        await this.persistRun(command, run)
+        return { kind: 'run', value: run }
+      }
+      case 'run-stop': {
+        const run = await this.ctx.labRuntime.stopRun(command.runId, actor)
+        await this.persistRun(command, run)
+        return { kind: 'run', value: run }
+      }
+      case 'run-retry': {
+        const run = await this.ctx.labRuntime.retryRun(command.runId, actor)
+        await this.persistRun(command, run)
+        return { kind: 'run', value: run }
+      }
+      case 'run-compare': {
+        const left = this.ctx.labRuntime.getRun(command.leftRunId)
+        const right = this.ctx.labRuntime.getRun(command.rightRunId)
+        if (left === undefined || right === undefined) throw new Error('both Runs must be available for comparison')
+        if (left.experimentId !== right.experimentId) throw new Error('Runs from different Experiments cannot be compared')
+        return { kind: 'run-comparison', value: compareRuns(left, right) }
+      }
+      case 'run-report': {
+        const value = await this.ctx.labRuntime.buildReport(command.runId)
+        const run = this.ctx.labRuntime.getRun(command.runId)
+        if (run !== undefined) await this.persistRun(command, run)
+        return { kind: 'run-report', value }
+      }
+      case 'artifact-list': {
+        const run = this.ctx.labRuntime.getRun(command.runId)
+        if (run === undefined) throw new Error(`run "${command.runId}" is not available`)
+        return { kind: 'artifact-list', value: run.artifacts }
+      }
+      case 'artifact-open': {
+        const run = this.ctx.labRuntime.getRun(command.runId)
+        if (run === undefined) throw new Error(`run "${command.runId}" is not available`)
+        const artifact = run.artifacts.find(item => item.artifactId === command.artifactId)
+        if (artifact === undefined) throw new Error(`artifact "${command.artifactId}" is not available for run "${command.runId}"`)
+        return { kind: 'artifact', value: artifact }
+      }
     }
   }
 
   private knowledgeConsumer(): LabKnowledgeConsumer {
     return createLabKnowledgeConsumer(this.ctx.labKnowledge)
+  }
+
+  private workspaceRegistry(): LabProjectWorkspaceRegistry {
+    const registry = this.ctx.get('workspaceRegistry') as LabProjectWorkspaceRegistry | undefined
+    if (registry === undefined) throw new Error('workspace registry is unavailable')
+    return registry
+  }
+
+  private async experimentInProject(projectId: LabProjectId, experimentId: ExperimentId): Promise<LabExperimentRecord> {
+    const experiment = (await this.ctx.labProjects.listExperiments(projectId)).find(item => item.experimentId === experimentId)
+    if (experiment === undefined) throw new Error(`experiment "${experimentId}" is not available in project "${projectId}"`)
+    return experiment
+  }
+
+  /** 将项目实验登记到 Runtime，保持项目对象和可执行运行时使用同一实验身份。
+   * @param experiment - project-owned experiment to register.
+   * @returns - completion after the Runtime record is durable.
+   */
+  private async registerRuntimeExperiment(experiment: LabExperimentRecord): Promise<void> {
+    await this.ctx.labRuntime.createExperiment({
+      experimentId: experiment.experimentId,
+      objective: experiment.objective,
+      expectedOutputs: [],
+    })
   }
 
   private async validateProjectScope(
@@ -261,7 +426,7 @@ export class LabMvpWebService extends Service {
     if (sessions !== undefined && sessions.get(sessionId) === undefined) throw new Error(`session "${sessionId}" is not available`)
   }
 
-  private async projectContext(projectId: LabProjectId, sessionId?: SessionId): Promise<unknown> {
+  private async projectContext(projectId: LabProjectId, sessionId?: SessionId): Promise<Readonly<Record<string, unknown>>> {
     return {
       project: await this.ctx.labProjects.context(projectId, sessionId),
       knowledgeCapability: await this.knowledgeConsumer().capability(),
@@ -272,7 +437,7 @@ export class LabMvpWebService extends Service {
     projectId: LabProjectId,
     request: ExperimentRequest,
     sessionId?: SessionId,
-  ): Promise<unknown> {
+  ): Promise<Readonly<Record<string, unknown>>> {
     const project = await this.ctx.labProjects.context(projectId, sessionId)
     const consumer = this.knowledgeConsumer()
     const knowledgeCapability = await consumer.capability()
@@ -405,7 +570,11 @@ export class LabMvpWebService extends Service {
   }
 
   private async startRun(command: Extract<LabWebCommand, { command: 'run-start' }>): Promise<RunView> {
-    const run = await this.ctx.labRuntime.startRun(command.experimentId, command.planId)
+    const run = await this.ctx.labRuntime.startRun({
+      experimentId: command.experimentId,
+      planId: command.planId,
+      ...command.sessionId === undefined ? {} : { launchingSessionId: command.sessionId },
+    })
     await this.persistRun(command, run)
     return run
   }
@@ -434,9 +603,9 @@ export class LabMvpWebService extends Service {
     return run
   }
 
-  private async reportRun(command: Extract<LabWebCommand, { command: 'run-report' }>): Promise<Readonly<Record<string, unknown>>> {
+  private async reportRun(command: Extract<LabWebCommand, { command: 'run-report' }>): Promise<LabRunReport> {
     const report = await this.ctx.labRuntime.buildReport(command.runId)
-    const run = this.ctx.labRuntime.getRun(brandId<'ExperimentId'>(String(report.experimentId ?? '')))
+    const run = this.ctx.labRuntime.getRun(command.runId)
     if (run !== undefined) await this.persistRun(command, run)
     return report
   }
@@ -450,12 +619,12 @@ export class LabMvpWebService extends Service {
     return session
   }
 
-  private async persistRun(command: LabWebCommand, run: RunView): Promise<void> {
+  private async persistRun(command: { readonly command?: string; readonly sessionId?: SessionId }, run: RunView): Promise<void> {
     const session = this.sessionFor(command)
     if (session === undefined) return
     const runId = run.runId
     const runStatus = run.runStatus
-    if (runId === undefined || runStatus === undefined) throw new Error('runtime returned a run without a state')
+    if (runStatus === undefined) throw new Error('runtime returned a run without a state')
     for (const observation of run.observations) {
       session.append('lab/run/observation', {
         version: 1,
@@ -488,9 +657,8 @@ export class LabMvpWebService extends Service {
       replanRequested: run.feedback.replanRequested,
       ...run.replanRequest === undefined ? {} : { replanRequest: { stepId: run.replanRequest.stepId, reason: run.replanRequest.reason } },
     })
-    const cache = this.ctx.get('labExperimentCache')
-    if (cache === undefined) throw new Error('laboratory cache service is unavailable for this Web command')
     session.append('lab/cache/projected', { version: 1, projection: run.cache })
+    const cache = this.ctx.get('labExperimentCache') as LabExperimentCacheService
     await cache.project(run.cache)
     await this.projectEvidenceForSession(command, {
       version: 1,
@@ -536,6 +704,24 @@ export class LabMvpWebService extends Service {
   }
 }
 
+function compareRuns(left: RunView, right: RunView): LabRunComparison {
+  const stepIds = new Set([
+    ...left.executionGraph.steps.map(step => String(step.stepId)),
+    ...right.executionGraph.steps.map(step => String(step.stepId)),
+  ])
+  return {
+    leftRunId: left.runId,
+    rightRunId: right.runId,
+    status: { left: left.runStatus, right: right.runStatus },
+    stepStatuses: [...stepIds].map(stepId => ({
+      stepId,
+      left: left.observations.findLast(observation => String(observation.stepId) === stepId)?.status,
+      right: right.observations.findLast(observation => String(observation.stepId) === stepId)?.status,
+    })),
+    artifactCounts: { left: left.artifacts.length, right: right.artifacts.length },
+  }
+}
+
 function toRuntimeRequest(request: ExperimentRequest): import('@deepseek-ai/dsh-experimental-lab-runtime').ExperimentRequest {
   return {
     experimentId: request.experimentId,
@@ -553,7 +739,7 @@ declare module '@deepseek-ai/cordis' {
 /** Cordis 插件名称。 */
 export const name = 'lab-mvp-web'
 /** 依赖实验状态 Service。 */
-export const inject = ['labKnowledge', 'labDevices', 'labPlanning', 'labSkills', 'labRuntime', 'labProjects']
+export const inject = ['labKnowledge', 'labDevices', 'labPlanning', 'labSkills', 'labRuntime', 'labProjects', 'labExperimentCache']
 
 /** 安装 Web Consumer 服务。 */
 export function apply(ctx: Context): void {

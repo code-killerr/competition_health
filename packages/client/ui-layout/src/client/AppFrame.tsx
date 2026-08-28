@@ -4,9 +4,10 @@
  * details), the drag handles (pointer capture + rAF throttle), the concession
  * chain (columns.ts), and the child-slot render decisions: the sidebar slot
  * renders HERE with live parameters from the concession solve, and the
- * session-aware occupants render in fixed column positions; strict entries
- * gate themselves on current-session availability while session-maybe
- * entries retain identity. Pure component: everything arrives
+ * session-aware occupants render in fixed column positions; Conversation
+ * and the selected root application view retain their identities while one is
+ * hidden. Strict entries gate themselves on current-session availability while
+ * session-maybe entries retain identity. Pure component: everything arrives
  * through the three framework shares — zero cordis or framework imports,
  * zero self-made hooks.
  */
@@ -20,7 +21,7 @@ import css from './AppFrame.module.css'
 /** Full composed props: runtime share + child-slot render share + store share. */
 export type AppFrameProps =
   & PropsRuntime<'root'>
-  & PropsRenderSlots<'sidebar' | 'conversation' | 'details' | 'shell.overlay'>
+  & PropsRenderSlots<'sidebar' | 'conversation' | 'details' | 'shell.overlay' | 'app.view'>
   & PropsStore<ReturnType<typeof createLayoutStore>>
 
 /** Center column grid item (session-body building block). */
@@ -187,7 +188,16 @@ export function AppFrame({
             the shell's own pending rendering. The conversation
             is session-maybe; the strict details entry naturally renders
             empty while no session is current. */}
-        <CenterColumn>{renderSlot('conversation', {})}</CenterColumn>
+        <CenterColumn>
+          <div className={css.conversationSurface} hidden={panels.activeAppViewId !== undefined}>
+            {renderSlot('conversation', {})}
+          </div>
+          <div className={css.appViewSurface} hidden={panels.activeAppViewId === undefined}>
+            {panels.activeAppViewId === undefined
+              ? null
+              : renderSlot('app.view', {}, { only: panels.activeAppViewId })}
+          </div>
+        </CenterColumn>
         <DetailsColumn>{renderSlot('details', {})}</DetailsColumn>
       </>
       <div className={css.overlayLayer} data-shell-overlay>

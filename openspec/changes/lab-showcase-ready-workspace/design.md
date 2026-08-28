@@ -6,6 +6,35 @@ The product must remain an opt-in plugin composition. Browser code consumes type
 
 The interaction direction combines four proven patterns without copying their object models: Open WebUI contributes active project navigation, LibreChat contributes conversation-first attachment, MLflow/ClearML contribute Experiment and Run tables, and eLabFTW/Chemotion contribute revision-aware approval and grouped evidence. Existing DeepSeek Harness UI plugins remain the implementation foundation.
 
+## Implementation correction
+
+The existing UI extension points do not provide a root-scoped application page registry or an additive primary-navigation region. `conversation.view` is a Session tab and `sidebar.footer.action` is an auxiliary action row; neither can own Projects, Knowledge or Devices navigation that must work before a Session exists. The implementation SHALL add the missing general-purpose contracts before moving laboratory pages.
+
+The current `LabWorkbench` structure is not the target architecture. It registers the whole laboratory product as one `conversation.view`, places global navigation in `sidebar.footer.action`, forwards clicks through `window` events, creates Project and Experiment identifiers in browser state and renders experimental requests as a second form beside the real composer. Implementation SHALL remove those responsibilities instead of styling or extending them.
+
+The target browser composition is:
+
+```text
+AppFrame
+├── SidebarRoot
+│   ├── New Session
+│   ├── sidebar.navigation        Projects / Knowledge / Devices
+│   ├── sidebar.workspaces        directory Workspaces and Sessions
+│   └── Settings
+├── Center
+│   ├── conversation              default, remains mounted
+│   └── app.view                  selected root-scoped product page
+└── Details
+
+Conversation
+├── conversation.session.header.actions   Project / Experiment context
+├── conversation.input.dock               inherited-context strip
+├── conversation.chat.commandview         Project and approval commands
+└── conversation.chat.node                Plan / Run / Evidence projections
+```
+
+`ui-layout` owns the active root-scoped application view and exposes `openAppView(id)` and `closeAppView()`. `ui-sidebar` owns only the navigation render location. Laboratory packages register navigation controls and page components; they do not own a second shell or a second composer. Opening a Session closes the root application view and returns to the existing conversation while preserving the active Project record on the Host.
+
 ## Goals / Non-Goals
 
 **Goals:**
@@ -31,7 +60,7 @@ The interaction direction combines four proven patterns without copying their ob
 
 ### 1. Keep Workspace and LabProject separate and link them explicitly
 
-A directory Workspace continues to own a normalized path, Workspace presentation and cwd-based Session grouping. A LabProject gains an optional opaque `workspaceId` and owns experimental scope, Sessions, Experiments and evidence. One LabProject references at most one Workspace; more than one LabProject may reference the same directory Workspace.
+A directory Workspace continues to own a normalized path, Workspace presentation and cwd-based Session grouping. Every LabProject stores one opaque `workspaceId` and owns experimental scope, Sessions, Experiments and evidence. More than one LabProject may reference the same directory Workspace.
 
 Creating a Project from the current Session defaults to that Session's Workspace. Creating a Project manually requires selecting a registered Workspace or creating one through the existing Workspace picker. Attaching a Session whose cwd does not match the Project Workspace fails with an actionable option to create a new Session in the target Workspace; the client never silently changes the Session cwd.
 
@@ -67,11 +96,13 @@ The first client supports metadata, safe text/JSON/image previews supplied by ex
 
 **Alternative considered: keep evidence as strings only.** Rejected because users cannot inspect, verify or navigate real outputs.
 
-### 5. Use Harness navigation with a conversation-centered Project layout
+### 5. Add Harness application navigation and keep conversation as the planning surface
 
-The global sidebar exposes Projects, Knowledge and Devices as real navigation contributions instead of hash links inside the workbench. Opening a Project restores its last active view and Session. The Project page uses a stable header and the tabs `Overview`, `Conversations`, `Experiments`, `Runs` and `Evidence`; Knowledge and Devices remain global pages but expose Project-scope selection actions.
+`ui-layout` gains an additive root-scoped `app.view` list and an `ILayout` application-view selection API. `ui-sidebar` gains an additive `sidebar.navigation` list between New Session and the directory Workspace browser. The global sidebar exposes Projects, Knowledge and Devices through that seat. Navigation must work with no current Session and must not use `window` events, hash fragments or browser-only route copies.
 
-The conversation remains the primary planning surface. A compact context strip above the composer shows Project, Workspace directory, active Experiment, selected Knowledge count, selected device count and temporary attachments. Structured Plan, approval and Run status cards appear in the conversation through the appropriate conversation rendering contribution and link to full Project detail pages.
+Opening a Project selects its durable record and opens the Project application view. The Project page uses a stable header and the tabs `Overview`, `Conversations`, `Experiments`, `Runs` and `Evidence`; Knowledge and Devices remain global application views but expose Project-scope selection actions. Selecting a Project conversation opens the real Harness Session and closes the application view. Returning to Projects restores the last valid Project subpage from client presentation state and reloads all records from the Host.
+
+The conversation remains the primary planning surface. A compact context strip above the composer shows Project, Workspace directory, active Experiment, selected Knowledge count, selected device count and temporary attachments. Structured Plan, approval and Run status cards register through `conversation.chat.commandview` or `conversation.chat.node` according to their durable Session event and link to root-scoped Project detail pages. The laboratory UI SHALL not render objective, sample and constraint forms as a replacement for the composer.
 
 The initial visual direction keeps the existing dark ink-green navigation, warm neutral content panels and amber attention state. Layout, typography, focus treatment, localization and responsive behavior use existing client tokens and components. Visible strings live in locale dictionaries.
 
@@ -83,7 +114,7 @@ The initial visual direction keeps the existing dark ink-green navigation, warm 
 
 The keyless showcase uses deterministic Knowledge, model and device test Providers but traverses the real Facade, Session, Project, Planning, approval, Runtime and browser contributions. The UI labels unavailable or simulated capabilities accurately. An opt-in profile uses configured DeepSeek credentials and the local Docling runtime without changing the product flow.
 
-`examples/lab-web` is the only product prototype entry. Its sidebar, Project pages, conversation, Knowledge, Experiment, Run and Evidence views read the same Host records and preserve navigation state. No page uses an isolated browser data object, and no second SPA or copied HTML delivery is created. A repository script provides the documented one-command launch after required packages are built.
+`examples/lab-web` is the only product prototype entry. Its sidebar, Project pages, conversation, Knowledge, Experiment, Run and Evidence views read the same Host records and preserve navigation state. Project, Experiment, Run and Artifact identities are generated by their owning Host services. No page uses an isolated browser data object, a timestamp-derived identifier, a default `project-1`/`experiment-1`, or a second SPA. A repository script provides the documented one-command launch after required packages are built.
 
 The acceptance journey is:
 

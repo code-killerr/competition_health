@@ -23,7 +23,9 @@ async function setup() {
   contexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
-  const projects = new LabProjectService(ctx, () => 100)
+  const workspace = { id: brandId<'WorkspaceId'>('workspace-tools'), path: '/workspace/tools', sessionIds: [SessionId('lab-project-tools')] }
+  ctx.provide('workspaceRegistry', { get: () => workspace, list: () => [workspace] })
+  const projects = new LabProjectService(ctx, { clock: () => 100 })
   await projects.attach(new InMemoryLabProjectStore())
   const search = vi.fn().mockResolvedValue([])
   ctx.provide('labKnowledge', {
@@ -61,14 +63,13 @@ describe('tool-lab-project', () => {
     const assembly = await ctx.systemPrompt.assemble({ scope })
     expect(assembly.tools.map(tool => tool.name)).toEqual(expect.arrayContaining(['lab_project_context', 'lab_project_plan_context']))
 
-    const project = brandId<'LabProjectId'>('project-tool')
-    await projects.create({ projectId: project, name: 'Tool project', createdBy: agent.session.id })
+    const project = (await projects.create({ name: 'Tool project', createdBy: agent.session.id })).project.projectId
     await projects.updateScope(project, {
       sources: [{ documentId: brandId<'KnowledgeDocumentId'>('doc-1'), versionId: brandId<'KnowledgeDocumentVersionId'>('version-1') }],
       deviceIds: [brandId<'DeviceId'>('device-1')],
       selectedBy: agent.session.id,
     })
-    await projects.associateSession({ projectId: project, sessionId: agent.session.id, associatedBy: agent.session.id })
+    await projects.attachSession({ projectId: project, sessionId: agent.session.id, attachedBy: agent.session.id })
 
     const result = await execute(ctx, agent, 'lab_project_context', { project_id: project })
     const inferred = await execute(ctx, agent, 'lab_project_context', {})
@@ -87,14 +88,13 @@ describe('tool-lab-project', () => {
 
   it('limits planning retrieval to project source versions and carries unresolved inputs', async () => {
     const { ctx, projects, agent, search } = await setup()
-    const project = brandId<'LabProjectId'>('project-plan-tool')
-    await projects.create({ projectId: project, name: 'Planning project', createdBy: agent.session.id })
+    const project = (await projects.create({ name: 'Planning project', createdBy: agent.session.id })).project.projectId
     await projects.updateScope(project, {
       sources: [{ documentId: brandId<'KnowledgeDocumentId'>('doc-2'), versionId: brandId<'KnowledgeDocumentVersionId'>('version-2') }],
       deviceIds: [],
       selectedBy: agent.session.id,
     })
-    await projects.associateSession({ projectId: project, sessionId: agent.session.id, associatedBy: agent.session.id })
+    await projects.attachSession({ projectId: project, sessionId: agent.session.id, attachedBy: agent.session.id })
 
     const result = await execute(ctx, agent, 'lab_project_plan_context', {
       project_id: project,
@@ -115,11 +115,9 @@ describe('tool-lab-project', () => {
 
   it('returns a stable cross-project reference error to the Agent', async () => {
     const { ctx, projects, agent } = await setup()
-    const owner = brandId<'LabProjectId'>('project-owner')
-    const other = brandId<'LabProjectId'>('project-other')
-    await projects.create({ projectId: owner, name: 'Owner project', createdBy: agent.session.id })
-    await projects.create({ projectId: other, name: 'Other project', createdBy: agent.session.id })
-    await projects.associateSession({ projectId: owner, sessionId: agent.session.id, associatedBy: agent.session.id })
+    const owner = (await projects.create({ name: 'Owner project', createdBy: agent.session.id })).project.projectId
+    const other = (await projects.create({ name: 'Other project', createdBy: agent.session.id })).project.projectId
+    await projects.attachSession({ projectId: owner, sessionId: agent.session.id, attachedBy: agent.session.id })
     const result = await execute(ctx, agent, 'lab_project_context', { project_id: other })
     expect(result.isError).toBe(true)
     expect(result.error).toMatchObject({ info: { name: 'HarnessError', code: 'CROSS_PROJECT_REFERENCE' } })

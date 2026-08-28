@@ -702,7 +702,7 @@ export interface ParsedDocumentBlock {
 }
 ```
 
-Source: [`packages/experimental/lab-knowledge-local/src/index.ts:64`](../packages/experimental/lab-knowledge-local/src/index.ts)
+Source: [`packages/experimental/lab-knowledge-local/src/index.ts:73`](../packages/experimental/lab-knowledge-local/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-lab-mvp"></a>
 
@@ -723,12 +723,18 @@ export interface Config {
   readonly skill?: LocalSkill.Config
   /** 本地 Runtime 配置；默认使用 `.lab-data/runtime.sqlite` 保存权威状态。 */
   readonly runtime?: LocalRuntime.Config
+  /** 显式提供文档解析器；用于组合测试和可替换的 MVP 解析运行时。 */
+  readonly documentParser?: LocalKnowledge.DocumentParser
+  /** 显式启用本地 Docling PDF 解析；缺省时保持现有 PDF 不可用状态。 */
+  readonly docling?: LocalKnowledge.DoclingConfig
+  /** 显式启用实验 Web HTTP Consumer；缺省时只装实验 Service。 */
+  readonly web?: WebConsumer.Http.Config
 }
 ```
 
-Depends on: [`LocalPlanning`](../packages/experimental/lab-planning-local/src/index.ts) · [`LocalRuntime`](../packages/experimental/lab-runtime-local/src/index.ts) · [`LocalSkill`](../packages/experimental/lab-skill-local/src/index.ts) · [`MockDevice`](../packages/experimental/lab-device-mock/src/index.ts)
+Depends on: [`LocalKnowledge`](../packages/experimental/lab-knowledge-local/src/index.ts) · [`LocalPlanning`](../packages/experimental/lab-planning-local/src/index.ts) · [`LocalRuntime`](../packages/experimental/lab-runtime-local/src/index.ts) · [`LocalSkill`](../packages/experimental/lab-skill-local/src/index.ts) · [`MockDevice`](../packages/experimental/lab-device-mock/src/index.ts) · [`WebConsumer`](../packages/experimental/lab-mvp-web/src/index.ts)
 
-Source: [`packages/experimental/lab-mvp/src/index.ts:20`](../packages/experimental/lab-mvp/src/index.ts)
+Source: [`packages/experimental/lab-mvp/src/index.ts:23`](../packages/experimental/lab-mvp/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-lab-planning-local"></a>
 
@@ -746,6 +752,28 @@ export interface Config {
 
 Source: [`packages/experimental/lab-planning-local/src/index.ts:20`](../packages/experimental/lab-planning-local/src/index.ts)
 
+<a id="deepseek-aidsh-experimental-lab-project"></a>
+
+## `@deepseek-ai/dsh-experimental-lab-project`
+
+Requires: `storageDomain`
+
+```ts config-catalog
+/** 项目服务的部署和测试选项。 */
+export interface LabProjectServiceConfig {
+  /** 持久化元数据使用的时间源。 */
+  readonly clock?: () => number
+  /** Host 负责提供的 Project ID 生成器。 */
+  readonly idGenerator?: () => LabProjectId
+  /** Host 负责提供的 Experiment ID 生成器。 */
+  readonly experimentIdGenerator?: () => ExperimentId
+}
+```
+
+Depends on: [`ExperimentId`](../packages/experimental/lab-domain/src/index.ts) · [`LabProjectId`](subsystems/lab-automation.md)
+
+Source: [`packages/experimental/lab-project/src/index.ts:249`](../packages/experimental/lab-project/src/index.ts)
+
 <a id="deepseek-aidsh-experimental-lab-runtime-local"></a>
 
 ## `@deepseek-ai/dsh-experimental-lab-runtime-local`
@@ -760,7 +788,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/experimental/lab-runtime-local/src/index.ts:40`](../packages/experimental/lab-runtime-local/src/index.ts)
+Source: [`packages/experimental/lab-runtime-local/src/index.ts:42`](../packages/experimental/lab-runtime-local/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-lab-skill-local"></a>
 
@@ -3404,6 +3432,8 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-goal` ([`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-input-trigger` ([`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-jobs` ([`packages/client/ui-jobs/src/index.ts`](../packages/client/ui-jobs/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-lab-knowledge-workspace` ([`packages/client/ui-lab-knowledge-workspace/src/index.ts`](../packages/client/ui-lab-knowledge-workspace/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-lab-workbench` ([`packages/client/ui-lab-workbench/src/index.ts`](../packages/client/ui-lab-workbench/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-layout` ([`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-message-feedback` ([`packages/client/ui-message-feedback/src/index.ts`](../packages/client/ui-message-feedback/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-model-selection` ([`packages/client/ui-model-selection/src/index.ts`](../packages/client/ui-model-selection/src/index.ts))
@@ -3430,15 +3460,17 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-command-goal` — requires `commands` · `goals` ([`packages/goal/command-goal/src/index.ts`](../packages/goal/command-goal/src/index.ts))
 - `@deepseek-ai/dsh-commands` ([`packages/interaction/commands/src/index.ts`](../packages/interaction/commands/src/index.ts))
 - `@deepseek-ai/dsh-cordis-client-runner` ([`packages/extensions/cordis-client-runner/src/index.ts`](../packages/extensions/cordis-client-runner/src/index.ts))
+- `@deepseek-ai/dsh-experimental-lab-cache` ([`packages/experimental/lab-cache/src/index.ts`](../packages/experimental/lab-cache/src/index.ts))
 - `@deepseek-ai/dsh-experimental-lab-device` ([`packages/experimental/lab-device/src/index.ts`](../packages/experimental/lab-device/src/index.ts))
 - `@deepseek-ai/dsh-experimental-lab-knowledge` ([`packages/experimental/lab-knowledge/src/index.ts`](../packages/experimental/lab-knowledge/src/index.ts))
-- `@deepseek-ai/dsh-experimental-lab-mvp-web` — requires `labKnowledge` · `labDevices` · `labPlanning` · `labRuntime` ([`packages/experimental/lab-mvp-web/src/index.ts`](../packages/experimental/lab-mvp-web/src/index.ts))
+- `@deepseek-ai/dsh-experimental-lab-mvp-web` — requires `labKnowledge` · `labDevices` · `labPlanning` · `labSkills` · `labRuntime` · `labProjects` · `labExperimentCache` ([`packages/experimental/lab-mvp-web/src/index.ts`](../packages/experimental/lab-mvp-web/src/index.ts))
 - `@deepseek-ai/dsh-experimental-lab-planning` ([`packages/experimental/lab-planning/src/index.ts`](../packages/experimental/lab-planning/src/index.ts))
 - `@deepseek-ai/dsh-experimental-lab-runtime` ([`packages/experimental/lab-runtime/src/index.ts`](../packages/experimental/lab-runtime/src/index.ts))
 - `@deepseek-ai/dsh-experimental-lab-skill` ([`packages/experimental/lab-skill/src/index.ts`](../packages/experimental/lab-skill/src/index.ts))
 - `@deepseek-ai/dsh-experimental-tool-lab` — requires `agents` · `tools` · `labRuntime` · `labPlanning` · `labSkills` ([`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts))
 - `@deepseek-ai/dsh-experimental-tool-lab-knowledge` — requires `agents` · `tools` · `labKnowledge` ([`packages/experimental/tool-lab-knowledge/src/index.ts`](../packages/experimental/tool-lab-knowledge/src/index.ts))
 - `@deepseek-ai/dsh-experimental-tool-lab-planning` — requires `agents` · `tools` · `labPlanning` · `labDevices` · `labSkills` ([`packages/experimental/tool-lab-planning/src/index.ts`](../packages/experimental/tool-lab-planning/src/index.ts))
+- `@deepseek-ai/dsh-experimental-tool-lab-project` — requires `agents` · `tools` · `labProjects` · `labKnowledge` · `labDevices` ([`packages/experimental/tool-lab-project/src/index.ts`](../packages/experimental/tool-lab-project/src/index.ts))
 - `@deepseek-ai/dsh-fs-e2b` — requires `e2b` ([`packages/e2b/fs-e2b/src/index.ts`](../packages/e2b/fs-e2b/src/index.ts))
 - `@deepseek-ai/dsh-fs-observation-policy` ([`packages/fs/fs-observation-policy/src/index.ts`](../packages/fs/fs-observation-policy/src/index.ts))
 - `@deepseek-ai/dsh-goal-round-driver` — requires `agents` · `goals` · `sessions` ([`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts))
@@ -3506,6 +3538,7 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 - `@deepseek-ai/dsh-experimental-lab-domain` ([`packages/experimental/lab-domain/src/index.ts`](../packages/experimental/lab-domain/src/index.ts))
 - `@deepseek-ai/dsh-home-paths` ([`packages/util/home-paths/src/index.ts`](../packages/util/home-paths/src/index.ts))
 - `@deepseek-ai/dsh-hook-protocol` ([`packages/hooks/hook-protocol/src/index.ts`](../packages/hooks/hook-protocol/src/index.ts))
+- `@deepseek-ai/dsh-lab-knowledge-fixtures` ([`packages/test-support/lab-knowledge-fixtures/src/index.ts`](../packages/test-support/lab-knowledge-fixtures/src/index.ts))
 - `@deepseek-ai/dsh-launch-environment` ([`packages/util/launch-environment/src/index.ts`](../packages/util/launch-environment/src/index.ts))
 - `@deepseek-ai/dsh-llm-mock-server` ([`packages/test-support/llm-mock-server/src/index.ts`](../packages/test-support/llm-mock-server/src/index.ts))
 - `@deepseek-ai/dsh-loader-smoke` ([`packages/test-support/loader-smoke/src/index.ts`](../packages/test-support/loader-smoke/src/index.ts))

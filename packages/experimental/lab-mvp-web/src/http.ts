@@ -63,10 +63,10 @@ async function handleRequest(
 }
 
 async function readJson(req: IncomingMessage, maxBodyBytes: number): Promise<unknown> {
-  const chunks: Buffer[] = []
+  const chunks: Uint8Array[] = []
   let size = 0
   for await (const chunk of req) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    const buffer = Buffer.from(chunk)
     size += buffer.byteLength
     if (size > maxBodyBytes) throw new HttpCommandError(413, 'PAYLOAD_TOO_LARGE', '请求体超过配置的大小限制')
     chunks.push(buffer)
@@ -84,11 +84,22 @@ type HttpCommand =
 
 function parseHttpCommand(value: unknown): HttpCommand {
   try {
-    if (isProjectCommand(value)) return { kind: 'project', value: parseLabProjectConversationCommand(value) }
+    const namespace = httpNamespace(value)
+    if (namespace === 'project' || (namespace === undefined && isProjectCommand(value))) {
+      return { kind: 'project', value: parseLabProjectConversationCommand(value) }
+    }
     return { kind: 'lab', value: parseLabWebCommand(value) }
   } catch (error) {
     throw new HttpCommandError(400, 'INVALID_COMMAND', error instanceof Error ? error.message : String(error))
   }
+}
+
+function httpNamespace(value: unknown): 'lab' | 'project' | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const namespace = (value as Record<string, unknown>).namespace
+  if (namespace === undefined) return undefined
+  if (namespace !== 'lab' && namespace !== 'project') throw new Error('namespace must be lab or project')
+  return namespace
 }
 
 function isProjectCommand(value: unknown): boolean {

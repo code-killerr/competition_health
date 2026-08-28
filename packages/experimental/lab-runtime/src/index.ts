@@ -5,12 +5,14 @@ import {
   LabDuplicateProviderError,
   LabProviderUnavailableError,
 } from '@deepseek-ai/dsh-experimental-lab-domain'
-import type { ExperimentId, OperationId, PlanId, PlanStepId, RunId } from '@deepseek-ai/dsh-experimental-lab-domain'
+import type { OperationId, PlanStepId, RunId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type {
   ApprovePlanRequest,
   ExperimentRequest,
   LabRuntimeProvider,
+  LabRunReport,
   RunView,
+  StartRunRequest,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -63,12 +65,11 @@ export class LabRuntimeService extends Service {
   }
 
   /** 从批准的计划启动运行。
- * @param experimentId - experiment to run.
- * @param planId - approved plan revision.
- * @returns - newly created or existing run view.
- */
-  startRun(experimentId: ExperimentId, planId: PlanId): Promise<RunView> {
-    return this.requireProvider().startRun(experimentId, planId)
+   * @param input - 实验、已批准计划和可选的启动 Session。
+   * @returns - 新建或已有的运行视图。
+   */
+  startRun(input: StartRunRequest): Promise<RunView> {
+    return this.requireProvider().startRun(input)
   }
 
   /** 提交人工步骤证据，或批准需要人工门禁的设备步骤。
@@ -106,19 +107,36 @@ export class LabRuntimeService extends Service {
     return this.requireProvider().stopRun(runId, requestedBy)
   }
 
-  /** 读取运行状态。
- * @param experimentId - experiment whose run is requested.
- * @returns - run view, when one exists.
- */
-  getRun(experimentId: ExperimentId): RunView | undefined {
-    return this.requireProvider().getRun(experimentId)
+  /** 读取一个运行状态。
+   * @param runId - run whose state is requested.
+   * @returns - run view, when one exists.
+   */
+  getRun(runId: RunId): RunView | undefined {
+    return this.requireProvider().getRun(runId)
+  }
+
+  /** List all immutable Runs for one Experiment.
+   * @param experimentId - experiment whose runs are requested.
+   * @returns ordered run views.
+   */
+  listRuns(experimentId: import('@deepseek-ai/dsh-experimental-lab-domain').ExperimentId): readonly RunView[] {
+    return this.requireProvider().listRuns(experimentId)
+  }
+
+  /** Retry a terminal Run as a new Run.
+   * @param runId - terminal run to retry.
+   * @param actor - accountable retry requester.
+   * @returns the new Run view.
+   */
+  retryRun(runId: RunId, actor: string): Promise<RunView> {
+    return this.requireProvider().retryRun(runId, actor)
   }
 
   /** 生成带证据的实验报告。
  * @param runId - run to report.
  * @returns - structured report fields and observations.
  */
-  buildReport(runId: RunId): Promise<Readonly<Record<string, unknown>>> {
+  buildReport(runId: RunId): Promise<LabRunReport> {
     return this.requireProvider().buildReport(runId)
   }
 

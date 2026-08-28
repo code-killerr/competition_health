@@ -85,6 +85,14 @@ describe('createLayoutStore', () => {
     expect(store.getSnapshot().details).toBe(0)
   })
 
+  it('stores the active application view as presentation-only state', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.setActiveAppView('test-page')
+    expect(store.getSnapshot().activeAppViewId).toBe('test-page')
+    actions.setActiveAppView(undefined)
+    expect(store.getSnapshot().activeAppViewId).toBeUndefined()
+  })
+
   it('does not persist panel geometry', () => {
     const first = createLayoutStore().create()
     first.actions.setSidebar(400)

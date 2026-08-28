@@ -24,6 +24,8 @@ describe('current MVP Knowledge and Harness composition', () => {
     contexts.push(ctx)
     await ctx.plugin(SkillRegistry)
     await ctx.plugin(SessionStore)
+    const workspace = { id: brandId<'WorkspaceId'>('workspace-pdf-smoke'), path: '/tmp', sessionIds: [] as SessionId[] }
+    ctx.provide('workspaceRegistry', { get: () => workspace, list: () => [workspace] })
     await ctx.plugin(LabMvp, {
       knowledgePath: ':memory:',
       storagePath: ':memory:',
@@ -33,7 +35,8 @@ describe('current MVP Knowledge and Harness composition', () => {
     })
 
     const web = ctx.labMvpWeb
-    const session = ctx.sessions.create(SessionId('lab-pdf-smoke'))
+    const session = ctx.sessions.create(SessionId('lab-pdf-smoke'), { meta: { cwd: workspace.path } })
+    workspace.sessionIds.push(session.id)
     const send = async (payload: Record<string, unknown>): Promise<unknown> => {
       const command = parseLabWebCommand({ ...payload, sessionId: session.id })
       const result = await web.dispatch(command)
@@ -59,9 +62,11 @@ describe('current MVP Knowledge and Harness composition', () => {
     expect(versionId).toBeDefined()
     if (documentId === undefined || versionId === undefined) throw new Error('Knowledge import returned no source identity')
 
-    const projectId = brandId<'LabProjectId'>('project-pdf-smoke')
-    await sendProject({ command: 'project-create', projectId, name: 'PDF smoke project' })
-    await sendProject({ command: 'project-session-associate', projectId, targetSessionId: session.id, title: 'PDF smoke session' })
+    const projectCreated = asRecord(await sendProject({ command: 'project-create', workspaceId: workspace.id, name: 'PDF smoke project' }))
+    const projectId = stringValue(asRecord(projectCreated.project).projectId)
+    expect(projectId).toBeDefined()
+    if (projectId === undefined) throw new Error('Project creation returned no identity')
+    await sendProject({ command: 'project-session-attach', projectId, targetSessionId: session.id, title: 'PDF smoke session' })
     await sendProject({
       command: 'project-scope-update',
       projectId,

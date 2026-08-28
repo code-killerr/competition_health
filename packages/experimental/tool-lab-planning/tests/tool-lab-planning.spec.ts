@@ -59,6 +59,10 @@ function text(result: Awaited<ReturnType<typeof execute>>): string {
   return result.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('')
 }
 
+function parseJson(value: string): unknown {
+  return JSON.parse(value) as unknown
+}
+
 describe('tool-lab-planning', () => {
   it('registers planning tools in Agent scope and records a non-executable proposal', async () => {
     const { ctx, agent } = await setup()
@@ -164,17 +168,17 @@ describe('tool-lab-planning', () => {
     })
 
     expect(result.isError).toBe(false)
-    expect(JSON.parse(text(result))).toMatchObject({
+    expect(parseJson(text(result))).toMatchObject({
       validation: {
         valid: false,
-        issues: expect.arrayContaining([expect.objectContaining({ code: 'CITATION_UNKNOWN' })]),
+        issues: expect.arrayContaining([expect.objectContaining({ code: 'CITATION_UNKNOWN' })]) as unknown,
       },
     })
 
     expect(agent.session.events).toEqual(expect.arrayContaining([
       expect.objectContaining({
         type: 'lab/plan/proposed',
-        data: expect.objectContaining({ planId: 'plan-invalid-citation', citationIds: ['citation-not-retrieved'] }),
+        data: expect.objectContaining({ planId: 'plan-invalid-citation', citationIds: ['citation-not-retrieved'] }) as unknown,
       }),
     ]))
   })
@@ -203,16 +207,16 @@ describe('tool-lab-planning', () => {
       skill_drafts: [],
     })
     expect(result.isError).toBe(false)
-    expect(JSON.parse(text(result))).toMatchObject({
+    expect(parseJson(text(result))).toMatchObject({
       validation: {
         valid: false,
-        issues: expect.arrayContaining([expect.objectContaining({ code: 'CITATION_REQUIRED' })]),
+        issues: expect.arrayContaining([expect.objectContaining({ code: 'CITATION_REQUIRED' })]) as unknown,
       },
     })
     expect(agent.session.events).toEqual(expect.arrayContaining([
       expect.objectContaining({
         type: 'lab/plan/proposed',
-        data: expect.objectContaining({ planId: 'plan-uncited', citationIds: [] }),
+        data: expect.objectContaining({ planId: 'plan-uncited', citationIds: [] }) as unknown,
       }),
     ]))
   })

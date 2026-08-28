@@ -82,6 +82,11 @@ flowchart LR
   pkg_lab_skill_local["lab-skill-local"]
   pkg_lab_runtime["lab-runtime"]
   svc_labRuntime["ctx.labRuntime<br/>Experimental controlled laboratory Runtime"]
+  pkg_lab_cache["lab-cache"]
+  svc_labExperimentCache["ctx.labExperimentCache<br/>Experimental Session and Storage projection cache"]
+  pkg_lab_project["lab-project"]
+  svc_labProjects["ctx.labProjects<br/>Experimental Project and multi-Session records"]
+  pkg_tool_lab_project["tool-lab-project"]
   svc_labMvpWeb["ctx.labMvpWeb<br/>Experimental laboratory Web snapshot Consumer"]
   pkg_lab_mvp["lab-mvp"]
   svc_messageFeedback["ctx.messageFeedback<br/>Lifecycle-bound message feedback"]
@@ -260,6 +265,7 @@ flowchart LR
   pkg_invariants --> svc_invariants
   pkg_jobs --> svc_jobs
   pkg_jobs_local --> svc_jobs
+  pkg_lab_cache --> svc_labExperimentCache
   pkg_lab_device --> svc_labDevices
   pkg_lab_device_mock --> svc_labDevices
   pkg_lab_knowledge --> svc_labKnowledge
@@ -267,6 +273,7 @@ flowchart LR
   pkg_lab_mvp_web --> svc_labMvpWeb
   pkg_lab_planning --> svc_labPlanning
   pkg_lab_planning_local --> svc_labPlanning
+  pkg_lab_project --> svc_labProjects
   pkg_lab_runtime --> svc_labRuntime
   pkg_lab_runtime_local --> svc_labRuntime
   pkg_lab_skill --> svc_labSkills
@@ -375,6 +382,7 @@ flowchart LR
   svc_labDevices --> pkg_lab_planning_local
   svc_labDevices --> pkg_lab_runtime_local
   svc_labDevices --> pkg_tool_lab_planning
+  svc_labExperimentCache --> pkg_lab_mvp_web
   svc_labKnowledge --> pkg_lab_mvp_web
   svc_labKnowledge --> pkg_lab_planning_local
   svc_labKnowledge --> pkg_tool_lab_knowledge
@@ -382,6 +390,8 @@ flowchart LR
   svc_labPlanning --> pkg_lab_mvp_web
   svc_labPlanning --> pkg_tool_lab
   svc_labPlanning --> pkg_tool_lab_planning
+  svc_labProjects --> pkg_lab_mvp_web
+  svc_labProjects --> pkg_tool_lab_project
   svc_labRuntime --> pkg_lab_mvp_web
   svc_labRuntime --> pkg_tool_lab
   svc_labSkills --> pkg_lab_runtime_local
@@ -493,6 +503,8 @@ flowchart LR
 | `ctx.labPlanning` | `seam` | `lab-planning` | `lab-planning-local` | `tool-lab-planning`, `tool-lab`, `lab-mvp-web` | - | The Planning Service stores proposals and performs deterministic validation and human review; it does not start or execute runs. |
 | `ctx.labSkills` | `seam` | `lab-skill` | `lab-skill-local` | `tool-lab-planning`, `tool-lab`, `lab-runtime-local` | - | The Skill Service owns declarative revisions, resource registration, lifecycle state, and immutable run snapshots while Harness ctx.skills remains the discovery bridge. |
 | `ctx.labRuntime` | `seam` | `lab-runtime` | `lab-runtime-local` | `tool-lab`, `lab-mvp-web` | - | The Runtime locks approved plans, advances controlled operations, validates evidence, applies failure policy, and reports feedback without calling the model. |
+| `ctx.labExperimentCache` | `core` | `lab-cache` | - | `lab-mvp-web` | - | The cache owns one rebuildable experiment projection for Web and Agent Consumers; Session events remain authoritative and Storage remains optional for keyless composition. |
+| `ctx.labProjects` | `core` | `lab-project` | - | `lab-mvp-web`, `tool-lab-project` | - | The Project service owns Workspace-scoped identities, Session associations, source/device selections, approved facts, audits, and workflow evidence without moving Session logs. |
 | `ctx.labMvpWeb` | `bundle` | `lab-mvp-web` | - | `lab-mvp` | - | The Web Consumer assembles read-only knowledge, planning, device, run, report, and feedback snapshots from the typed Services. |
 | `ctx.messageFeedback` | `core` | [`message-feedback`](../packages/feedback/message-feedback) | - | - | - | Owns local per-assistant-message feedback, lifecycle and target validation, per-item compare-and-set, and the Host unary Remote contract without entering Session history or telemetry. |
 | `ctx.workspaceRegistry` | `core` | [`workspace`](../packages/workspace/workspace) | - | `apiproxy` | - | Owns WorkspaceId-branded records over the domain facility; stable sessionIds accounts drive Host RPC and GUI projections. |

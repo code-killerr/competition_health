@@ -20,7 +20,7 @@
 
 #### 模型可见内容
 
-模型通过只读的 lab_knowledge_* 工具看到带引用的摘录、不可变的来源/版本标识、确认状态和开放冲突。
+模型通过只读的 `lab_knowledge_search` 和 `lab_knowledge_conflicts` 工具看到带引用的摘录、不可变的来源/版本标识、确认状态和开放冲突。
 
 #### Token 影响
 

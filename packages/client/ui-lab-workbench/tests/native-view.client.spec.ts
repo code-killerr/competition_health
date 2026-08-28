@@ -10,6 +10,7 @@ describe('lab workbench native conversation view', () => {
     const runtime = await SlotTestRuntime.create()
     const locale = new LocaleRuntime(runtime.ctx)
     runtime.provide('locale', locale)
+    runtime.provide('layout', { openAppView: vi.fn() })
     runtime.slots.installLocale(locale)
     await runtime.root.declare(
       { 'conversation.view': { kind: 'list', scope: 'session' } },
@@ -30,6 +31,7 @@ describe('lab workbench native conversation view', () => {
     const runtime = await SlotTestRuntime.create()
     const locale = new LocaleRuntime(runtime.ctx)
     runtime.provide('locale', locale)
+    runtime.provide('layout', { openAppView: vi.fn() })
     runtime.slots.installLocale(locale)
     await runtime.root.declare(
       { 'conversation.view': { kind: 'list', scope: 'session' } },
@@ -52,6 +54,7 @@ describe('lab workbench native conversation view', () => {
     const runtime = await SlotTestRuntime.create()
     const locale = new LocaleRuntime(runtime.ctx)
     runtime.provide('locale', locale)
+    runtime.provide('layout', { openAppView: vi.fn() })
     runtime.slots.installLocale(locale)
     await runtime.root.declare(
       { 'conversation.view': { kind: 'list', scope: 'session' } },
@@ -76,4 +79,3 @@ describe('lab workbench native conversation view', () => {
     await runtime.dispose()
   })
 })
-

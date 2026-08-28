@@ -12,7 +12,7 @@ The system SHALL let a user create a laboratory Project from the current Harness
 - **THEN** the system creates the Project and offers a new Session rooted in that Workspace
 
 ### Requirement: Project and directory Workspace identities remain explicit
-Each LabProject SHALL reference at most one registered directory Workspace without adopting its identity or persistence semantics. The Project view SHALL display the selected Workspace title and directory, while the Workspace service SHALL remain authoritative for its path and cwd-based Session membership.
+Each LabProject SHALL reference exactly one registered directory Workspace without adopting its identity or persistence semantics. The Project view SHALL display the selected Workspace title and directory, while the Workspace service SHALL remain authoritative for its path and cwd-based Session membership.
 
 #### Scenario: Open a Project with a linked Workspace
 - **WHEN** a user opens a Project linked to a registered Workspace

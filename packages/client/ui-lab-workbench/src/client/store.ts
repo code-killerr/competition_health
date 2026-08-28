@@ -86,12 +86,12 @@ type LabWorkbenchActions = {
 export function createLabWorkbenchStore(): EngineStoreHandle<LabWorkbenchState, LabWorkbenchActions> {
   return defineStore({
     init: (): LabWorkbenchState => ({
-      projectId: 'project-1',
+      projectId: '',
       projectName: '',
       sessionTitle: '',
       selectedDeviceIdsText: '',
       selectedSourceKeysText: '',
-      experimentId: 'experiment-1',
+      experimentId: '',
       stage: 'knowledge',
       page: 'knowledge',
       sourceName: '',

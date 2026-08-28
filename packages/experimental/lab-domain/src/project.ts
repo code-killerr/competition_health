@@ -5,8 +5,10 @@ import type { SessionEvent, SessionEventMap, SessionId } from '@deepseek-ai/dsh-
 import type {
   CitationId,
   DeviceId,
+  ExperimentId,
   KnowledgeDocumentId,
   KnowledgeDocumentVersionId,
+  WorkspaceId,
 } from './types.ts'
 
 /** Durable laboratory project identifier. */
@@ -20,26 +22,52 @@ export type LabProjectAuditId = Branded<'LabProjectAuditId'>
 export type LabProjectStatus = 'ACTIVE' | 'ARCHIVED'
 /** Project Session association status. */
 export type LabProjectSessionStatus = 'ACTIVE' | 'ARCHIVED'
+/** Project-owned Experiment lifecycle status. */
+export type LabExperimentStatus = 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED'
+/** Session provenance role for one Project Experiment. */
+export type LabExperimentSessionRole = 'created' | 'continued' | 'reviewed'
 /** Project evidence category projected from authoritative Session events. */
 export type LabProjectEvidenceKind = 'plan-proposal' | 'plan-approval' | 'run' | 'report'
 /** Project audit category. */
 export type LabProjectAuditKind =
   | 'project-created'
+  | 'project-archived'
   | 'scope-updated'
-  | 'session-associated'
+  | 'session-attached'
+  | 'session-detached'
   | 'session-renamed'
+  | 'experiment-created'
+  | 'experiment-session-linked'
   | 'fact-published'
   | 'evidence-projected'
 
 /** Durable project identity. Scope and conversation associations live in their own records. */
 export interface LabProject {
   readonly projectId: LabProjectId
+  readonly workspaceId: WorkspaceId
   readonly name: string
   readonly description: string
   readonly status: LabProjectStatus
   readonly createdAt: number
   readonly updatedAt: number
 }
+
+/** Attach failure returned when a Session cwd belongs to another Workspace. */
+export interface LabProjectSessionAttachConflict {
+  readonly status: 'conflict'
+  readonly code: 'WORKSPACE_MISMATCH'
+  readonly projectWorkspaceId: WorkspaceId
+  readonly sessionWorkspaceId?: WorkspaceId
+  readonly action: {
+    readonly kind: 'create-session-in-project-workspace'
+    readonly workspaceId: WorkspaceId
+  }
+}
+
+/** Result of explicitly attaching a Session to a Project. */
+export type LabProjectSessionAttachResult =
+  | { readonly status: 'attached'; readonly project: LabProjectView }
+  | LabProjectSessionAttachConflict
 
 /** One opaque Knowledge document/version selection in a project scope. */
 export interface LabProjectSource {
@@ -68,6 +96,32 @@ export interface LabProjectSession {
   readonly createdAt: number
   readonly updatedAt: number
 }
+
+/** Durable Project-owned Experiment record. */
+export interface LabExperimentRecord {
+  readonly experimentId: ExperimentId
+  readonly projectId: LabProjectId
+  readonly title: string
+  readonly objective: string
+  readonly status: LabExperimentStatus
+  readonly createdInSessionId: SessionId
+  readonly derivedFromExperimentId?: ExperimentId
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+/** One Session's durable provenance link to a Project Experiment. */
+export interface LabExperimentSessionLink {
+  readonly projectId: LabProjectId
+  readonly experimentId: ExperimentId
+  readonly sessionId: SessionId
+  readonly role: LabExperimentSessionRole
+  readonly linkedBy: SessionId
+  readonly linkedAt: number
+}
+
+/** Experiment 与 Session 的项目内来源关系。 */
+export type SessionExperimentLink = LabExperimentSessionLink
 
 /** A fact explicitly published for reuse by later project Sessions. */
 export interface LabProjectFact {
@@ -110,6 +164,8 @@ export interface LabProjectView {
   readonly sessions: readonly LabProjectSession[]
   readonly sharedFacts: readonly LabProjectFact[]
   readonly evidence: readonly LabProjectEvidenceProjection[]
+  readonly experiments: readonly LabExperimentRecord[]
+  readonly experimentSessions: readonly LabExperimentSessionLink[]
 }
 
 /** Explicit project scope passed to a planning/context builder. */
@@ -146,8 +202,33 @@ declare module '@deepseek-ai/dsh-session/types' {
     'lab/project/created': {
       version: 1
       projectId: LabProjectId
+      workspaceId: WorkspaceId
       name: string
       sessionId: SessionId
+    }
+    /** Project archive event; Project Sessions and logs remain available. */
+    'lab/project/archived': {
+      version: 1
+      projectId: LabProjectId
+      archivedBy: SessionId
+    }
+    /** Project-owned Experiment creation event. */
+    'lab/project/experiment-created': {
+      version: 1
+      projectId: LabProjectId
+      experimentId: ExperimentId
+      title: string
+      objective: string
+      createdInSessionId: SessionId
+    }
+    /** Additional Session provenance for a Project Experiment. */
+    'lab/project/experiment-session-linked': {
+      version: 1
+      projectId: LabProjectId
+      experimentId: ExperimentId
+      sessionId: SessionId
+      role: LabExperimentSessionRole
+      linkedBy: SessionId
     }
     /** Explicit project Knowledge/device scope replacement. */
     'lab/project/scope-updated': {
@@ -157,12 +238,19 @@ declare module '@deepseek-ai/dsh-session/types' {
       deviceIds: readonly DeviceId[]
       updatedBy: SessionId
     }
-    /** Project-to-Session association event. */
-    'lab/project/session-associated': {
+    /** Project-to-Session attach event. */
+    'lab/project/session-attached': {
       version: 1
       projectId: LabProjectId
       sessionId: SessionId
       title: string
+    }
+    /** Project-to-Session detach event. */
+    'lab/project/session-detached': {
+      version: 1
+      projectId: LabProjectId
+      sessionId: SessionId
+      detachedBy: SessionId
     }
     /** Project Session title change event. */
     'lab/project/session-renamed': {

@@ -13,7 +13,7 @@ Compose this package after lab-mvp in an Agent scope. It requires the existing A
 
 #### What the model sees
 
-The model sees cited evidence, planning context, structured proposals, Skill validation results, and bounded reports through typed services or lab_* tools. Human-controlled state changes are submitted through the project workspace.
+The model sees cited evidence, planning context, structured proposals, Skill validation results, and bounded reports through typed services or `lab_experiment_create`, `lab_plan_approve`, and `lab_run_report`. Human-controlled state changes are submitted through the project workspace.
 
 #### Token effect
 

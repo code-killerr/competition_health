@@ -45,6 +45,775 @@
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`、`owning Agent session` | `tool/call`、`todo/write`、`tool/result` | - | todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。 |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
+| `@deepseek-ai/dsh-experimental-tool-lab-knowledge` | `lab_knowledge_conflicts`, `lab_knowledge_search`, `lab_knowledge_status` | `ctx.tools`, `ctx.agents`, `ctx.labKnowledge` | `tool/call`, `tool/result`, `lab knowledge events` | - | The catalog boots the local Knowledge Provider in memory and exposes the scoped knowledge tools through one synthetic Agent. |
+| `@deepseek-ai/dsh-experimental-tool-lab-planning` | `lab_plan_context`, `lab_plan_devices`, `lab_plan_propose`, `lab_skill_activate`, `lab_skill_approve`, `lab_skill_validate` | `ctx.tools`, `ctx.agents`, `ctx.labPlanning`, `ctx.labDevices` | `tool/call`, `tool/result`, `lab planning events` | - | The catalog boots the local Planning, Knowledge, Skill, and Mock Device Providers and exposes the scoped planning tools through one synthetic Agent. |
+| `@deepseek-ai/dsh-experimental-tool-lab-project` | `lab_project_context`, `lab_project_plan_context` | `ctx.tools`, `ctx.agents`, `ctx.labProjects`, `ctx.labKnowledge`, `ctx.labDevices` | `tool/call`, `tool/result` | - | The catalog boots the local project and Knowledge capabilities and exposes read-only project context tools through one synthetic Agent. |
+| `@deepseek-ai/dsh-experimental-tool-lab` | `lab_experiment_create`, `lab_knowledge_conflicts`, `lab_knowledge_search`, `lab_knowledge_status`, `lab_plan_approve`, `lab_plan_context`, `lab_plan_devices`, `lab_plan_propose`, `lab_plan_reject`, `lab_run_confirm`, `lab_run_report`, `lab_run_start`, `lab_run_step`, `lab_run_stop`, `lab_skill_activate`, `lab_skill_approve`, `lab_skill_validate` | `ctx.tools`, `ctx.agents`, `ctx.labRuntime`, `the composed local lab providers` | `tool/call`, `tool/result`, `experiment planning and controlled-run events` | - | The catalog boots the complete local laboratory bundle in memory and exposes the aggregate scoped experiment tools through one synthetic Agent. |
+
+<a id="deepseek-aidsh-experimental-tool-lab-knowledge"></a>
+
+## `@deepseek-ai/dsh-experimental-tool-lab-knowledge`
+
+### `lab_knowledge_conflicts`
+
+List knowledge conflicts that require human review before a laboratory plan can rely on them.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/experimental/tool-lab-knowledge/src/index.ts`](../packages/experimental/tool-lab-knowledge/src/index.ts)
+
+### `lab_knowledge_search`
+
+Search laboratory knowledge and return cited excerpts with document version, location, score, and confirmation state.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Evidence-oriented search query."
+    },
+    "document_ids": {
+      "type": "array",
+      "description": "Optional document ids to include.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "version_ids": {
+      "type": "array",
+      "description": "Optional immutable version ids to include.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "confirmed": {
+      "type": "boolean",
+      "description": "Optional filter for human-confirmed facts."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum number of citations."
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab-knowledge/src/index.ts`](../packages/experimental/tool-lab-knowledge/src/index.ts)
+
+### `lab_knowledge_status`
+
+Read the parse and index status of one laboratory knowledge document version.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "document_id": {
+      "type": "string",
+      "description": "Knowledge document id."
+    },
+    "version_id": {
+      "type": "string",
+      "description": "Optional immutable document version id."
+    }
+  },
+  "required": [
+    "document_id"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab-knowledge/src/index.ts`](../packages/experimental/tool-lab-knowledge/src/index.ts)
+
+The catalog boots the local Knowledge Provider in memory and exposes the scoped knowledge tools through one synthetic Agent.
+
+<a id="deepseek-aidsh-experimental-tool-lab-planning"></a>
+
+## `@deepseek-ai/dsh-experimental-tool-lab-planning`
+
+### `lab_plan_context`
+
+Retrieve cited laboratory evidence, unresolved conflicts, and read-only device facts for an experiment request. This tool never reserves or commands a device.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "request": {
+      "description": "Experiment request object with experimentId, objective, samples, constraints, expectedOutputs, and unresolved."
+    }
+  },
+  "required": [
+    "request"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab-planning/src/index.ts`](../packages/experimental/tool-lab-planning/src/index.ts)
+
+### `lab_plan_devices`
+
+List healthy and reserved laboratory device capabilities for planning. This tool is read-only and does not reserve or command a device.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/experimental/tool-lab-planning/src/index.ts`](../packages/experimental/tool-lab-planning/src/index.ts)
+
+### `lab_plan_propose`
+
+Submit a structured experiment plan and declarative Lab Skill drafts for deterministic validation. This tool never approves, locks, starts, or executes the plan.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "request": {
+      "description": "Experiment request object."
+    },
+    "plan": {
+      "description": "DRAFT experiment plan with cited steps and unit-bearing parameters."
+    },
+    "skill_drafts": {
+      "type": "array",
+      "description": "DRAFT Lab Skill revisions referenced by plan steps.",
+      "items": {}
+    }
+  },
+  "required": [
+    "request",
+    "plan",
+    "skill_drafts"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab-planning/src/index.ts`](../packages/experimental/tool-lab-planning/src/index.ts)
+
+### `lab_skill_activate`
+
+Activate an approved Lab Skill revision so a plan can lock an immutable run snapshot.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "skill_revision_id": {
+      "type": "string",
+      "description": "Exact approved Skill revision id."
+    }
+  },
+  "required": [
+    "skill_revision_id"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab-planning/src/index.ts`](../packages/experimental/tool-lab-planning/src/index.ts)
+
+### `lab_skill_approve`
+
+Record human approval for a validated Lab Skill revision. This never activates or executes the Skill.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "skill_revision_id": {
+      "type": "string",
+      "description": "Exact Skill revision id."
+    },
+    "approved_by": {
+      "type": "string",
+      "description": "Accountable reviewer identity."
+    }
+  },
+  "required": [
+    "skill_revision_id",
+    "approved_by"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab-planning/src/index.ts`](../packages/experimental/tool-lab-planning/src/index.ts)
+
+### `lab_skill_validate`
+
+Validate one declarative Lab Skill revision before human approval. This never activates or executes the Skill.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "skill_revision_id": {
+      "type": "string",
+      "description": "Exact Skill revision id."
+    }
+  },
+  "required": [
+    "skill_revision_id"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab-planning/src/index.ts`](../packages/experimental/tool-lab-planning/src/index.ts)
+
+The catalog boots the local Planning, Knowledge, Skill, and Mock Device Providers and exposes the scoped planning tools through one synthetic Agent.
+
+<a id="deepseek-aidsh-experimental-tool-lab-project"></a>
+
+## `@deepseek-ai/dsh-experimental-tool-lab-project`
+
+### `lab_project_context`
+
+Read the current Agent Session project scope, selected devices, and explicitly published shared facts. This never changes project state.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "Optional opaque project id; omitted values resolve from the current Session association."
+    }
+  }
+}
+```
+
+Source: [`packages/experimental/tool-lab-project/src/index.ts`](../packages/experimental/tool-lab-project/src/index.ts)
+
+### `lab_project_plan_context`
+
+Retrieve confirmed citations and devices limited to the current Session project scope for planning. Unapproved Session state is excluded.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "Optional opaque project id; omitted values resolve from the current Session association."
+    },
+    "experiment_id": {
+      "type": "string",
+      "description": "Opaque experiment id."
+    },
+    "objective": {
+      "type": "string",
+      "description": "Evidence-oriented planning objective."
+    },
+    "unresolved": {
+      "type": "array",
+      "description": "Missing inputs to preserve in the planning context.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum number of cited results."
+    }
+  },
+  "required": [
+    "experiment_id",
+    "objective"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab-project/src/index.ts`](../packages/experimental/tool-lab-project/src/index.ts)
+
+The catalog boots the local project and Knowledge capabilities and exposes read-only project context tools through one synthetic Agent.
+
+<a id="deepseek-aidsh-experimental-tool-lab"></a>
+
+## `@deepseek-ai/dsh-experimental-tool-lab`
+
+### `lab_experiment_create`
+
+Register an experiment request before planning. This records the request but never approves or executes a plan.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "experiment_id": {
+      "type": "string",
+      "description": "Opaque experiment id."
+    },
+    "objective": {
+      "type": "string",
+      "description": "User experiment objective."
+    },
+    "expected_outputs": {
+      "type": "array",
+      "description": "Expected result labels.",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "experiment_id",
+    "objective",
+    "expected_outputs"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_knowledge_conflicts`
+
+List knowledge conflicts that require human review before a laboratory plan can rely on them.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_knowledge_search`
+
+Search laboratory knowledge and return cited excerpts with document version, location, score, and confirmation state.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Evidence-oriented search query."
+    },
+    "document_ids": {
+      "type": "array",
+      "description": "Optional document ids to include.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "version_ids": {
+      "type": "array",
+      "description": "Optional immutable version ids to include.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "confirmed": {
+      "type": "boolean",
+      "description": "Optional filter for human-confirmed facts."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum number of citations."
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_knowledge_status`
+
+Read the parse and index status of one laboratory knowledge document version.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "document_id": {
+      "type": "string",
+      "description": "Knowledge document id."
+    },
+    "version_id": {
+      "type": "string",
+      "description": "Optional immutable document version id."
+    }
+  },
+  "required": [
+    "document_id"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_plan_approve`
+
+Approve a validated plan and its Skill revisions. This records approval but does not start a run.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "experiment_id": {
+      "type": "string",
+      "description": "Opaque experiment id."
+    },
+    "plan_id": {
+      "type": "string",
+      "description": "Exact plan revision id."
+    },
+    "approved_by": {
+      "type": "string",
+      "description": "Accountable reviewer identity."
+    },
+    "skill_revision_ids": {
+      "type": "array",
+      "description": "All referenced Skill revision ids.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "execution_steps": {
+      "description": "Optional immutable execution steps; only device, human, and approval operations are accepted by Runtime."
+    },
+    "skill_snapshots": {
+      "description": "Optional ACTIVE Skill snapshots locked into the run."
+    }
+  },
+  "required": [
+    "experiment_id",
+    "plan_id",
+    "approved_by",
+    "skill_revision_ids"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_plan_context`
+
+Retrieve cited laboratory evidence, unresolved conflicts, and read-only device facts for an experiment request. This tool never reserves or commands a device.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "request": {
+      "description": "Experiment request object with experimentId, objective, samples, constraints, expectedOutputs, and unresolved."
+    }
+  },
+  "required": [
+    "request"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_plan_devices`
+
+List healthy and reserved laboratory device capabilities for planning. This tool is read-only and does not reserve or command a device.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_plan_propose`
+
+Submit a structured experiment plan and declarative Lab Skill drafts for deterministic validation. This tool never approves, locks, starts, or executes the plan.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "request": {
+      "description": "Experiment request object."
+    },
+    "plan": {
+      "description": "DRAFT experiment plan with cited steps and unit-bearing parameters."
+    },
+    "skill_drafts": {
+      "type": "array",
+      "description": "DRAFT Lab Skill revisions referenced by plan steps.",
+      "items": {}
+    }
+  },
+  "required": [
+    "request",
+    "plan",
+    "skill_drafts"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_plan_reject`
+
+Reject a plan revision and record an optional replacement revision. This never starts or changes a run.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "experiment_id": {
+      "type": "string",
+      "description": "Opaque experiment id."
+    },
+    "plan_id": {
+      "type": "string",
+      "description": "Plan revision to reject."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Human-readable rejection reason."
+    },
+    "replacement_plan_id": {
+      "type": "string",
+      "description": "Optional new plan revision id to submit for validation."
+    }
+  },
+  "required": [
+    "experiment_id",
+    "plan_id",
+    "reason"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_run_confirm`
+
+Submit evidence for a waiting human step and resume the controlled run.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "description": "Opaque run id."
+    },
+    "step_id": {
+      "type": "string",
+      "description": "Waiting plan step id."
+    },
+    "operation_id": {
+      "type": "string",
+      "description": "Opaque operation id."
+    },
+    "evidence": {
+      "type": "array",
+      "description": "Structured evidence references.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "confirmed_by": {
+      "type": "string",
+      "description": "Accountable actor identity."
+    }
+  },
+  "required": [
+    "run_id",
+    "step_id",
+    "operation_id",
+    "evidence",
+    "confirmed_by"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_run_report`
+
+Build an auditable report for a controlled run.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "description": "Opaque run id."
+    }
+  },
+  "required": [
+    "run_id"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_run_start`
+
+Start a run only from the exact approved plan revision.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "experiment_id": {
+      "type": "string",
+      "description": "Opaque experiment id."
+    },
+    "plan_id": {
+      "type": "string",
+      "description": "Approved plan revision id."
+    }
+  },
+  "required": [
+    "experiment_id",
+    "plan_id"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_run_step`
+
+Advance exactly one step in the locked ExecutionGraph. Device operations go through Lab Device Service; unsupported script and API operations are blocked.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "description": "Opaque run id."
+    }
+  },
+  "required": [
+    "run_id"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_run_stop`
+
+Request a safe stop for a running experiment.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "description": "Opaque run id."
+    },
+    "requested_by": {
+      "type": "string",
+      "description": "Accountable requester identity."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Reason for the stop request."
+    }
+  },
+  "required": [
+    "run_id",
+    "requested_by",
+    "reason"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_skill_activate`
+
+Activate an approved Lab Skill revision so a plan can lock an immutable run snapshot.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "skill_revision_id": {
+      "type": "string",
+      "description": "Exact approved Skill revision id."
+    }
+  },
+  "required": [
+    "skill_revision_id"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_skill_approve`
+
+Record human approval for a validated Lab Skill revision. This never activates or executes the Skill.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "skill_revision_id": {
+      "type": "string",
+      "description": "Exact Skill revision id."
+    },
+    "approved_by": {
+      "type": "string",
+      "description": "Accountable reviewer identity."
+    }
+  },
+  "required": [
+    "skill_revision_id",
+    "approved_by"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+### `lab_skill_validate`
+
+Validate one declarative Lab Skill revision before human approval. This never activates or executes the Skill.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "skill_revision_id": {
+      "type": "string",
+      "description": "Exact Skill revision id."
+    }
+  },
+  "required": [
+    "skill_revision_id"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts)
+
+The catalog boots the complete local laboratory bundle in memory and exposes the aggregate scoped experiment tools through one synthetic Agent.
+
 
 <a id="deepseek-aidsh-tool-ask-user"></a>
 

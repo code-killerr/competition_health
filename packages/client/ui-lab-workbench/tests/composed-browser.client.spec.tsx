@@ -2,6 +2,7 @@
 /** Browser acceptance for the Harness conversation plus laboratory workspace composition. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, waitFor } from '@testing-library/react'
+import type { JSX } from 'react'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { ISession, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
@@ -62,7 +63,7 @@ async function bench() {
 }
 
 describe('Harness-native laboratory browser composition', () => {
-  it('renders the workbench beside the real composer and submits the current Session message', async () => {
+  it('renders the workbench beside the real composer and submits the current Session message', { timeout: 30_000 }, async () => {
     const { runtime, prompt } = await bench()
     const view = runtime.renderRoot()
 

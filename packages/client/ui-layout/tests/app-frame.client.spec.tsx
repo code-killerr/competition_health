@@ -60,6 +60,7 @@ function mountFrame() {
     slotCalls.push({ key, props: owner })
     if (key === 'sidebar') return <div data-testid="sidebar-content" />
     if (key === 'conversation') return <div data-testid="center-content" />
+    if (key === 'app.view') return <div data-testid="app-view-content" />
     if (key === 'details') return <div data-testid="details-content" />
     if (key === 'conversation.empty') return <div data-testid="empty-content" />
     return <div data-testid="other-content" />
@@ -161,6 +162,18 @@ describe('AppFrame', () => {
     const { slotCalls, getByTestId } = mountFrame()
     expect(getByTestId('center-content')).toBeTruthy()
     expect(slotCalls.map(c => c.key)).toContain('conversation')
+  })
+
+  it('keeps Conversation mounted while switching to a root application view', () => {
+    const { instance, getByTestId, queryByTestId } = mountFrame()
+    const conversation = getByTestId('center-content')
+    expect(queryByTestId('app-view-content')).toBeNull()
+
+    act(() => { instance.actions.setActiveAppView('test-page') })
+
+    expect(getByTestId('app-view-content')).toBeTruthy()
+    expect(conversation.isConnected).toBe(true)
+    expect(conversation.parentElement?.hidden).toBe(true)
   })
 
   it('renders both column occupants before baselines settle (no loading gate)', () => {

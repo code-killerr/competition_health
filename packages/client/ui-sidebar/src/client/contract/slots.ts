@@ -2,7 +2,8 @@
  * Sidebar slot contract: the registrant-side props composition for the
  * layout-owned `sidebar` slot, plus the holes this shell declares. The shell
  * owns column geometry (fold state machine, brand row, New Session);
- * everything between the section header and the list bottom is the
+ * `sidebar.navigation` seat is the primary navigation region between New
+ * Session and workspace browsing, everything below it is the
  * `sidebar.workspaces` registrant's (ui-workspace), and the foot is the
  * `sidebar.settings` registrant's (ui-settings), followed by optional footer
  * actions in `sidebar.footer.action`.
@@ -33,6 +34,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * registers the browser.
      */
     'sidebar.workspaces': { kind: 'single'; scope: 'root'; owner: SidebarSectionOwnerProps }
+    /** New Session 与 Workspace 浏览区之间的根级一级导航。 */
+    'sidebar.navigation': { kind: 'list'; scope: 'root'; owner: SidebarNavigationOwnerProps }
     /**
      * The settings seat at the sidebar foot. Declared by this package's
      * 'sidebar' entry; ui-settings registers its trigger row + modal panel.
@@ -67,6 +70,14 @@ export interface SidebarSectionOwnerProps {
   /** Shell fold-state output: wide renders the full browser, rail the icon column. */
   wide: boolean
   /** Rail icons request expansion; the browser rides the wide flip for focus. */
+  expandSidebar: () => void
+}
+
+/** 一级根导航区域的 owner props。 */
+export interface SidebarNavigationOwnerProps {
+  /** wide 模式显示标签，rail 模式显示紧凑导航控件。 */
+  wide: boolean
+  /** 在聚焦导航项前请求展开侧边栏。 */
   expandSidebar: () => void
 }
 
@@ -111,6 +122,7 @@ export type SidebarRootComponentProps =
   & PropsRenderSlots<
     | 'sidebar.brand.mark'
     | 'sidebar.brand.name'
+    | 'sidebar.navigation'
     | 'sidebar.workspaces'
     | 'sidebar.settings'
     | 'sidebar.footer.action'

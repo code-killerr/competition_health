@@ -1,0 +1,39 @@
+.root {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #707782);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.item:hover {
+  background: var(--dsw-alias-bg-layer-2, #f3f5f7);
+  color: var(--dsw-alias-label-primary, #20242a);
+  transform: translateX(2px);
+}
+
+.mark {
+  display: inline-grid;
+  width: 21px;
+  height: 21px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 700;
+}

@@ -13,7 +13,7 @@
 
 #### 模型可见内容
 
-模型通过类型化 Service 或 lab_* 工具看到带引用的证据、规划上下文、结构化提案、Skill 校验结果和受限报告。人工控制的状态变更通过项目工作台提交。
+模型通过类型化 Service 或 `lab_experiment_create`、`lab_plan_approve` 和 `lab_run_report` 看到带引用的证据、规划上下文、结构化提案、Skill 校验结果和受限报告。人工控制的状态变更通过项目工作台提交。
 
 #### Token 影响
 

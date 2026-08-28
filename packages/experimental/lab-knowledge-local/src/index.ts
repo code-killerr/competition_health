@@ -560,7 +560,17 @@ function replaceSopSteps(db: DatabaseSync, draftId: KnowledgeSopDraftId, steps: 
   db.prepare('DELETE FROM sop_steps WHERE draft_id = ?').run(draftId)
   const insert = db.prepare('INSERT INTO sop_steps (id, draft_id, step_order, title, instruction, required_inputs_json, completion_criteria_json, citations_json, missing_fields_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
   for (const step of steps) {
-    insert.run(step.stepId, draftId, step.order, step.title, step.instruction, JSON.stringify(step.requiredInputs), JSON.stringify(step.completionCriteria), JSON.stringify(step.citations), JSON.stringify(step.missingFields))
+    insert.run(
+      step.stepId,
+      draftId,
+      step.order,
+      step.title,
+      step.instruction,
+      JSON.stringify(step.requiredInputs),
+      JSON.stringify(step.completionCriteria),
+      JSON.stringify(step.citations),
+      JSON.stringify(step.missingFields),
+    )
   }
 }
 
@@ -638,8 +648,10 @@ function sopStepContent(step: KnowledgeSopStep): string {
 
 function parseSopStringArray(value: string, field: string): readonly string[] {
   const parsed: unknown = JSON.parse(value)
-  if (!Array.isArray(parsed) || parsed.some(item => typeof item !== 'string')) throw new Error(`stored SOP ${field} is invalid`)
-  return parsed
+  if (!Array.isArray(parsed)) throw new Error(`stored SOP ${field} is invalid`)
+  const values: unknown[] = parsed
+  if (values.some(item => typeof item !== 'string')) throw new Error(`stored SOP ${field} is invalid`)
+  return values.filter((item): item is string => typeof item === 'string')
 }
 
 function parseTableBlocks(text: string, delimiter: ',' | '\t'): readonly ParsedDocumentBlock[] {

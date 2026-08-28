@@ -73,6 +73,32 @@ release(deviceId: DeviceId, runId: RunId): Promise<void>
 
 Source: [`packages/experimental/lab-device/src/index.ts`](../../packages/experimental/lab-device/src/index.ts)
 
+<a id="ctxlabexperimentcache--labexperimentcacheservice"></a>
+
+### `ctx.labExperimentCache` — `LabExperimentCacheService`
+
+可选的实验缓存写入 Consumer。
+
+```ts cordis-catalog
+/** Write an experiment cache projection that can be rebuilt from Session events.
+ * @param projection - rebuildable experiment cache projection.
+ */
+project(projection: ExperimentCacheProjection): Promise<void>
+
+/** Read the latest projected experiment cache.
+ * @param experimentId - experiment whose projection is requested.
+ * @returns - latest projection, when one has been stored.
+ */
+get(experimentId: ExperimentId): ExperimentCacheProjection | undefined
+
+/** Bind the process-local Storage projection writer.
+ * @param store - storage adapter used for cache projections.
+ */
+attach(store: ExperimentCacheStore): void
+```
+
+Source: [`packages/experimental/lab-cache/src/index.ts`](../../packages/experimental/lab-cache/src/index.ts)
+
 <a id="ctxlabknowledge--knowledgeservice"></a>
 
 ### `ctx.labKnowledge` — `KnowledgeService`
@@ -110,6 +136,35 @@ listImportStatuses(): Promise<readonly ImportStatusResult[]>
  */
 search(request: KnowledgeSearchRequest): Promise<readonly KnowledgeSearchResult[]>
 
+/** Create a SOP draft.
+ * @param request - SOP draft creation request.
+ * @returns - created SOP draft.
+ */
+createSopDraft(request: CreateSopDraftRequest): Promise<SopDraftResult>
+
+/** Read a SOP draft.
+ * @param draftId - draft identifier to read.
+ * @returns - requested draft, when it exists.
+ */
+getSopDraft(draftId: KnowledgeSopDraftId): Promise<SopDraftResult | undefined>
+
+/** List all SOP drafts.
+ * @returns - all SOP drafts.
+ */
+listSopDrafts(): Promise<readonly SopDraftResult[]>
+
+/** Update a SOP draft and submit it for review when unblocked.
+ * @param request - updated SOP draft fields.
+ * @returns - updated SOP draft.
+ */
+updateSopDraft(request: UpdateSopDraftRequest): Promise<SopDraftResult>
+
+/** Publish an approved SOP draft.
+ * @param request - publication request.
+ * @returns - published SOP draft.
+ */
+publishSopDraft(request: PublishSopDraftRequest): Promise<SopDraftResult>
+
 /** 列出冲突事实。
  * @param experimentId - optional experiment scope.
  * @returns - recorded knowledge conflicts.
@@ -137,7 +192,7 @@ Source: [`packages/experimental/lab-knowledge/src/index.ts`](../../packages/expe
 
 ### `ctx.labMvpWeb` — `LabMvpWebService`
 
-Web Consumer 服务。
+Web Consumer Facade 服务。
 
 ```ts cordis-catalog
 /** 返回供 Web 层序列化的当前实验状态。
@@ -146,6 +201,18 @@ Web Consumer 服务。
  * @returns - serializable device, planning, and runtime state.
  */
 async snapshot(experimentId: ExperimentId, planningContext?: PlanningContext): Promise<LabMvpWebSnapshot>
+
+/** Execute a parsed Web command.
+ * @param command - parsed Web command.
+ * @returns - serializable command result.
+ */
+async dispatch(command: LabWebCommand): Promise<LabWebCommandResult>
+
+/** Execute a dedicated project/conversation command.
+ * @param command - parsed project/conversation command.
+ * @returns - serializable project conversation result.
+ */
+async dispatchProject(command: LabProjectConversationCommand): Promise<LabProjectConversationResult>
 ```
 
 Source: [`packages/experimental/lab-mvp-web/src/index.ts`](../../packages/experimental/lab-mvp-web/src/index.ts)
@@ -210,6 +277,132 @@ rejectPlan(planId: ExperimentPlan['planId'], reason: string): Promise<PlanPropos
 
 Source: [`packages/experimental/lab-planning/src/index.ts`](../../packages/experimental/lab-planning/src/index.ts)
 
+<a id="ctxlabprojects--labprojectservice"></a>
+
+### `ctx.labProjects` — `LabProjectService`
+
+Durable project/session association and scope service.
+
+```ts cordis-catalog
+/** Attach the existing Storage/SQLite domain and restore its state.
+ * @param store - durable project state store.
+ */
+async attach(store: LabProjectStore): Promise<void>
+
+/** Create an empty active project.
+ * @param request - project creation request.
+ * @returns - created project view.
+ */
+async create(request: CreateLabProjectRequest): Promise<LabProjectView>
+
+/** Create a Project-owned Experiment with a Host-generated identity.
+ * @param request - Experiment metadata and the creating Session.
+ * @returns the created Experiment and its updated Project view.
+ */
+async createExperiment( request: CreateLabExperimentRequest, ): Promise<{ readonly experiment: LabExperimentRecord; readonly project: LabProjectView }>
+
+/** Link a Project Session to an Experiment without crossing Project ownership.
+ * @param request - Experiment Session provenance link.
+ * @returns the updated Project view.
+ */
+async linkExperimentSession(request: LinkLabExperimentSessionRequest): Promise<LabProjectView>
+
+/** List Project Experiments in creation order.
+ * @param projectId - Project whose Experiments are requested.
+ * @returns Experiment records owned by the Project.
+ */
+async listExperiments(projectId: LabProjectId): Promise<readonly LabExperimentRecord[]>
+
+/** List active and archived projects in creation order.
+ * @returns - project views in creation order.
+ */
+async list(): Promise<readonly LabProjectView[]>
+
+/** Open one project with its explicit scope and Session rows.
+ * @param projectId - project identifier to open.
+ * @returns - project view.
+ */
+async open(projectId: LabProjectId): Promise<LabProjectView>
+
+/** Replace a project selected source versions and devices.
+ * @param projectId - project identifier to update.
+ * @param request - replacement scope.
+ * @returns - updated project view.
+ */
+async updateScope(projectId: LabProjectId, request: UpdateLabProjectScopeRequest): Promise<LabProjectView>
+
+/** Attach one distinct Harness Session to a project when its Workspace matches.
+ * @param request - project/session association request.
+ * @returns - attach result or an actionable Workspace mismatch.
+ */
+async attachSession(request: AttachLabProjectSessionRequest): Promise<LabProjectSessionAttachResult>
+
+/** Detach a Session association without changing the Session log or cwd.
+ * @param projectId - project to change.
+ * @param sessionId - associated Session to detach.
+ * @param detachedBy - actor recorded in the audit log.
+ * @returns the updated project view.
+ */
+async detachSession(projectId: LabProjectId, sessionId: SessionId, detachedBy: SessionId): Promise<LabProjectView>
+
+/** Archive a Project while retaining all associated Session logs and records.
+ * @param projectId - project to archive.
+ * @param archivedBy - actor recorded in the audit log.
+ * @returns the archived project view.
+ */
+async archive(projectId: LabProjectId, archivedBy: SessionId): Promise<LabProjectView>
+
+/** Rename a project Session without changing Harness Session messages.
+ * @param projectId - project identifier.
+ * @param sessionId - associated Session identifier.
+ * @param title - new non-blank title.
+ * @param renamedBy - Session recording the rename.
+ * @returns - updated project view.
+ */
+async renameSession(projectId: LabProjectId, sessionId: SessionId, title: string, renamedBy: SessionId): Promise<LabProjectView>
+
+/** Return explicit project scope and approved shared facts for a Session.
+ * @param projectId - project identifier.
+ * @param sessionId - optional associated Session identifier.
+ * @returns - project context for the Session.
+ */
+async context(projectId: LabProjectId, sessionId?: SessionId): Promise<LabProjectContext>
+
+/** Publish one explicitly approved fact for later Sessions.
+ * @param request - project fact publication request.
+ * @returns - updated project view.
+ */
+async publishFact(request: PublishLabProjectFactRequest): Promise<LabProjectView>
+
+/** Project one proposal, approval, run or report into the rebuildable cache.
+ * @param projection - rebuildable project evidence projection.
+ * @returns - updated project view.
+ */
+async projectEvidence(projection: LabProjectEvidenceProjection): Promise<LabProjectView>
+
+/** Read audit records for recovery and diagnostics.
+ * @param projectId - project identifier.
+ * @returns - project audit records.
+ */
+async listAudits(projectId: LabProjectId): Promise<readonly LabProjectAudit[]>
+
+/** Return the project owning a Session, when the Session has been associated.
+ * @param sessionId - Session identifier to resolve.
+ * @returns - owning project, when the Session is associated.
+ */
+async projectForSession(sessionId: SessionId): Promise<LabProject | undefined>
+
+/** Assert that a Session is explicitly associated with a project.
+ * @param projectId - expected project identifier.
+ * @param sessionId - Session identifier to check.
+ */
+async assertSession(projectId: LabProjectId, sessionId: SessionId): Promise<void>
+```
+
+Types: [SessionId](core.md)
+
+Source: [`packages/experimental/lab-project/src/index.ts`](../../packages/experimental/lab-project/src/index.ts)
+
 <a id="ctxlabruntime--labruntimeservice"></a>
 
 ### `ctx.labRuntime` — `LabRuntimeService`
@@ -236,11 +429,10 @@ createExperiment(request: ExperimentRequest): Promise<void>
 approvePlan(request: ApprovePlanRequest): Promise<void>
 
 /** 从批准的计划启动运行。
- * @param experimentId - experiment to run.
- * @param planId - approved plan revision.
- * @returns - newly created or existing run view.
+ * @param input - 实验、已批准计划和可选的启动 Session。
+ * @returns - 新建或已有的运行视图。
  */
-startRun(experimentId: ExperimentId, planId: PlanId): Promise<RunView>
+startRun(input: StartRunRequest): Promise<RunView>
 
 /** 提交人工步骤证据，或批准需要人工门禁的设备步骤。
  * @param runId - run receiving the evidence.
@@ -265,17 +457,30 @@ executeNextStep(runId: RunId): Promise<RunView>
  */
 stopRun(runId: RunId, requestedBy: string): Promise<RunView>
 
-/** 读取运行状态。
- * @param experimentId - experiment whose run is requested.
+/** 读取一个运行状态。
+ * @param runId - run whose state is requested.
  * @returns - run view, when one exists.
  */
-getRun(experimentId: ExperimentId): RunView | undefined
+getRun(runId: RunId): RunView | undefined
+
+/** List all immutable Runs for one Experiment.
+ * @param experimentId - experiment whose runs are requested.
+ * @returns ordered run views.
+ */
+listRuns(experimentId: import('@deepseek-ai/dsh-experimental-lab-domain').ExperimentId): readonly RunView[]
+
+/** Retry a terminal Run as a new Run.
+ * @param runId - terminal run to retry.
+ * @param actor - accountable retry requester.
+ * @returns the new Run view.
+ */
+retryRun(runId: RunId, actor: string): Promise<RunView>
 
 /** 生成带证据的实验报告。
  * @param runId - run to report.
  * @returns - structured report fields and observations.
  */
-buildReport(runId: RunId): Promise<Readonly<Record<string, unknown>>>
+buildReport(runId: RunId): Promise<LabRunReport>
 ```
 
 Source: [`packages/experimental/lab-runtime/src/index.ts`](../../packages/experimental/lab-runtime/src/index.ts)

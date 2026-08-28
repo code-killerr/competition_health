@@ -1,27 +1,67 @@
 /** Dedicated JSON protocol for laboratory projects and project conversations. */
 
-import { brandId, type DeviceId, type ExperimentRequest, type LabProjectId } from '@deepseek-ai/dsh-experimental-lab-domain'
+import { brandId, type ArtifactId, type DeviceId, type ExperimentId, type ExperimentRequest, type LabExperimentRecord, type LabExperimentSessionRole, type LabProjectId, type LabProjectView, type PlanId, type RunId, type WorkspaceId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { LabProjectSourceSelection } from '@deepseek-ai/dsh-experimental-lab-project'
+import type { LabRunReport, RunView } from '@deepseek-ai/dsh-experimental-lab-runtime'
 import type { SessionId } from '@deepseek-ai/dsh-session'
+
+/** 两次 Run 的可展示比较结果。 */
+export interface LabRunComparison {
+  readonly leftRunId: RunId
+  readonly rightRunId: RunId
+  readonly status: { readonly left: RunView['runStatus']; readonly right: RunView['runStatus'] }
+  readonly stepStatuses: readonly {
+    readonly stepId: string
+    readonly left: string | undefined
+    readonly right: string | undefined
+  }[]
+  readonly artifactCounts: { readonly left: number; readonly right: number }
+}
 
 /** Project/conversation command parsed at the Web boundary. */
 export type LabProjectConversationCommand = { readonly sessionId?: SessionId } & (
-  | { readonly command: 'project-create'; readonly projectId: LabProjectId; readonly name: string; readonly description?: string }
+  | { readonly command: 'project-create'; readonly workspaceId?: WorkspaceId; readonly name: string; readonly description?: string }
   | { readonly command: 'project-list' }
   | { readonly command: 'project-open'; readonly projectId: LabProjectId }
   | { readonly command: 'project-scope-update'; readonly projectId: LabProjectId; readonly sources: readonly LabProjectSourceSelection[]; readonly deviceIds: readonly DeviceId[] }
   | { readonly command: 'project-session-create'; readonly projectId: LabProjectId; readonly title?: string }
-  | { readonly command: 'project-session-associate'; readonly projectId: LabProjectId; readonly targetSessionId: SessionId; readonly title?: string }
+  | { readonly command: 'project-session-attach'; readonly projectId: LabProjectId; readonly targetSessionId: SessionId; readonly title?: string }
+  | { readonly command: 'project-session-detach'; readonly projectId: LabProjectId; readonly targetSessionId: SessionId }
+  | { readonly command: 'project-archive'; readonly projectId: LabProjectId }
   | { readonly command: 'project-session-rename'; readonly projectId: LabProjectId; readonly targetSessionId: SessionId; readonly title: string }
   | { readonly command: 'project-context'; readonly projectId: LabProjectId }
   | { readonly command: 'project-planning-context'; readonly projectId: LabProjectId; readonly request: ExperimentRequest }
+  | { readonly command: 'experiment-list'; readonly projectId: LabProjectId }
+  | { readonly command: 'experiment-open'; readonly projectId: LabProjectId; readonly experimentId: ExperimentId }
+  | { readonly command: 'experiment-create'; readonly projectId: LabProjectId; readonly title: string; readonly objective: string }
+  | { readonly command: 'experiment-derive'; readonly projectId: LabProjectId; readonly sourceExperimentId: ExperimentId; readonly title: string; readonly objective: string }
+  | { readonly command: 'experiment-session-link'; readonly projectId: LabProjectId; readonly experimentId: ExperimentId; readonly targetSessionId: SessionId; readonly role: LabExperimentSessionRole }
+  | { readonly command: 'run-list'; readonly experimentId: ExperimentId }
+  | { readonly command: 'run-open'; readonly runId: RunId }
+  | { readonly command: 'run-start'; readonly experimentId: ExperimentId; readonly planId: PlanId }
+  | { readonly command: 'run-stop'; readonly runId: RunId }
+  | { readonly command: 'run-retry'; readonly runId: RunId }
+  | { readonly command: 'run-compare'; readonly leftRunId: RunId; readonly rightRunId: RunId }
+  | { readonly command: 'run-report'; readonly runId: RunId }
+  | { readonly command: 'artifact-list'; readonly runId: RunId }
+  | { readonly command: 'artifact-open'; readonly runId: RunId; readonly artifactId: ArtifactId }
 )
 
 /** Project/conversation Facade result envelope. */
 export type LabProjectConversationResult =
-  | { readonly kind: 'project-list'; readonly value: unknown }
-  | { readonly kind: 'project'; readonly value: unknown }
-  | { readonly kind: 'project-context'; readonly value: unknown }
+  | { readonly kind: 'project-list'; readonly value: readonly LabProjectView[] }
+  | { readonly kind: 'project'; readonly value: LabProjectView }
+  | { readonly kind: 'project-context'; readonly value: Readonly<Record<string, unknown>> }
+  | { readonly kind: 'project-session-attach-conflict'; readonly value: import('@deepseek-ai/dsh-experimental-lab-domain').LabProjectSessionAttachConflict }
+  | { readonly kind: 'experiment-list'; readonly value: readonly LabExperimentRecord[] }
+  | { readonly kind: 'experiment'; readonly value: LabExperimentRecord }
+  | { readonly kind: 'experiment-project'; readonly value: LabProjectView }
+  | { readonly kind: 'run-list'; readonly value: readonly RunView[] }
+  | { readonly kind: 'run'; readonly value: RunView }
+  | { readonly kind: 'run-report'; readonly value: LabRunReport }
+  | { readonly kind: 'run-comparison'; readonly value: LabRunComparison }
+  | { readonly kind: 'artifact-list'; readonly value: RunView['artifacts'] }
+  | { readonly kind: 'artifact'; readonly value: RunView['artifacts'][number] }
 
 /** Parse one unknown JSON value into a project/conversation command.
  * @param value - unknown JSON value at the Web boundary.
@@ -32,16 +72,19 @@ export function parseLabProjectConversationCommand(value: unknown): LabProjectCo
   const command = literal(object.command, 'command.command', [
     'project-create', 'project-list', 'project-open', 'project-scope-update',
     'project-session-create',
-    'project-session-associate', 'project-session-rename', 'project-context',
-    'project-planning-context',
+    'project-session-attach', 'project-session-detach', 'project-session-rename', 'project-archive', 'project-context',
+    'project-planning-context', 'experiment-list', 'experiment-open', 'experiment-create', 'experiment-derive',
+    'experiment-session-link', 'run-list', 'run-open', 'run-start', 'run-stop', 'run-retry', 'run-compare', 'run-report',
+    'artifact-list', 'artifact-open',
   ] as const)
   const sessionId = object.sessionId === undefined ? undefined : brandId<'SessionId'>(nonBlankString(object.sessionId, 'command.sessionId'))
   const parsed = (() => {
     switch (command) {
       case 'project-create':
+        if (object.projectId !== undefined) throw new Error('project-create must not accept projectId')
         return {
           command,
-          projectId: projectId(object.projectId, 'command.projectId'),
+          ...object.workspaceId === undefined ? {} : { workspaceId: workspaceId(object.workspaceId, 'command.workspaceId') },
           name: nonBlankString(object.name, 'command.name'),
           ...object.description === undefined ? {} : { description: stringValue(object.description, 'command.description') },
         }
@@ -68,13 +111,21 @@ export function parseLabProjectConversationCommand(value: unknown): LabProjectCo
           projectId: projectId(object.projectId, 'command.projectId'),
           ...object.title === undefined ? {} : { title: nonBlankString(object.title, 'command.title') },
         }
-      case 'project-session-associate':
+      case 'project-session-attach':
         return {
           command,
           projectId: projectId(object.projectId, 'command.projectId'),
           targetSessionId: sessionIdValue(object.targetSessionId, 'command.targetSessionId'),
           ...object.title === undefined ? {} : { title: nonBlankString(object.title, 'command.title') },
         }
+      case 'project-session-detach':
+        return {
+          command,
+          projectId: projectId(object.projectId, 'command.projectId'),
+          targetSessionId: sessionIdValue(object.targetSessionId, 'command.targetSessionId'),
+        }
+      case 'project-archive':
+        return { command, projectId: projectId(object.projectId, 'command.projectId') }
       case 'project-session-rename':
         return {
           command,
@@ -90,6 +141,46 @@ export function parseLabProjectConversationCommand(value: unknown): LabProjectCo
           projectId: projectId(object.projectId, 'command.projectId'),
           request: parseExperimentRequest(object.request, 'command.request'),
         }
+      case 'experiment-list':
+        return { command, projectId: projectId(object.projectId, 'command.projectId') }
+      case 'experiment-open':
+        return { command, projectId: projectId(object.projectId, 'command.projectId'), experimentId: experimentId(object.experimentId, 'command.experimentId') }
+      case 'experiment-create':
+        return { command, projectId: projectId(object.projectId, 'command.projectId'), title: nonBlankString(object.title, 'command.title'), objective: nonBlankString(object.objective, 'command.objective') }
+      case 'experiment-derive':
+        return {
+          command,
+          projectId: projectId(object.projectId, 'command.projectId'),
+          sourceExperimentId: experimentId(object.sourceExperimentId, 'command.sourceExperimentId'),
+          title: nonBlankString(object.title, 'command.title'),
+          objective: nonBlankString(object.objective, 'command.objective'),
+        }
+      case 'experiment-session-link':
+        return {
+          command,
+          projectId: projectId(object.projectId, 'command.projectId'),
+          experimentId: experimentId(object.experimentId, 'command.experimentId'),
+          targetSessionId: sessionIdValue(object.targetSessionId, 'command.targetSessionId'),
+          role: literal(object.role, 'command.role', ['created', 'continued', 'reviewed'] as const),
+        }
+      case 'run-list':
+        return { command, experimentId: experimentId(object.experimentId, 'command.experimentId') }
+      case 'run-open':
+        return { command, runId: runId(object.runId, 'command.runId') }
+      case 'run-start':
+        return { command, experimentId: experimentId(object.experimentId, 'command.experimentId'), planId: planId(object.planId, 'command.planId') }
+      case 'run-stop':
+        return { command, runId: runId(object.runId, 'command.runId') }
+      case 'run-retry':
+        return { command, runId: runId(object.runId, 'command.runId') }
+      case 'run-compare':
+        return { command, leftRunId: runId(object.leftRunId, 'command.leftRunId'), rightRunId: runId(object.rightRunId, 'command.rightRunId') }
+      case 'run-report':
+        return { command, runId: runId(object.runId, 'command.runId') }
+      case 'artifact-list':
+        return { command, runId: runId(object.runId, 'command.runId') }
+      case 'artifact-open':
+        return { command, runId: runId(object.runId, 'command.runId'), artifactId: brandId<'ArtifactId'>(nonBlankString(object.artifactId, 'command.artifactId')) }
     }
   })()
   return sessionId === undefined ? parsed : { ...parsed, sessionId }
@@ -148,4 +239,8 @@ function literal<const T extends readonly string[]>(value: unknown, path: string
   return value
 }
 function projectId(value: unknown, path: string): LabProjectId { return brandId<'LabProjectId'>(nonBlankString(value, path)) }
+function workspaceId(value: unknown, path: string): WorkspaceId { return brandId<'WorkspaceId'>(nonBlankString(value, path)) }
 function sessionIdValue(value: unknown, path: string): SessionId { return brandId<'SessionId'>(nonBlankString(value, path)) }
+function experimentId(value: unknown, path: string): ExperimentId { return brandId<'ExperimentId'>(nonBlankString(value, path)) }
+function planId(value: unknown, path: string): PlanId { return brandId<'PlanId'>(nonBlankString(value, path)) }
+function runId(value: unknown, path: string): RunId { return brandId<'RunId'>(nonBlankString(value, path)) }

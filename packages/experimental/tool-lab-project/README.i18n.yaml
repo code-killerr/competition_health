@@ -1,4 +1,6 @@
-en:
-  title: "Project-scoped laboratory Agent tools"
-zh:
-  title: "项目范围实验 Agent 工具"
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/tool-lab-project/README.md
+README.md: a5fea47716d9d82da3a9fa6f1f8c9df622ccd978
+README.zh.md: 6ccf04c2265fa883cddec41df5faba4970673abe

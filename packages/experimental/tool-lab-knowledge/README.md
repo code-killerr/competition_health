@@ -20,7 +20,7 @@ The package does not select a model, provider, preset, API key, or session imple
 
 #### What the model sees
 
-The model sees cited excerpts, immutable source/version identities, confirmation state, and open conflicts through the read-only lab_knowledge_* tools.
+The model sees cited excerpts, immutable source/version identities, confirmation state, and open conflicts through the read-only `lab_knowledge_search` and `lab_knowledge_conflicts` tools.
 
 #### Token effect
 

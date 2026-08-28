@@ -5,7 +5,7 @@ import { createLabWorkbenchStore, firstPlanId } from '../src/client/store.ts'
 describe('lab workbench client state', () => {
   it('starts with an explicit empty state and keeps draft mutations local', () => {
     const instance = createLabWorkbenchStore().create()
-    expect(instance.getSnapshot()).toMatchObject({ stage: 'knowledge', experimentId: 'experiment-1', searchResults: [], conflicts: [] })
+    expect(instance.getSnapshot()).toMatchObject({ stage: 'knowledge', projectId: '', experimentId: '', searchResults: [], conflicts: [] })
     instance.actions.setObjective('plan a controlled experiment')
     instance.actions.setStage('request')
     expect(instance.getSnapshot()).toMatchObject({ stage: 'request', objective: 'plan a controlled experiment' })

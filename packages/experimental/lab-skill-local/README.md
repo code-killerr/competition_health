@@ -24,4 +24,3 @@ Stable experiment, plan, Skill revision, and run identifiers keep repeated step 
 ## Known Limitations and Deferred Work
 
 - This experimental package provides local typed contracts and does not claim production persistence, recovery, or hardware integration.
-- This experimental package provides local typed contracts and does not claim production persistence, recovery, or hardware integration.

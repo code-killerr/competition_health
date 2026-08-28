@@ -57,6 +57,20 @@ describe('lab Web HTTP Consumer', () => {
     expect(dispatch).toHaveBeenCalledWith({ command: 'snapshot', experimentId: 'experiment-1' })
   })
 
+  it('routes experiment, run and artifact page commands to the project facade', async () => {
+    const routes: WebRoute[] = []
+    const dispatchProject = vi.fn().mockResolvedValue({ kind: 'run-list', value: [] })
+    const ctx = setupContext(routes, vi.fn(), dispatchProject)
+    await mount(ctx)
+    const response = fakeResponse()
+
+    await routes[0]!.handler(fakeRequest('POST', JSON.stringify({ namespace: 'project', command: 'run-list', experimentId: 'experiment-1' })), response.response)
+
+    expect(response.state.status).toBe(200)
+    expect(JSON.parse(response.state.body ?? '')).toMatchObject({ ok: true, result: { kind: 'run-list', value: [] } })
+    expect(dispatchProject).toHaveBeenCalledWith({ command: 'run-list', experimentId: 'experiment-1' })
+  })
+
   it('maps an unavailable provider to a retriable service response', async () => {
     const routes: WebRoute[] = []
     const dispatch = vi.fn().mockRejectedValue(new LabProviderUnavailableError('lab-knowledge'))
@@ -79,11 +93,15 @@ describe('lab Web HTTP Consumer', () => {
   })
 })
 
-function setupContext(routes: WebRoute[], dispatch = vi.fn().mockResolvedValue({ kind: 'snapshot', value: {} })): Context {
+function setupContext(
+  routes: WebRoute[],
+  dispatch = vi.fn().mockResolvedValue({ kind: 'snapshot', value: {} }),
+  dispatchProject = vi.fn().mockResolvedValue({ kind: 'project-list', value: [] }),
+): Context {
   const ctx = new Context()
   contexts.push(ctx)
   ctx.provide('webServer', fakeWebServer(routes) as WebServer)
-  ctx.provide('labMvpWeb', { dispatch } as unknown as LabMvpWebService)
+  ctx.provide('labMvpWeb', { dispatch, dispatchProject } as unknown as LabMvpWebService)
   return ctx
 }
 

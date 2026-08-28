@@ -270,6 +270,22 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'The Runtime locks approved plans, advances controlled operations, validates evidence, applies failure policy, and reports feedback without calling the model.',
   },
   {
+    key: 'labExperimentCache',
+    pkg: 'lab-cache',
+    title: 'Experimental Session and Storage projection cache',
+    mode: 'core',
+    consumers: ['lab-mvp-web'],
+    note: 'The cache owns one rebuildable experiment projection for Web and Agent Consumers; Session events remain authoritative and Storage remains optional for keyless composition.',
+  },
+  {
+    key: 'labProjects',
+    pkg: 'lab-project',
+    title: 'Experimental Project and multi-Session records',
+    mode: 'core',
+    consumers: ['lab-mvp-web', 'tool-lab-project'],
+    note: 'The Project service owns Workspace-scoped identities, Session associations, source/device selections, approved facts, audits, and workflow evidence without moving Session logs.',
+  },
+  {
     key: 'labMvpWeb',
     pkg: 'lab-mvp-web',
     title: 'Experimental laboratory Web snapshot Consumer',

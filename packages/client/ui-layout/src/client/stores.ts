@@ -14,13 +14,20 @@ import {
 } from './columns.ts'
 
 /**
- * Layout store state: panel width preferences in px (0 = closed), plus the
+ * Layout store state: panel width preferences in px (0 = closed), the
+ * presentation-only root application-view selection, plus the
  * narrow-viewport pair — `narrow` mirrors AppFrame's breakpoint reading
  * (viewport < SIDEBAR_AUTO_COLLAPSE) so toggleSidebar can pick semantics, and
  * `narrowExpanded` is the manual override that re-expands the auto-collapsed
  * sidebar over the squeezed center without rewriting the width preference.
  */
-type LayoutState = { sidebar: number; details: number; narrow: boolean; narrowExpanded: boolean }
+type LayoutState = {
+  sidebar: number
+  details: number
+  narrow: boolean
+  narrowExpanded: boolean
+  activeAppViewId?: string
+}
 
 /**
  * Annotation twin of the actions literal below (the export needs a declared
@@ -33,6 +40,7 @@ type LayoutActions = {
   setNarrow: (draft: LayoutState, narrow: boolean) => void
   openDetails: (draft: LayoutState) => void
   closeDetails: (draft: LayoutState) => void
+  setActiveAppView: (draft: LayoutState, viewId: string | undefined) => void
 }
 
 /**
@@ -66,6 +74,10 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
       },
       openDetails: (d) => { if (d.details === 0) d.details = DETAILS_DEFAULT },
       closeDetails: (d) => { d.details = 0 },
+      setActiveAppView: (d, viewId: string | undefined) => {
+        if (viewId === undefined) delete d.activeAppViewId
+        else d.activeAppViewId = viewId
+      },
     },
   })
   return handle
