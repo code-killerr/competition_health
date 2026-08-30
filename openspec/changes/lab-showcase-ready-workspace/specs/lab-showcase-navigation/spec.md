@@ -27,15 +27,15 @@ The Harness client SHALL provide a root-scoped application-view registry and an 
 - **THEN** the interface restores the last valid lifecycle destination and active Experiment when authorized records still exist and falls back to Overview otherwise
 
 ### Requirement: LABWEAVE owns the visible Agent surface and reuses Harness conversation capabilities
-In laboratory context the system SHALL replace the default Conversation page composition with a LABWEAVE-owned Agent surface. The Agent surface SHALL reuse the active Harness Session, input machine, draft, queue, slash commands, references, attachments, access and model controls, ask-user and approval takeovers, timeline state and registered message/node renderers. It SHALL not render a second input implementation or preserve the default hero, Session header, horizontal context strip, large composer or full-page Conversation layout as product requirements.
+In Project context the system SHALL place the LABWEAVE-owned Agent surface beside the Project workspace while retaining the native Harness Conversation chrome and composer. The Agent surface SHALL reuse the active Harness Session, input machine, draft, queue, slash commands, references, attachments, access and model controls, ask-user and approval takeovers, timeline state and registered message/node renderers. The global configuration destination SHALL use a full-page replacement view and SHALL not display a conversation input.
 
 #### Scenario: Enter a Project Session
 - **WHEN** a user opens or creates a Session for an active Project
-- **THEN** the workbench shows one compact Agent dock with the current status, latest relevant activity, pending interaction and one input control backed by that Session
+- **THEN** the center conversation column shows the current status, latest relevant activity, pending interaction and one input control backed by that Session
 
-#### Scenario: Expand Agent history
-- **WHEN** a user expands the Agent dock
-- **THEN** the same mounted Session displays its complete timeline, tool calls and structured lifecycle cards without replacing the workbench or creating another draft
+#### Scenario: Inspect Agent history
+- **WHEN** a user scrolls or selects a lifecycle card in the central conversation
+- **THEN** the same mounted Session displays its complete timeline, tool calls and structured lifecycle cards without creating another draft
 
 #### Scenario: A takeover becomes pending
 - **WHEN** ask-user, approval or another registered composer takeover becomes active
@@ -44,6 +44,10 @@ In laboratory context the system SHALL replace the default Conversation page com
 #### Scenario: Use the default Web profile
 - **WHEN** a non-laboratory application uses the ordinary Conversation composition
 - **THEN** its default Conversation layout and behavior remain unchanged
+
+#### Scenario: Open global configuration
+- **WHEN** a user selects the LABWEAVE configuration destination
+- **THEN** the configuration surface occupies the main page, the Project workspace is not shown and no conversation input is displayed
 
 ### Requirement: Agent input and lifecycle output remain the primary orchestration path
 Users SHALL submit experimental goals through the LABWEAVE Agent input backed by the Harness conversation input machine. Agent clarification, cited Plan proposals, approval state and Run launch state SHALL appear as structured timeline content linked to full Project records. The workbench SHALL not provide a competing objective form or browser-owned execution controls.
@@ -56,16 +60,16 @@ Users SHALL submit experimental goals through the LABWEAVE Agent input backed by
 - **WHEN** the Agent submits a valid cited Plan
 - **THEN** the Agent timeline and Planning workbench render its revision, citations, assumptions, unresolved inputs and approval actions without requiring pasted JSON
 
-### Requirement: Agent and workbench form one continuous laboratory surface
-The central experiment workbench SHALL remain the primary visual region. A compact Agent dock SHALL remain available at the bottom of the workbench and MAY expand into an overlaid or adjacent timeline at wide widths. Narrow layouts MAY switch explicitly between the expanded timeline and workbench, but the compact input, Session, draft and active laboratory context SHALL retain one identity across every presentation.
+### Requirement: LABWEAVE uses a collapsible three-pane application layout
+The LABWEAVE application SHALL render its existing global/configuration sidebar on the left, the full shared Agent conversation in the center and the active Project workspace on the right. Both side panels SHALL use the root layout's collapse and restoration behavior; hiding either panel SHALL not unmount or replace the Session, draft or selected Project. The laboratory profile SHALL not reserve a bottom Agent dock or use a second application shell.
 
 #### Scenario: Inspect progress while conversing
 - **WHEN** a user opens an active Run from an Agent lifecycle card
-- **THEN** the experiment canvas displays the Run steps and progress while the compact Agent dock remains available and expanding it reveals the same Session timeline
+- **THEN** the right Project workspace displays the Run steps and progress while the central conversation remains available with the same Session timeline
 
 #### Scenario: Use a narrow layout
-- **WHEN** the viewport cannot display both panes at a usable size
-- **THEN** the user can switch between the expanded Agent timeline and workbench without creating another conversation, another input element or losing the current draft
+- **WHEN** the viewport cannot display all three panes at a usable size
+- **THEN** the layout may collapse or switch panes with explicit controls without creating another conversation, another input element or losing the current draft
 
 ### Requirement: The sidebar exposes cross-Project execution state
 The execution-monitor destination SHALL summarize active, waiting, failed and recently completed Runs across Projects using Host-style Project, Experiment and Run identities. It SHALL provide navigation to the owning Project and Run and SHALL not imply cross-Project scheduling or mutate Runtime state.
@@ -110,6 +114,17 @@ The primary workflow SHALL use an experiment lifecycle, Workflow and execution s
 #### Scenario: Open an empty Project
 - **WHEN** a Project has no Experiment or selected source
 - **THEN** the page explains the next available action and does not show a blank table or fabricated example data
+
+### Requirement: Project workspace files are visible and refresh after Host writes
+The right Project workspace SHALL expose a files destination grouped as project configuration, conversation output and run artifacts. The browser SHALL query and open only Host-authorized file records scoped to the active Project. A Host project-file event for that Project SHALL refresh the displayed catalog without page polling; manual refresh SHALL use the same query. File previews and downloads SHALL be explicit adapter actions, and the browser SHALL not receive arbitrary filesystem paths or file bodies in its state.
+
+#### Scenario: Agent generates a Project file
+- **WHEN** an Agent or Runtime operation writes an authorized file under the active Project Workspace
+- **THEN** the Host records project-file metadata in a durable event and the open Project files destination refreshes to show the new record in its assigned group
+
+#### Scenario: Open a generated file
+- **WHEN** a user selects an authorized Project file
+- **THEN** the browser requests the Host-authorized preview or download for that record and does not construct a path or read the file directly
 
 ### Requirement: The showcase remains accessible and responsive
 The laboratory UI SHALL use locale dictionaries, shared LABWEAVE tokens, keyboard focus states, semantic status text and responsive layouts. Core sidebar, Project, Agent input, approval, Run and evidence actions SHALL remain operable without drag-and-drop and at narrow desktop or tablet widths.

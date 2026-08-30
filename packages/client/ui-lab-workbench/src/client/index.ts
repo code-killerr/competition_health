@@ -34,7 +34,8 @@ import { LabOperationsView } from './LabOperationsView.tsx'
 import type { LabOperationsInjected } from './LabOperationsView.tsx'
 
 export { LabWorkbenchError } from './adapter.ts'
-export type { LabAdapterErrorCode, LabQueryState, LabWorkbenchAdapter, LabWorkbenchActions, LabWorkbenchQueries, LabKnowledgeScopeView } from './adapter.ts'
+export type { LabAdapterErrorCode, LabProjectFileAdapter, LabProjectFileEventListener, LabQueryState, LabWorkbenchAdapter, LabWorkbenchActions, LabWorkbenchQueries, LabKnowledgeScopeView } from './adapter.ts'
+export type { LabProjectFileDownload, LabProjectFileGroup, LabProjectFilePreview, LabProjectFileRecord, LabProjectFileRevisionEvent } from './api.ts'
 export { createLabFixtureAdapter, LAB_FIXTURE_IDS, parseLabFixtureEvents, serializeLabFixtureEvents } from './fixtures/adapter.ts'
 export type { LabFixtureAdapter, LabFixtureScenario } from './fixtures/adapter.ts'
 export { validateLabPresentationIntent } from './lifecycle.ts'
@@ -78,6 +79,8 @@ export { LabRunComparisonView } from './LabRunComparisonView.tsx'
 export type { LabRunComparisonLabels } from './LabRunComparisonView.tsx'
 export { LabArtifactPreview } from './LabArtifactPreview.tsx'
 export type { LabArtifactPreviewLabels, LabArtifactPreviewValue } from './LabArtifactPreview.tsx'
+export { LabProjectFileView } from './LabProjectFileView.tsx'
+export type { LabProjectFileLabels } from './LabProjectFileView.tsx'
 export { LabResultReportView } from './LabResultReportView.tsx'
 export type { LabResultReportLabels } from './LabResultReportView.tsx'
 export type { LabDevicesInjected, LabDevicesUi } from './LabDevicesView.tsx'
@@ -102,7 +105,7 @@ export interface LabPresentationController {
 /** 工作台所需的客户端 Service。 */
 export const inject = ['slots', 'locale', 'sessions', 'layout', 'workspaces']
 
-/** 注册 LABWEAVE 页面，并让真实 Harness Conversation 以底部 Agent dock 作为唯一输入面。 */
+/** 注册 LABWEAVE 页面，并让真实 Harness Conversation 作为三栏中间唯一输入面。 */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-lab-workbench: dictionaries')
 
@@ -126,7 +129,7 @@ export function apply(ctx: ClientContext): void {
     name: 'app.view',
     id: 'lab-projects',
     default: true,
-    conversationMode: 'agent-dock',
+    conversationMode: 'lab-workspace',
     order: 10,
     locale: NS,
     inject: (): LabProjectsInjected => ({
@@ -142,7 +145,7 @@ export function apply(ctx: ClientContext): void {
     name: 'app.view',
     id: 'lab-project',
     order: 11,
-    conversationMode: 'agent-dock',
+    conversationMode: 'lab-workspace',
 
     locale: NS,
     inject: (): LabProjectShellInjected => ({
@@ -161,13 +164,13 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('app.view', registerProjectShell)
 
   const registerMonitor = (): (() => void) => ctx.slots.register({
-    name: 'app.view', id: 'lab-monitor', order: 8, conversationMode: 'agent-dock', locale: NS,
+    name: 'app.view', id: 'lab-monitor', order: 8, conversationMode: 'lab-workspace', locale: NS,
     inject: (): LabOperationsInjected => ({ kind: 'monitor', ui, listProjects: listProjectSummaries, openAppView: viewId => { ctx.layout.openAppView(viewId) } }),
   }, LabOperationsView)
   ctx.slots.inject('app.view', registerMonitor)
 
   const registerConfiguration = (): (() => void) => ctx.slots.register({
-    name: 'app.view', id: 'lab-config', order: 9, conversationMode: 'agent-dock', locale: NS,
+    name: 'app.view', id: 'lab-config', order: 9, conversationMode: 'replace', locale: NS,
     inject: (): LabOperationsInjected => ({ kind: 'configuration', ui, listProjects: listProjectSummaries, openAppView: viewId => { ctx.layout.openAppView(viewId) } }),
   }, LabOperationsView)
   ctx.slots.inject('app.view', registerConfiguration)

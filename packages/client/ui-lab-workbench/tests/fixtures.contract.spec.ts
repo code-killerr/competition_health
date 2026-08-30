@@ -81,4 +81,35 @@ describe('deterministic Lab fixture adapter', () => {
     const failedRun = await createLabFixtureAdapter('failed').openRun(LAB_FIXTURE_IDS.runId)
     expect(failedRun).toMatchObject({ state: 'ready', value: { runStatus: 'FAILED' } })
   })
+
+  it('exposes grouped Project file metadata and authorized actions with revision events', async () => {
+    const adapter = createLabFixtureAdapter('success')
+    const files = await adapter.listProjectFiles(LAB_FIXTURE_IDS.projectId)
+    expect(files.state).toBe('ready')
+    if (files.state !== 'ready') return
+
+    expect(new Set(files.value.map(file => file.group))).toEqual(new Set(['configuration', 'conversation-output', 'run-artifacts']))
+    for (const file of files.value) {
+      expect(file.relativePath).not.toMatch(/^[/\\]/)
+      expect(file).not.toHaveProperty('content')
+    }
+
+    const preview = await adapter.openProjectFile(LAB_FIXTURE_IDS.projectId, LAB_FIXTURE_IDS.projectConfigFileId)
+    expect(preview).toMatchObject({ state: 'ready', value: { kind: 'json' } })
+    const download = await adapter.downloadProjectFile(LAB_FIXTURE_IDS.projectId, LAB_FIXTURE_IDS.projectConfigFileId)
+    expect(download).toMatchObject({ state: 'ready', value: { projectFileId: LAB_FIXTURE_IDS.projectConfigFileId } })
+
+    const received: Array<(typeof adapter.projectFileEvents)[number]> = []
+    const unsubscribe = adapter.subscribeProjectFileEvents(event => { received.push(event) })
+    const config = files.value.find(file => file.projectFileId === LAB_FIXTURE_IDS.projectConfigFileId)
+    expect(config).toBeDefined()
+    if (config === undefined) return
+    adapter.publishProjectFileRevision({ ...config, revision: 2 })
+    expect(received).toEqual([{ type: 'project-file-revision', projectId: LAB_FIXTURE_IDS.projectId, projectFileId: config.projectFileId, group: config.group, revision: 2 }])
+    expect(adapter.projectFileEvents).toEqual(received)
+    const reloaded = await adapter.listProjectFiles(LAB_FIXTURE_IDS.projectId)
+    expect(reloaded.state).toBe('ready')
+    if (reloaded.state === 'ready') expect(reloaded.value.find(file => file.projectFileId === LAB_FIXTURE_IDS.projectConfigFileId)).toMatchObject({ revision: 2 })
+    unsubscribe()
+  })
 })

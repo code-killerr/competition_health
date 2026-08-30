@@ -33,14 +33,15 @@ AppFrame
 │       ├── Workflow / Lab Skill
 │       ├── Devices
 │       └── People / permissions
-└── LABWEAVE application view
-    ├── Project / Experiment / Run context
-    ├── lifecycle workbench
-    ├── compact bottom Agent dock
-    └── expandable Agent timeline
+├── LABWEAVE Agent conversation
+│   ├── full Session timeline and lifecycle cards
+│   └── one shared Harness composer
+└── LABWEAVE Project workspace
+    ├── Project / Experiment / Run lifecycle destinations
+    └── Project files: configuration / conversation output / run artifacts
 ```
 
-LABWEAVE 负责可见应用外壳。它复用 Harness conversation 能力，而不是保留默认 Conversation 外观。LABWEAVE profile 不得显示原始 hero、header、context strip、超大 composer 或永久相邻 Agent 列。
+LABWEAVE 负责可见应用外壳。Project 桌面组合保留左侧现有可收起 sidebar，中间放置完整共享的原生 Harness conversation，右侧放置可收起且可自由扩展的 Project workspace。通用配置单独使用整页视图，不显示对话输入。LABWEAVE profile 不得显示重复的 Conversation 外壳、第二个输入框、独立 context strip、底部 Agent dock 或第二套应用外壳。
 
 最终页面只能有一个 Session、一个 input DOM 和一个 draft。输入必须使用 Harness input state machine，确保 queue、slash command、reference、attachment、access/model control、ask-user 和 approval takeover 继续工作。不得用 CSS 隐藏旧 composer 后再挂另一个 textarea，也不得直接调用低层 send 方法。
 
@@ -49,10 +50,10 @@ LABWEAVE 负责可见应用外壳。它复用 Harness conversation 能力，而�
 - `ui-layout` 负责根应用视图的选择和挂载。
 - `ui-sidebar` 负责导航 seat 和侧栏行为，不负责实验业务记录。
 - `ui-conversation` 负责可复用 Session input、timeline 和 interaction presentation contract。非实验 profile 的默认组合必须保持不变。
-- `ui-lab-workbench` 负责 LABWEAVE composition、生命周期目的地、monitor projection 和 Agent dock chrome。
+- `ui-lab-workbench` 负责 LABWEAVE composition、Project workspace、Project file catalog 呈现和生命周期目的地。
 - `ui-lab-knowledge-workspace` 继续负责 Knowledge 导入、检索和 SOP 审阅。LABWEAVE 只把它放到 Configuration 下。
 - `LabUiContext` 只负责 presentation selection。它可以保存 active Project、destination、Experiment、Run、selected Session node 和 Agent pane state，不能保存领域记录。
-- `LabWorkbenchAdapter` 提供 typed records 和 actions。fixture 与 Host 实现必须满足同一 contract。
+- `LabWorkbenchAdapter` 提供 typed records 和 actions，包括 Host 授权的 Project file catalog、preview 和 download action。fixture 与 Host 实现必须满足同一 contract。
 - Host Project、Runtime、Knowledge、Session 和 Workspace 服务继续对 identity 和 state 负责。
 - 全局 monitor 只是状态和导航投影，不负责跨 Project 调度或执行控制。
 - People/permissions 只能显示注册能力数据、read-only 或 unavailable，禁止伪造用户、角色或授权。
@@ -92,7 +93,7 @@ LABWEAVE 负责可见应用外壳。它复用 Harness conversation 能力，而�
 - 展开 timeline 不会重挂 Session；
 - 默认 profile 的组合保持不变。
 
-退出条件：LABWEAVE 可以在不挂载默认 Conversation 页面的情况下显示空 Agent dock 和展开 timeline。
+退出条件：LABWEAVE 可以在不挂载默认 Conversation 页面组合的情况下显示完整共享对话、原生输入框和展开 timeline。
 
 ### 步骤 4：替换侧栏信息架构
 
@@ -109,15 +110,15 @@ LABWEAVE 负责可见应用外壳。它复用 Harness conversation 能力，而�
 3. 没有 Project 时显示 Project empty/create 状态；
 4. LABWEAVE profile 绝不能默认进入原始 Conversation landing page。
 
-### 步骤 5：构建 LABWEAVE Agent surface
+### 步骤 5：构建 LABWEAVE 三栏页面
 
 步骤 3 通过后才执行 8.8。
 
-底部紧凑 dock 包含 active context、current activity、唯一输入和明确的 timeline 展开动作。展开模式在 overlay 或有界 pane 中渲染完整共享 timeline 和所有 takeover，不能形成永久第三列。
+共享 Agent conversation 占据中间列，使用原生 Harness header、hero、composer 和完整 timeline、生命周期卡片及 interaction takeover。右侧 Project workspace 呈现 Project context、生命周期目的地和 files destination；它复用根 details panel 的收起、恢复和拖拽行为，并且没有当前 Session 时仍可使用。通用配置使用 replace view 占据整页，不显示输入框。
 
-把 Project/Workspace/Experiment/Run context 从旧 header 和 input-dock strip 迁入 LABWEAVE chrome。从 LABWEAVE 可见树移除默认 hero、默认 Session header、独立 context strip 和超大 composer。非实验组合保持不变。
+把 Project/Workspace/Experiment/Run context 从旧 input-dock strip 迁入右侧 Project workspace。Project files 按项目配置、对话输出和运行产物分组。每次 Host 写入后，Project/file/revision 元数据事件会让当前目录重新加载；手动刷新使用同一已授权 query。preview 与 download 始终通过 adapter action。保留中间原生 Harness Conversation 的 header、hero 和 composer，移除重复输入、独立 context strip、底部 dock 和超大自定义 composer。非实验组合保持不变。
 
-必须增加 DOM 和行为断言，不能只做 CSS 截图。出现两个可编辑消息输入、工作台被超大 composer 推到下方或 timeline 无法完成审批时，本步骤失败。
+必须增加 DOM 和行为断言，不能只做 CSS 截图。出现两个可编辑消息输入、任一侧栏收起后丢失选择、生成文件未刷新当前目录、浏览器推导文件系统路径或 takeover 无法完成审批时，本步骤失败。
 
 ### 步骤 6：增加全局监控和配置中心
 
@@ -145,7 +146,7 @@ Overview 以生命周期为主：current goal、evidence readiness、Workflow、
 
 通过 typed presentation intent 冻结双向导航。Agent card 打开授权 record；工作台 record 定位其来源 Session node。用户导航始终可以覆盖 Agent selection。
 
-工作台只使用一个主滚动容器，并为底部紧凑 Agent dock 预留空间。展开 timeline 可以有自己的内部滚动，但折叠 dock 不得遮挡最后一段工作台内容。测试 desktop、narrow desktop 和 tablet 尺寸。
+使用中间 conversation scroll container 与有界右侧 Project workspace scroll container。中间 composer 必须可见且不遮挡最后一条 timeline。测试 desktop、narrow desktop 和 tablet 尺寸，并覆盖两个侧栏的收起与恢复。
 
 ### 步骤 8：在不改变架构的前提下补全详情
 
@@ -171,17 +172,18 @@ Planning/Workflow 和 approval 负责 Experiment、Plan 与 Lab Skill detail。E
 
 完成第 11 阶段。
 
-浏览器流程从 Project Overview 开始，使用底部 LABWEAVE Agent input，依次经过 Knowledge、Skill/Workflow、approval、execution、replanning、Evidence 和 report，并在 reload 与 Session change 后证明 Host identity 一致。
+浏览器流程从中间 LABWEAVE Agent conversation 和右侧 Project workspace 开始，依次经过 Knowledge、Skill/Workflow、approval、execution、replanning、Evidence、Project files 和 report，并在 reload 与 Session change 后证明 Host identity 一致。
 
 验收必须断言：
 
-- 不存在默认 Conversation landing page 或顶部超大 composer；
+- 不存在独立的默认 Conversation landing page、重复输入框或底部 Agent dock；Project 中间区使用原生 Harness composer；
 - 只有一个可编辑 Agent input；
 - Workspace、Project、Experiment 和 Run selection 保持同步；
 - global monitor 与 Project badge 反映 Host state；
 - Agent presentation intent 与用户手动导航解析到同一 record；
 - Knowledge scope 通过 typed action 更新；
-- 工作台可以完整滚动且不被遮挡；
+- 中间 conversation 和右侧 Project workspace 可以完整滚动且不被遮挡，两个侧栏收起后可以恢复选择；
+- Host 创建的 Project file 不经轮询即可刷新已授权 catalog，preview 与 download 仍是 adapter action；
 - unavailable capability 保持真实；
 - fixture 与 Host mode 不混用。
 

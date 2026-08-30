@@ -33,14 +33,15 @@ AppFrame
 │       ├── Workflow / Lab Skill
 │       ├── Devices
 │       └── People / permissions
-└── LABWEAVE application view
-    ├── Project / Experiment / Run context
-    ├── lifecycle workbench
-    ├── compact bottom Agent dock
-    └── expandable Agent timeline
+├── LABWEAVE Agent conversation
+│   ├── full Session timeline and lifecycle cards
+│   └── one shared Harness composer
+└── LABWEAVE Project workspace
+    ├── Project / Experiment / Run lifecycle destinations
+    └── Project files: configuration / conversation output / run artifacts
 ```
 
-LABWEAVE owns the visible application shell. It reuses Harness conversation capabilities, not the default Conversation chrome. The LABWEAVE profile must not show the original hero, header, context strip, oversized composer or a permanent adjacent Agent column.
+LABWEAVE owns the visible application shell. Its Project desktop composition keeps the existing collapsible sidebar on the left, the full native Harness Agent conversation in the center and a collapsible, freely resizable Project workspace on the right. The global configuration destination uses a full-page replacement view without a conversation input. The LABWEAVE profile must not show a duplicate Conversation shell, second input, standalone context strip, bottom Agent dock or a second application shell.
 
 The final page has exactly one Session, one input DOM and one draft. The input must use the Harness input state machine so queueing, slash commands, references, attachments, access/model controls, ask-user and approval takeovers continue to work. Do not hide the old composer with CSS, mount another textarea or call a lower-level send method.
 
@@ -49,10 +50,10 @@ The final page has exactly one Session, one input DOM and one draft. The input m
 - `ui-layout` owns root application-view selection and mounting.
 - `ui-sidebar` owns the navigation seat and sidebar behavior, not laboratory records.
 - `ui-conversation` owns reusable Session input, timeline and interaction presentation contracts. Its default composition must remain unchanged for non-laboratory profiles.
-- `ui-lab-workbench` owns LABWEAVE composition, lifecycle destinations, monitor projections and Agent dock chrome.
+- `ui-lab-workbench` owns LABWEAVE composition, Project workspace, Project file catalog presentation and lifecycle destinations.
 - `ui-lab-knowledge-workspace` continues to own Knowledge import, retrieval and SOP review. LABWEAVE only places its app view under Configuration.
 - `LabUiContext` owns presentation selection only. It may store active Project, destination, Experiment, Run, selected Session node and Agent pane state; it must not own domain records.
-- `LabWorkbenchAdapter` provides typed records and actions. Fixture and Host implementations must satisfy the same contract.
+- `LabWorkbenchAdapter` provides typed records and actions, including the Host-authorized Project file catalog, preview and download actions. Fixture and Host implementations must satisfy the same contract.
 - Host Project, Runtime, Knowledge, Session and Workspace services remain authoritative for identities and state.
 - The global monitor is a status and navigation projection. It does not schedule or control work across Projects.
 - People and permissions must show registered capability data, a read-only state or an unavailable state. Never fabricate users, roles or authorization.
@@ -92,7 +93,7 @@ Add assembled tests for:
 - timeline expansion without Session remount;
 - unchanged default profile composition.
 
-Exit criteria: LABWEAVE can render an empty Agent dock and expanded timeline without mounting the default Conversation page.
+Exit criteria: LABWEAVE can render the complete shared conversation, native composer and expanded timeline without mounting the default Conversation page composition.
 
 ### Step 4: Replace the sidebar information architecture
 
@@ -109,15 +110,15 @@ Default entry behavior:
 3. otherwise show the Project empty/create state;
 4. never default to the original Conversation landing page in the LABWEAVE profile.
 
-### Step 5: Build the LABWEAVE Agent surface
+### Step 5: Build the LABWEAVE three-pane surface
 
 Implement task 8.8 only after step 3 passes.
 
-The compact bottom dock contains active context, current activity, the single input and an explicit timeline expansion action. Expanded mode renders the complete shared timeline and all takeovers in an overlay or bounded pane. It must not create a permanent third column.
+The shared Agent conversation occupies the center column and uses the native Harness header, hero, composer, complete timeline, lifecycle cards and all interaction takeovers. The right Project workspace renders Project context, lifecycle destinations and a files destination. It uses the root details panel's collapse, restore and drag behavior and remains available without a current Session. The global configuration view replaces the Conversation for a full-page surface without an input.
 
-Move Project/Workspace/Experiment/Run context from the old header and input-dock strip into LABWEAVE chrome. Remove the default hero, default Session header, standalone context strip and oversized composer from the LABWEAVE visible tree. Keep their non-laboratory behavior unchanged.
+Move Project/Workspace/Experiment/Run context from the old input-dock strip into the right Project workspace. Group Project files as configuration, conversation output and run artifacts. After each Host write, a Project/file/revision metadata event makes the active catalog reload; manual refresh uses that same authorized query. Keep the native Harness Conversation header, hero and composer in the center, while removing duplicate inputs, the standalone context strip, bottom dock and oversized custom composer from the LABWEAVE visible tree. Keep non-laboratory behavior unchanged.
 
-Add DOM and behavior assertions, not CSS-only screenshots. The page fails acceptance if two editable message inputs exist, the workbench is pushed below an oversized composer or the timeline cannot complete an approval.
+Add DOM and behavior assertions, not CSS-only screenshots. The page fails acceptance if two editable message inputs exist, either side panel loses selection on collapse, a generated file does not refresh the active catalog, the browser derives a filesystem path, or a takeover cannot complete an approval.
 
 ### Step 6: Add global monitoring and configuration
 
@@ -145,7 +146,7 @@ Move existing Experiment, Workflow, Skill, Run, comparison, Evidence, Artifact a
 
 Freeze bidirectional navigation through typed presentation intents. Agent cards open authorized records; workbench records locate their originating Session node. User navigation always overrides Agent selection.
 
-Use one main scroll container for the workbench. Reserve bottom space for the compact Agent dock. An expanded timeline may own its internal scroll, but the collapsed dock must not cover the last workbench content. Test desktop, narrow desktop and tablet dimensions.
+Use the central conversation scroll container and bounded right Project workspace scroll container. The center composer remains visible without covering its last timeline entry. Test desktop, narrow desktop and tablet dimensions, including collapse and restoration of both side panels.
 
 ### Step 8: Complete detail content without changing architecture
 
@@ -171,17 +172,18 @@ The deterministic keyless profile and real-provider profile must use the same UI
 
 Implement phase 11.
 
-The browser journey starts in Project Overview, uses the bottom LABWEAVE Agent input, moves through Knowledge, Skill/Workflow, approval, execution, replanning, Evidence and report, and proves shared Host identities after reload and Session changes.
+The browser journey starts with the central LABWEAVE Agent conversation and right Project workspace, moves through Knowledge, Skill/Workflow, approval, execution, replanning, Evidence, Project files and report, and proves shared Host identities after reload and Session changes.
 
 Acceptance must assert:
 
-- no default Conversation landing page or oversized top composer;
+- no independent default Conversation landing page, duplicate input or bottom Agent dock; Project uses the native Harness composer;
 - exactly one editable Agent input;
 - selected Workspace, Project, Experiment and Run stay synchronized;
 - global monitor and Project badges reflect Host state;
 - Agent presentation intents and manual navigation resolve the same records;
 - Knowledge scope updates through typed actions;
-- workbench remains fully scrollable and unobscured;
+- center conversation and right Project workspace remain fully scrollable and unobscured, and both side panels restore selection after collapse;
+- Host-created Project files refresh the authorized catalog without polling, while previews and downloads remain adapter actions;
 - unavailable capabilities remain truthful;
 - fixture and Host modes do not mix.
 
@@ -200,4 +202,4 @@ Before each implementation batch:
 7. inspect the real `examples/lab-web` browser when the task changes visible behavior;
 8. update checkboxes only after all task-specific evidence exists.
 
-Do not mark phase 8 complete until the old coexistence layout is absent from the real browser. Do not mark phase 10 complete while any production destination reads fixture state. Do not mark phase 11 complete from screenshots without behavioral assertions.
+Do not mark phase 8 complete until the old bottom-dock composition is absent from the real browser and an Agent/Host file event refreshes the active Project catalog. Do not mark phase 10 complete while any production destination reads fixture state. Do not mark phase 11 complete from screenshots without behavioral assertions.

@@ -14,9 +14,9 @@ Status: proposed
 
 本变更只补齐产品级组合和持久化实验关系，不重复实现已有基础能力。Harness 的 `ui-layout` 提供根作用域的应用视图注册表，`ui-sidebar` 提供追加式一级导航位置。LABWEAVE 使用这些 contract 构成一个层级应用壳：全局执行监控、动态 Project tree、Project 生命周期目的地，以及包含 Knowledge、Agent、Workflow 和 Lab Skill、Devices、People 和 permissions 的配置中心。实验相关包不创建第二套应用壳或主路由。
 
-LABWEAVE 负责可见的 Agent composition。它消费可复用的 `ui-conversation` presentation contract，并共用同一 Session、input state machine、draft、queue、slash/reference handling、attachment、access/model control、interaction takeover、timeline 和 node renderer。实验 profile 将这些能力呈现为底部紧凑 Agent dock 和可展开 timeline，而不是保留默认 Conversation hero、header、context strip、超大 composer 或永久相邻 Agent 列。整个页面只有一个 input DOM、一个 draft 和一个 Session。
+LABWEAVE 负责可见应用 composition。它消费可复用的 `ui-conversation` presentation contract，并共用同一 Session、input state machine、draft、queue、slash/reference handling、attachment、access/model control、interaction takeover、timeline 和 node renderer。实验 profile 在左侧使用现有可收起的全局 sidebar，中间使用完整共享且保留 Harness 原生 header、hero 与 composer 的 Agent conversation，右侧使用可收起的 active Project workspace；不保留重复的 Conversation 外壳、context strip、重复 composer 或底部 Agent dock。整个页面只有一个 input DOM、一个 draft 和一个 Session。
 
-Host 继续作为注册目录 Workspace、实验 Project、Experiment、Run 和 Artifact manifest 的权威来源。一个 Project 精确关联一个目录 Workspace，但不替换 Workspace 身份。Session 仍然是 Harness Conversation，并通过 `created`、`continued` 或 `reviewed` 关系显式关联 Experiment。一个 Experiment 保留多个不可变 Run，重试通过新 Run 记录来源。浏览器状态只保存页面展示选择，业务记录通过 typed Facade 命令重新加载。
+Host 继续作为注册目录 Workspace、实验 Project、Experiment、Run、Artifact manifest 和 Project file 的权威来源。一个 Project 精确关联一个目录 Workspace，但不替换 Workspace 身份。Session 仍然是 Harness Conversation，并通过 `created`、`continued` 或 `reviewed` 关系显式关联 Experiment。一个 Experiment 保留多个不可变 Run，重试通过新 Run 记录来源。右侧 Project workspace 将已授权 Project file 分为项目配置、对话输出和运行产物；Host 写入后只记录 metadata 与 revision 的 Project-scoped file event，打开的 file catalog 据此刷新。浏览器状态只保存展示选择并通过 typed Facade 命令重新加载记录，绝不拥有绝对路径或文件正文。
 
 无模型演示使用确定性的 Knowledge、模型和设备 Provider，但仍通过真实能力配置使用的 Host Facade、Session events、审批门禁、Runtime 记录和浏览器贡献。界面根据 Provider 元数据标记模拟或不可用状态，不创建浏览器专属记录，不根据缺少 API key 推断演示模式，也不使用静态 fixture 替代真实规划和执行路径。
 
@@ -24,9 +24,11 @@ Host 继续作为注册目录 Workspace、实验 Project、Experiment、Run 和 
 
 ## 当前验证
 
-2026-08-30 已在内置浏览器中实际运行 assembled LABWEAVE Web profile。根应用视图现在会保留 `conversationMode` 和默认选择元数据，因此 LABWEAVE 挂载的是一个 `agent-dock` 形式的共享 Conversation surface，而不是默认 hero 组合。对话处于空白／hero 阶段时，dock 仍保持顶部对齐，时间线操作可以在实验工作台上方正常访问。
+2026-08-30 已在内置浏览器中实际运行 assembled LABWEAVE Web profile。根应用视图会保留 `conversationMode` 和默认选择元数据，因此 LABWEAVE 可以用一个共享 Conversation presentation 取代默认页面组合，同时保留 Harness 原生 header、hero 与 composer。三栏 Project workspace 与 Project-file event 流程仍需要修订后的第 8 阶段浏览器证据，才能将本方案转为 implemented。
 
-验证覆盖了动态全局 monitor、Projects tree、Project 生命周期目的地、以生命周期为主的 Overview、待处理动作展示、配置能力状态、typed Project 与 Artifact 选择、单一 textarea、跨目的地切换时的 draft 保留、Agent timeline 展开、侧栏 rail 行为，以及桌面、平板和窄桌面布局。可重复的 assembled 浏览器场景位于 `apps/web/tests/lab-showcase.e2e.ts`；第 9 阶段从 Knowledge 到报告的业务流程仍不属于这份证据。
+验证覆盖了动态全局 monitor、Projects tree、Project 生命周期目的地、以生命周期为主的 Overview、待处理动作展示、配置能力状态、typed Project 与 Artifact 选择、单一 textarea、跨目的地切换时的 draft 保留、Agent timeline 展开、侧栏 rail 行为，以及桌面、平板和窄桌面布局。修订后的证据还必须覆盖两侧收起路径、中间 conversation 滚动、Project/file 切换、metadata-event refresh、手动刷新、preview 和 download。可重复的 assembled 浏览器场景位于 `apps/web/tests/lab-showcase.e2e.ts`；第 9 阶段从 Knowledge 到报告的业务流程仍不属于这份证据。
+
+客户端 fixture 现在覆盖了分组的 Project file metadata、授权 preview 和 download action，以及能够触发当前 catalog 重载的仅含 metadata 的 revision event。Host command 和 event wiring 仍属于第 10 阶段依赖，因此这还不能关闭 assembled 浏览器门禁。
 
 只有在新页面完成验证后删除被替代的 `conversation.view` 工作台、实验 profile 中的默认 Conversation composition、平铺导航、`sidebar.footer.action`、`lab:navigate`、浏览器生成的业务 ID、阶段映射、固定 split layout 和重复 composer，迁移才算完成。相关基础变更仍保留各自的最终验证任务；本变更不得替它们标记完成，也不得重新实现它们负责的内部能力。
 
@@ -45,7 +47,8 @@ Host 继续作为注册目录 Workspace、实验 Project、Experiment、Run 和 
 ## 验收标准
 
 - 没有 Session 时，根侧栏已经提供全局 monitor、动态 Project tree 和配置中心；选择 Project 后打开其最后一个有效生命周期目的地。
-- LABWEAVE 提供一个由 Harness Session 和 input state machine 驱动的紧凑 Agent input 和可展开 timeline；实验 profile 不渲染默认 Conversation composition 或第二个输入。
+- LABWEAVE 提供一个由 Harness Session 和 input state machine 驱动的完整中间 Agent conversation，以及可收起的右侧 Project workspace；实验 profile 不渲染默认 Conversation composition、底部 Agent dock 或第二个输入。
+- 右侧 Project workspace 按项目配置、对话输出和运行产物分组 Host 授权文件；Project-scoped metadata event 无需轮询即可刷新当前 catalog，浏览器不访问文件系统。
 - Project、Experiment、Run 和 Artifact 由 Host 服务生成并持久化；浏览器只提交用户字段和已选择的已有记录。
 - 一个 Experiment 可以保留多个终态 Run，包含重试来源，并在启动它的 Session 关闭或归档后继续存在。
 - 无模型验收流程从来源和引用开始，经过真实 Facade 与 Session event 路径，完成计划、审批、Run、Artifact 和报告。

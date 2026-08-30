@@ -1,9 +1,9 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { JSX } from 'react'
 import type { PropsLocale, PropsRuntime, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
-import type { LabArtifactRecord, LabPlanReview, LabProjectView, LabReportView, LabRun, LabRunComparisonView, LabSkillRevision, LabWorkflowRecord } from './api.ts'
+import type { LabArtifactRecord, LabPlanReview, LabProjectFilePreview, LabProjectFileRecord, LabProjectView, LabReportView, LabRun, LabRunComparisonView, LabSkillRevision, LabWorkflowRecord } from './api.ts'
 import type { LabUiContext } from './LabUiContext.ts'
-import type { LabQueryState } from './adapter.ts'
+import type { LabProjectFileAdapter, LabProjectFileEventListener, LabQueryState } from './adapter.ts'
 import { LabExperimentDetailView, type LabExperimentDetailLabels } from './LabExperimentDetailView.tsx'
 import { LabRunDetailView, type LabRunDetailLabels } from './LabRunDetailView.tsx'
 import type { LabRunDisplayState, LabResultDisplayState, LabRunResultLabels } from './LabRunResultView.tsx'
@@ -15,6 +15,7 @@ import { LabSkillView } from './LabSkillView.tsx'
 import type { LabSkillLabels, LabSkillReviewState } from './LabSkillView.tsx'
 import { LabArtifactPreview } from './LabArtifactPreview.tsx'
 import type { LabArtifactPreviewLabels } from './LabArtifactPreview.tsx'
+import { LabProjectFileView, type LabProjectFileLabels } from './LabProjectFileView.tsx'
 import type { LabResultReportLabels } from './LabResultReportView.tsx'
 import css from './LabProjectShellView.module.css'
 
@@ -30,20 +31,25 @@ export interface LabProjectShellInjected {
   readonly compareRuns: (leftRunId: string, rightRunId: string) => Promise<LabQueryState<LabRunComparisonView>>
   readonly retryRun: (runId: string) => Promise<LabRun>
   readonly openSession: (sessionId: string) => void
+  readonly listProjectFiles?: LabProjectFileAdapter['listProjectFiles']
+  readonly openProjectFile?: LabProjectFileAdapter['openProjectFile']
+  readonly downloadProjectFile?: LabProjectFileAdapter['downloadProjectFile']
+  readonly subscribeProjectFileEvents?: (listener: LabProjectFileEventListener) => () => void
 }
 
 type Props = PropsRuntime<'app.view'> & PropsLocale<'labWorkbench'> & InjectFace<LabProjectShellInjected>
 
-const PAGES = ['overview', 'planning', 'approval', 'execution', 'steps', 'evidence', 'archive'] as const
+const PAGES = ['overview', 'planning', 'approval', 'execution', 'steps', 'evidence', 'files', 'archive'] as const
 type Page = typeof PAGES[number]
 type LoadingState = { readonly state: 'loading' }
 type ProjectState = LoadingState | LabQueryState<LabProjectView>
 type RunsState = LoadingState | LabQueryState<readonly LabRun[]>
 type ArtifactsState = LoadingState | LabQueryState<readonly LabArtifactRecord[]>
+type ProjectFilesState = LoadingState | LabQueryState<readonly LabProjectFileRecord[]>
 type ReportState = LoadingState | LabQueryState<LabReportView>
 type ReviewsState = LoadingState | LabQueryState<readonly LabPlanReview[]>
 
-/** Render a Project-owned list/detail shell while the same Harness Conversation stays below it. */
+/** 在同一个 Harness Conversation 旁边渲染由 Project 所有的工作台。 */
 export function LabProjectShellView(props: Props): JSX.Element {
   const selection = useSyncExternalStore(props.ui.subscribe.bind(props.ui), () => props.ui.snapshot())
   const [project, setProject] = useState<LabProjectView | undefined>()
@@ -55,6 +61,10 @@ export function LabProjectShellView(props: Props): JSX.Element {
   const [report, setReport] = useState<ReportState>({ state: 'empty', code: 'NO_RECORDS', message: '' })
   const [experimentReviews, setExperimentReviews] = useState<ReviewsState>({ state: 'loading' })
   const [comparison, setComparison] = useState<LabQueryState<LabRunComparisonView> | undefined>()
+  const [fileRefresh, setFileRefresh] = useState(0)
+  const [projectFiles, setProjectFiles] = useState<readonly LabProjectFileRecord[]>([])
+  const [projectFilesState, setProjectFilesState] = useState<ProjectFilesState>({ state: 'empty', code: 'NO_RECORDS', message: '' })
+  const [projectFileRefresh, setProjectFileRefresh] = useState(0)
   const page = destinationOf(selection.projectPage)
 
   useEffect(() => {
@@ -98,7 +108,7 @@ export function LabProjectShellView(props: Props): JSX.Element {
       return props.listArtifacts(runId).then(artifactState => { if (current) { setArtifactsState(artifactState); setArtifacts(artifactState.state === 'ready' ? artifactState.value : []) } })
     }).catch(reason => { if (current) { setRunsState(failed(reason)); setArtifactsState(failed(reason)) } })
     return () => { current = false }
-  }, [props.compareRuns, props.listArtifacts, props.listRuns, props.loadRunReport, project, selection.activeExperimentId, selection.activeRunId])
+  }, [fileRefresh, props.compareRuns, props.listArtifacts, props.listRuns, props.loadRunReport, project, selection.activeExperimentId, selection.activeRunId])
 
   useEffect(() => {
     const experimentId = selection.activeExperimentId ?? project?.experiments[0]?.experimentId
@@ -108,6 +118,39 @@ export function LabProjectShellView(props: Props): JSX.Element {
     void props.loadExperimentReviews(experimentId).then(value => { if (current) setExperimentReviews(value) }).catch(reason => { if (current) setExperimentReviews(failed(reason)) })
     return () => { current = false }
   }, [props.loadExperimentReviews, project, selection.activeExperimentId])
+
+  useEffect(() => {
+    const projectId = selection.activeProjectId
+    const load = props.listProjectFiles
+    if (projectId === undefined || load === undefined) {
+      setProjectFiles([])
+      setProjectFilesState({ state: 'empty', code: 'NO_RECORDS', message: '' })
+      return
+    }
+    setProjectFilesState({ state: 'loading' })
+    let current = true
+    void load(projectId).then(value => {
+      if (current) {
+        setProjectFilesState(value)
+        setProjectFiles(value.state === 'ready' ? value.value : [])
+      }
+    }).catch(reason => {
+      if (current) {
+        setProjectFilesState(failed(reason))
+        setProjectFiles([])
+      }
+    })
+    return () => { current = false }
+  }, [props.listProjectFiles, projectFileRefresh, selection.activeProjectId])
+
+  useEffect(() => {
+    const projectId = selection.activeProjectId
+    const subscribe = props.subscribeProjectFileEvents
+    if (projectId === undefined || subscribe === undefined) return
+    return subscribe((event) => {
+      if (event.projectId === projectId) setProjectFileRefresh(value => value + 1)
+    })
+  }, [props.subscribeProjectFileEvents, selection.activeProjectId])
 
   const projectRecord = project?.project
   return (
@@ -136,6 +179,7 @@ export function LabProjectShellView(props: Props): JSX.Element {
       {page === 'approval' && <Experiments props={props} project={project} runs={runs} reviews={experimentReviews} />}
       {(page === 'execution' || page === 'steps') && <><StateNoticeWhenVisible state={runsState} t={props.t} emptyMessage={props.t('stateNoExperiment')} /><Runs props={props} runs={runs} artifacts={artifacts} report={report} comparison={comparison} /></>}
       {page === 'evidence' && <><StateNoticeWhenVisible state={artifactsState} t={props.t} emptyMessage={props.t('stateNoRun')} /><Evidence props={props} artifacts={artifacts} {...selection.activeArtifactId === undefined ? {} : { selectedArtifactId: selection.activeArtifactId }} /></>}
+      {page === 'files' && <ProjectFiles props={props} projectId={selection.activeProjectId} files={projectFiles} filesState={projectFilesState} artifacts={artifacts} state={artifactsState} onRefresh={() => { setFileRefresh(value => value + 1); setProjectFileRefresh(value => value + 1) }} />}
       {page === 'archive' && <div className={css.notice}>{props.t('archiveNotice')}</div>}
     </section>
   )
@@ -236,6 +280,54 @@ function Evidence({ props, artifacts, selectedArtifactId }: { readonly props: Pr
   return <div className={css.list}>{artifacts.map(artifact => <LabArtifactPreview key={artifact.artifactId} artifact={artifact} selected={artifact.artifactId === selectedArtifactId} labels={labels} onOpen={item => { void props.openArtifact(item.runId, item.artifactId) }} />)}</div>
 }
 
+/** 展示 Host 授权的 Project 文件元数据，并把正文读取与下载交给 adapter。 */
+function ProjectFiles({ props, projectId, files, filesState, artifacts, state, onRefresh }: { readonly props: Props; readonly projectId: string | undefined; readonly files: readonly LabProjectFileRecord[]; readonly filesState: ProjectFilesState; readonly artifacts: readonly LabArtifactRecord[]; readonly state: ArtifactsState; readonly onRefresh: () => void }): JSX.Element {
+  const artifactLabels: LabArtifactPreviewLabels = { open: props.t('openArtifact'), unavailable: props.t('artifactPreviewUnavailable'), text: props.t('artifactTextPreview'), json: props.t('artifactJsonPreview'), image: props.t('artifactImagePreview'), unsupported: props.t('artifactUnsupported'), metadata: props.t('evidence') }
+  const fileLabels: LabProjectFileLabels = { preview: props.t('projectFilePreview'), download: props.t('projectFileDownload'), loading: props.t('stateLoading'), unavailable: props.t('artifactPreviewUnavailable'), metadata: props.t('evidence'), path: props.t('projectFilePath'), revision: props.t('projectFileRevision'), downloadReady: props.t('projectFileDownloadReady'), previewUnavailable: props.t('artifactUnsupported') }
+  const nativeFiles = props.listProjectFiles !== undefined && projectId !== undefined
+  const [previews, setPreviews] = useState<Record<string, LabProjectFilePreview>>({})
+  const [previewStates, setPreviewStates] = useState<Record<string, 'idle' | 'loading' | 'unavailable'>>({})
+  const [downloadStates, setDownloadStates] = useState<Record<string, 'idle' | 'loading' | 'ready' | 'unavailable'>>({})
+  useEffect(() => {
+    setPreviews({})
+    setPreviewStates({})
+    setDownloadStates({})
+  }, [files])
+  const previewFile = (file: LabProjectFileRecord): void => {
+    if (projectId === undefined || props.openProjectFile === undefined) return
+    setPreviewStates(current => ({ ...current, [file.projectFileId]: 'loading' }))
+    void props.openProjectFile(projectId, file.projectFileId).then(result => {
+      if (result.state === 'ready') {
+        setPreviews(current => ({ ...current, [file.projectFileId]: result.value }))
+        setPreviewStates(current => ({ ...current, [file.projectFileId]: 'idle' }))
+      } else {
+        setPreviewStates(current => ({ ...current, [file.projectFileId]: 'unavailable' }))
+      }
+    }).catch(() => { setPreviewStates(current => ({ ...current, [file.projectFileId]: 'unavailable' })) })
+  }
+  const downloadFile = (file: LabProjectFileRecord): void => {
+    if (projectId === undefined || props.downloadProjectFile === undefined) return
+    setDownloadStates(current => ({ ...current, [file.projectFileId]: 'loading' }))
+    void props.downloadProjectFile(projectId, file.projectFileId).then(result => { setDownloadStates(current => ({ ...current, [file.projectFileId]: result.state === 'ready' ? 'ready' : 'unavailable' })) }).catch(() => { setDownloadStates(current => ({ ...current, [file.projectFileId]: 'unavailable' })) })
+  }
+  const renderFiles = (group: LabProjectFileRecord['group']): JSX.Element | undefined => {
+    const groupFiles = files.filter(file => file.group === group)
+    if (groupFiles.length === 0) return undefined
+    return <div>{groupFiles.map(file => <LabProjectFileView key={file.projectFileId} file={file} labels={fileLabels} {...previews[file.projectFileId] === undefined ? {} : { preview: previews[file.projectFileId] }} {...previewStates[file.projectFileId] === undefined ? {} : { previewState: previewStates[file.projectFileId] }} {...downloadStates[file.projectFileId] === undefined ? {} : { downloadState: downloadStates[file.projectFileId] }} {...props.openProjectFile === undefined ? {} : { onPreview: () => { previewFile(file) } }} {...props.downloadProjectFile === undefined ? {} : { onDownload: () => { downloadFile(file) } }} />)}</div>
+  }
+  return <section className={css.projectFiles} data-lab-project-files>
+    <header className={css.sectionHeading}><div><span className={css.sectionKicker}>{props.t('projectFilesKicker')}</span><h2>{props.t('projectFiles')}</h2></div><button type='button' onClick={onRefresh}>{props.t('projectFilesRefresh')}</button></header>
+    {nativeFiles && <StateNoticeWhenVisible state={filesState} t={props.t} emptyMessage={props.t('projectFilesEmpty')} />}
+    <FileGroup title={props.t('projectFilesConfiguration')} empty={props.t('projectFilesEmpty')}>{nativeFiles ? renderFiles('configuration') : undefined}</FileGroup>
+    <FileGroup title={props.t('projectFilesConversationOutput')} empty={props.t('projectFilesEmpty')}>{nativeFiles ? renderFiles('conversation-output') : undefined}</FileGroup>
+    <section className={css.fileGroup}><h3>{props.t('projectFilesRunArtifacts')}</h3>{nativeFiles ? renderFiles('run-artifacts') : <><StateNoticeWhenVisible state={state} t={props.t} emptyMessage={props.t('projectFilesEmpty')} />{artifacts.map(artifact => <LabArtifactPreview key={artifact.artifactId} artifact={artifact} labels={artifactLabels} onOpen={item => { void props.openArtifact(item.runId, item.artifactId) }} />)}</>}</section>
+  </section>
+}
+
+function FileGroup(props: { readonly title: string; readonly empty: string; readonly children: JSX.Element | undefined }): JSX.Element {
+  return <section className={css.fileGroup}><h3>{props.title}</h3>{props.children ?? <p>{props.empty}</p>}</section>
+}
+
 function StateNoticeWhenVisible<T>(props: { readonly state: LoadingState | LabQueryState<T>; readonly t: Props['t']; readonly emptyMessage: string }): JSX.Element | null {
   return props.state.state === 'ready' ? null : <StateNotice state={props.state} t={props.t} emptyMessage={props.emptyMessage} />
 }
@@ -261,7 +353,7 @@ function destinationOf(value: string): Page {
 
 function destinationLabel(value: Page): LabWorkbenchKey {
   const labels: Record<Page, LabWorkbenchKey> = {
-    overview: 'overview', planning: 'planning', approval: 'approval', execution: 'execution', steps: 'stepOrchestration', evidence: 'evidencePage', archive: 'archive',
+    overview: 'overview', planning: 'planning', approval: 'approval', execution: 'execution', steps: 'stepOrchestration', evidence: 'evidencePage', files: 'projectFiles', archive: 'archive',
   }
   return labels[value]
 }

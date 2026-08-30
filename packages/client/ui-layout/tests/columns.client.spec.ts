@@ -19,7 +19,7 @@ describe('clampWidth', () => {
 describe('computeColumns', () => {
   it('step 1: everything fits at preferred widths', () => {
     const cols = computeColumns(1920, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT))
-    expect(cols).toEqual({ sidebar: 280, center: 1920 - 280 - 360, details: 360 })
+    expect(cols).toEqual({ sidebar: 280, center: 1920 - 280 - DETAILS_DEFAULT, details: DETAILS_DEFAULT })
   })
 
   it('closed sidebar keeps its compact rail while closed details contribute zero width', () => {
@@ -27,11 +27,24 @@ describe('computeColumns', () => {
       .toEqual({ sidebar: SIDEBAR_COLLAPSED, center: 1920 - SIDEBAR_COLLAPSED, details: 0 })
   })
 
-  it('preferences beyond the clamp range are clamped before solving', () => {
-    const cols = computeColumns(1920, open(9999), open(1))
+  it('the sidebar remains clamped while the details panel grows into available space', () => {
+    const cols = computeColumns(1920, open(9999), open(9999))
     expect(cols.sidebar).toBe(420)
-    expect(cols.details).toBe(300)
+    expect(cols.details).toBe(860)
     expect(computeColumns(1920, open(1), open(DETAILS_DEFAULT)).sidebar).toBe(SIDEBAR_MIN)
+  })
+
+  it('allows a Project workspace to use the remaining width without a center floor', () => {
+    expect(computeColumns(1280, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT), 0)).toEqual({
+      sidebar: SIDEBAR_DEFAULT,
+      center: 580,
+      details: DETAILS_DEFAULT,
+    })
+    expect(computeColumns(1280, open(SIDEBAR_DEFAULT), open(900), 0)).toEqual({
+      sidebar: SIDEBAR_DEFAULT,
+      center: 100,
+      details: 900,
+    })
   })
 
   it('step 2: details shrinks first, center pinned at min', () => {

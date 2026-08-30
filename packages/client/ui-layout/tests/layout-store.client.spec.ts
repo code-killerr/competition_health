@@ -8,7 +8,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createLayoutStore } from '@deepseek-ai/dsh-client-ui-layout/src/client/stores.ts'
 import {
-  DETAILS_DEFAULT, DETAILS_MAX, DETAILS_MIN,
+  DETAILS_DEFAULT, DETAILS_MIN,
   SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN,
 } from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
 
@@ -29,7 +29,7 @@ describe('createLayoutStore', () => {
     expect(b.store.getSnapshot().sidebar).toBe(SIDEBAR_DEFAULT)
   })
 
-  it('setSidebar/setDetails clamp into the contract ranges', () => {
+  it('keeps the sidebar bounded while allowing the details preference to grow', () => {
     const { store, actions } = createLayoutStore().create()
     actions.setSidebar(1)
     expect(store.getSnapshot().sidebar).toBe(SIDEBAR_MIN)
@@ -38,7 +38,7 @@ describe('createLayoutStore', () => {
     actions.setDetails(1)
     expect(store.getSnapshot().details).toBe(DETAILS_MIN)
     actions.setDetails(9999)
-    expect(store.getSnapshot().details).toBe(DETAILS_MAX)
+    expect(store.getSnapshot().details).toBe(9999)
   })
 
   it('toggleSidebar flips closed <-> contract default (drag width forgotten)', () => {

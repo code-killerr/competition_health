@@ -22,7 +22,7 @@ export interface AppViewRegistry {
    * @param key - 要读取的 slot 名称。
    * @returns 当前 slot 的有效 entry。
    */
-  entriesOfSlot(key: string): readonly { options: { id?: string; conversationMode?: 'replace' | 'split' | 'agent-dock'; default?: boolean } }[]
+  entriesOfSlot(key: string): readonly { options: { id?: string; conversationMode?: 'replace' | 'split' | 'agent-dock' | 'lab-workspace'; default?: boolean } }[]
   /**
    * 监听根应用视图 entry 的注册和卸载。
    * @param key - 要监听的 slot 名称。
@@ -144,6 +144,7 @@ export class LayoutController implements ILayout {
     const panels = this.#require()
     const entry = this.#appViews.entriesOfSlot('app.view').find(candidate => candidate.options.id === viewId)
     panels.setActiveAppView(viewId, entry?.options.conversationMode ?? 'replace')
+    if (entry?.options.conversationMode === 'replace') panels.closeDetails()
     this.#activeAppViewId = viewId
   }
 

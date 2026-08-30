@@ -49,7 +49,7 @@ The LABWEAVE Agent surface and active workbench SHALL display the active Project
 - **THEN** the Agent surface and affected workbench view update before the next Agent request and identify the changed scope
 
 ### Requirement: Project files use the linked Workspace as an authorized root
-Generated Workflow and Lab Skill documents, configuration snapshots, intermediate assets and reports SHALL be written only through Host-authorized file operations rooted in the Project's linked Workspace. Browser input and Agent output SHALL not supply arbitrary absolute paths. Domain identities, approval state, Session evidence and Runtime state SHALL remain owned by their services rather than by project files.
+Generated Workflow and Lab Skill documents, configuration snapshots, intermediate assets and reports SHALL be written only through Host-authorized file operations rooted in the Project's linked Workspace. The Host SHALL classify records as project configuration, conversation output or run artifacts and SHALL keep each record's relative display path, Project ID and revision as metadata. Browser input and Agent output SHALL not supply arbitrary absolute paths. Domain identities, approval state, Session evidence and Runtime state SHALL remain owned by their services rather than by project files.
 
 #### Scenario: Save a generated Workflow draft
 - **WHEN** an Agent-proposed Workflow or Lab Skill draft is accepted for review
@@ -58,3 +58,7 @@ Generated Workflow and Lab Skill documents, configuration snapshots, intermediat
 #### Scenario: Proposed path leaves the Workspace
 - **WHEN** an Agent or browser request attempts to write outside the linked Workspace
 - **THEN** the Host rejects the operation without creating or modifying the target file
+
+#### Scenario: A Project file is written
+- **WHEN** the Host completes an authorized write under the linked Workspace
+- **THEN** it appends a Project-scoped file metadata event and exposes the record through the authorized Project file catalog without storing file content in the event

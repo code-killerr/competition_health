@@ -42,7 +42,7 @@ describe('web e2e: LABWEAVE showcase composition', () => {
     await scaffold?.close()
   })
 
-  it('traverses the real Project shell, lifecycle destinations and one Agent dock', async () => {
+  it('traverses the three-pane Project shell and one shared Agent conversation', async () => {
     onTestFailed(async () => { await saveFailureShot(page, 'lab-showcase-failure') })
 
     await expect(page.locator('[data-lab-agent-context]')).toHaveCount(1)
@@ -59,10 +59,15 @@ describe('web e2e: LABWEAVE showcase composition', () => {
     await expect(page.getByRole('heading', { name: 'Calibration' })).toBeVisible()
     await expect(page.locator('[data-lab-lifecycle-overview]')).toBeVisible()
     await expect(page.locator('[data-lab-pending-action]')).toBeVisible()
-    await expect(page.locator('[data-presentation="agent-dock"]')).toHaveCount(1)
+    await expect(page.locator('[data-presentation="lab-workspace"]')).toHaveCount(1)
     await expect(page.locator('[data-presentation="default"]')).toHaveCount(0)
     await expect(page.locator('textarea')).toHaveCount(1)
-    await page.screenshot({ path: join(EVIDENCE_DIR, '02-overview-agent-dock.png'), fullPage: true })
+    await expect(page.getByRole('button', { name: 'Close project workspace', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Close project workspace', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Open project workspace', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Open project workspace', exact: true }).click()
+    await expect(page.locator('[data-lab-project-shell]')).toBeVisible()
+    await page.screenshot({ path: join(EVIDENCE_DIR, '02-three-pane-project-workspace.png'), fullPage: true })
 
     const draft = page.locator('textarea')
     await draft.fill('keep this draft while changing destinations')
@@ -73,12 +78,9 @@ describe('web e2e: LABWEAVE showcase composition', () => {
     }
     await page.screenshot({ path: join(EVIDENCE_DIR, '03-lifecycle-destinations.png'), fullPage: true })
 
-    await page.getByRole('button', { name: 'View Agent execution timeline' }).click()
-    await expect(page.getByRole('button', { name: 'Collapse Agent execution timeline' })).toHaveAttribute('aria-expanded', 'true')
     await expect(page.locator('textarea')).toHaveCount(1)
-    await page.getByRole('button', { name: 'Collapse Agent execution timeline' }).focus()
-    await expect(page.getByRole('button', { name: 'Collapse Agent execution timeline' })).toBeFocused()
-    await page.screenshot({ path: join(EVIDENCE_DIR, '04-agent-timeline.png'), fullPage: true })
+    await expect(page.locator('[data-conversation-scroll]')).toBeVisible()
+    await page.screenshot({ path: join(EVIDENCE_DIR, '04-central-conversation.png'), fullPage: true })
 
     await page.setViewportSize({ width: 1024, height: 900 })
     await expect(page.locator('[data-lab-agent-context]')).toBeVisible()

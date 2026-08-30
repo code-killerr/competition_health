@@ -83,6 +83,21 @@ describe('LayoutController', () => {
     dispose()
   })
 
+  it('closes the details panel when a replace view becomes the full page', () => {
+    const service = new LayoutController()
+    const panels = fakePanels()
+    const registry = {
+      entriesOfSlot: () => [{ options: { id: 'configuration', conversationMode: 'replace' as const } }],
+      subscribe: () => () => {},
+    }
+    service.attachPanels(panels)
+    service.attachAppViews(registry)
+
+    service.openAppView('configuration')
+
+    expect(panels.closeDetails).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects an unknown app view before changing the active selection', () => {
     const service = new LayoutController()
     const panels = fakePanels()

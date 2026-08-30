@@ -158,11 +158,14 @@ export function ConversationRoot({
   })
 
   const agentDock = presentation === 'agent-dock'
+  // LABWEAVE 保留 Harness 原生对话外壳和输入框；Project 工作台由 AppFrame
+  // 放置在这块对话区域旁边。
+  const compactChrome = agentDock
   const composerBar = (
-    <div className={clsx(css.composerStack, hero && css.composerHero, agentDock && css.agentDockComposer)}>
-      {!agentDock && hero && <HeroGlow className={css.heroGlow} />}
-      {!agentDock && hero && <HeroShell t={t} renderSlot={renderSlot} />}
-      {!agentDock && hero && heroWorkspaceRow}
+    <div className={clsx(css.composerStack, hero && !compactChrome && css.composerHero, agentDock && css.agentDockComposer)}>
+      {!compactChrome && hero && <HeroGlow className={css.heroGlow} />}
+      {!compactChrome && hero && <HeroShell t={t} renderSlot={renderSlot} />}
+      {!compactChrome && hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}
     </div>
@@ -189,7 +192,7 @@ export function ConversationRoot({
 
   return (
     <div className={css.root} data-phase={phase} data-presentation={presentation}>
-      {!agentDock && renderSlot('conversation.session.header', {})}
+      {!compactChrome && renderSlot('conversation.session.header', {})}
       <div className={css.scrollBody} data-conversation-scroll="">
         {agentDock && (
           <div className={css.agentDockToolbar}>

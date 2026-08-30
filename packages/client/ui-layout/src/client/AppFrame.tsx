@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import { computeColumns, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT } from './columns.ts'
+import { CENTER_MIN, computeColumns, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT } from './columns.ts'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
 
@@ -98,18 +98,20 @@ export function AppFrame({
   })
   const splitConversation = panels.activeAppViewId !== undefined && panels.activeAppViewMode === 'split'
   const agentDockConversation = panels.activeAppViewId !== undefined && panels.activeAppViewMode === 'agent-dock'
+  const labWorkspaceConversation = panels.activeAppViewId !== undefined && panels.activeAppViewMode === 'lab-workspace'
+  const replaceConversation = panels.activeAppViewId !== undefined && panels.activeAppViewMode === 'replace'
   const frameRef = useRef<HTMLDivElement | null>(null)
   const [viewport, setViewport] = useState(() => window.innerWidth)
   const [mobilePane, setMobilePane] = useState<'workbench' | 'agent'>('workbench')
 
   const lastSession = useRef(detailsSession)
   useLayoutEffect(() => {
-    if (detailsSession === undefined) return
+    if (detailsSession === undefined || labWorkspaceConversation) return
     if (lastSession.current !== undefined && lastSession.current !== detailsSession) {
       actions.closeDetails()
     }
     lastSession.current = detailsSession
-  }, [actions, detailsSession])
+  }, [actions, detailsSession, labWorkspaceConversation])
 
   // Track the frame's own box (not the window): rAF-throttled ResizeObserver.
   useEffect(() => {
@@ -143,7 +145,12 @@ export function AppFrame({
   const sidebarPreference = sidebarCollapsed
     ? 0
     : panels.sidebar === 0 ? SIDEBAR_DEFAULT : panels.sidebar
-  const cols = computeColumns(viewport, sidebarPreference, detailsSession === undefined ? 0 : panels.details)
+  const cols = computeColumns(
+    viewport,
+    sidebarPreference,
+    replaceConversation || (detailsSession === undefined && !labWorkspaceConversation) ? 0 : panels.details,
+    labWorkspaceConversation ? 0 : CENTER_MIN,
+  )
   const colsRef = useRef(cols)
   colsRef.current = cols
 
@@ -198,17 +205,28 @@ export function AppFrame({
               <button type='button' role='tab' aria-selected={mobilePane === 'agent'} aria-label='Agent' onClick={() => { setMobilePane('agent') }}>A</button>
             </div>
           )}
-          <div className={agentDockConversation ? css.appViewAgent : splitConversation ? css.appViewSplit : css.appViewSurface} hidden={panels.activeAppViewId === undefined || (splitConversation && narrow && mobilePane !== 'workbench')}>
-            {panels.activeAppViewId === undefined
+          <div className={agentDockConversation ? css.appViewAgent : splitConversation ? css.appViewSplit : css.appViewSurface} hidden={panels.activeAppViewId === undefined || labWorkspaceConversation || (splitConversation && narrow && mobilePane !== 'workbench')}>
+            {labWorkspaceConversation || panels.activeAppViewId === undefined
               ? null
               : renderSlot('app.view', {}, { only: panels.activeAppViewId })}
           </div>
-          <div className={agentDockConversation ? css.conversationAgent : splitConversation ? css.conversationSplit : css.conversationSurface} data-lab-agent-surface={agentDockConversation || undefined} hidden={(panels.activeAppViewId !== undefined && !splitConversation && !agentDockConversation) || (splitConversation && narrow && mobilePane !== 'agent')}>
-            {renderSlot('conversation', { presentation: agentDockConversation ? 'agent-dock' : 'default' })}
+          <div className={agentDockConversation ? css.conversationAgent : splitConversation ? css.conversationSplit : css.conversationSurface} data-lab-agent-surface={agentDockConversation || undefined} hidden={(panels.activeAppViewId !== undefined && !splitConversation && !agentDockConversation && !labWorkspaceConversation) || (splitConversation && narrow && mobilePane !== 'agent')}>
+            {renderSlot('conversation', { presentation: agentDockConversation ? 'agent-dock' : labWorkspaceConversation ? 'lab-workspace' : 'default' })}
           </div>
         </CenterColumn>
-        <DetailsColumn>{renderSlot('details', {})}</DetailsColumn>
+        <DetailsColumn>{labWorkspaceConversation && panels.activeAppViewId !== undefined ? renderSlot('app.view', {}, { only: panels.activeAppViewId }) : renderSlot('details', {})}</DetailsColumn>
       </>
+      {labWorkspaceConversation && (
+        <button
+          type="button"
+          className={css.workspaceToggle}
+          aria-label={cols.details === 0 ? 'Open project workspace' : 'Close project workspace'}
+          aria-expanded={cols.details > 0}
+          onClick={() => { if (cols.details === 0) actions.openDetails(); else actions.closeDetails() }}
+        >
+          {cols.details === 0 ? '‹' : '›'}
+        </button>
+      )}
       <div className={css.overlayLayer} data-shell-overlay>
         {renderSlot('shell.overlay', {})}
       </div>

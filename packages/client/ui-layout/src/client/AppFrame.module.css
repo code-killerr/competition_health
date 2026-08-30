@@ -37,6 +37,12 @@
   overflow: hidden;
 }
 
+/* 子面板是 flex 项，组件自身的 display 会覆盖浏览器默认的 [hidden] 规则；
+   这里由根布局统一保证替换视图和分屏视图的隐藏状态不泄漏。 */
+.centerCol > [hidden] {
+  display: none !important;
+}
+
 .conversationSurface,
 .appViewSurface {
   min-width: 0;
@@ -90,9 +96,36 @@
 }
 
 .detailsCol {
+  container-type: inline-size;
   min-width: 0;
   overflow: hidden;
   border-left: 1px solid var(--dsw-alias-border-l2);
+}
+
+.workspaceToggle {
+  position: absolute;
+  top: 14px;
+  right: 8px;
+  z-index: 3;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  color: var(--dsw-alias-text-secondary);
+  background: var(--dsw-alias-bg-surface);
+  cursor: pointer;
+}
+
+.workspaceToggle:hover {
+  color: var(--dsw-alias-text-primary);
+  background: var(--dsw-alias-button-secondary-fill);
+}
+
+.workspaceToggle:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
 }
 
 /* The details subtree stays mounted at zero width, so its border must not paint

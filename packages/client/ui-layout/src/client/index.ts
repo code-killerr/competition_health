@@ -103,7 +103,7 @@ export interface SidebarOwnerProps {
 /** Conversation owner share: business state and actions belong to the registrant. */
 export interface ConvOwnerProps {
   /** Presentation selected by the active root application view. */
-  presentation?: 'default' | 'agent-dock'
+  presentation?: 'default' | 'agent-dock' | 'lab-workspace'
 }
 
 /** Details owner share: empty — sessionId arrives as a framework-standard prop. */

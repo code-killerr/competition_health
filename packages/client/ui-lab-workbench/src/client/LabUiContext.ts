@@ -2,7 +2,7 @@
 
 /** Project 内可展示的页面。 */
 export type LabPage =
-  | 'overview' | 'planning' | 'approval' | 'execution' | 'steps' | 'evidence' | 'archive'
+  | 'overview' | 'planning' | 'approval' | 'execution' | 'steps' | 'evidence' | 'files' | 'archive'
   // Legacy command targets remain accepted as protocol aliases; they are not
   // rendered as Project navigation destinations.
   | 'conversations' | 'experiments' | 'runs'

@@ -1,5 +1,9 @@
 import type {
   LabArtifactRecord,
+  LabProjectFileDownload,
+  LabProjectFilePreview,
+  LabProjectFileRecord,
+  LabProjectFileRevisionEvent,
   LabExperimentRecord,
   LabEvidenceRecord,
   LabKnowledgeCapability,
@@ -23,6 +27,7 @@ export type LabAdapterErrorCode =
   | 'ACTIVE_RUN_EXISTS'
   | 'CAPABILITY_UNAVAILABLE'
   | 'ARTIFACT_NOT_AUTHORIZED'
+  | 'PROJECT_FILE_NOT_AUTHORIZED'
   | 'PROVIDER_UNAVAILABLE'
   | 'PERMISSION_DENIED'
   | 'VALIDATION_FAILED'
@@ -49,6 +54,17 @@ export interface LabKnowledgeScopeView {
   readonly capability: LabKnowledgeCapability
   readonly sources: readonly LabKnowledgeItem[]
   readonly evidence: readonly LabEvidenceRecord[]
+}
+
+/** Project 文件 revision 到达时调用的监听器。 */
+export type LabProjectFileEventListener = (event: LabProjectFileRevisionEvent) => void
+
+/** Project 文件目录的查询、授权动作和 revision 事件能力。 */
+export interface LabProjectFileAdapter {
+  listProjectFiles(projectId: string): Promise<LabQueryState<readonly LabProjectFileRecord[]>>
+  openProjectFile(projectId: string, projectFileId: string): Promise<LabQueryState<LabProjectFilePreview>>
+  downloadProjectFile(projectId: string, projectFileId: string): Promise<LabQueryState<LabProjectFileDownload>>
+  subscribeProjectFileEvents(listener: LabProjectFileEventListener): () => void
 }
 
 /** Read-only queries shared by deterministic and Host-backed adapters. */
@@ -91,4 +107,4 @@ export interface LabWorkbenchActions {
  * The only data seam used by the laboratory pages and Agent presentation cards.
  * Queries are read-only and actions retain Host ownership of durable records.
  */
-export interface LabWorkbenchAdapter extends LabWorkbenchQueries, LabWorkbenchActions {}
+export interface LabWorkbenchAdapter extends LabWorkbenchQueries, LabWorkbenchActions, Partial<LabProjectFileAdapter> {}

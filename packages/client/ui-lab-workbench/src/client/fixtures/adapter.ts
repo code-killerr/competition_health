@@ -4,6 +4,10 @@ import type {
   LabExperimentRecord,
   LabKnowledgeItem,
   LabProjectRecord,
+  LabProjectFileDownload,
+  LabProjectFilePreview,
+  LabProjectFileRecord,
+  LabProjectFileRevisionEvent,
   LabProjectView,
   LabReportView,
   LabResultAssessmentRecord,
@@ -14,7 +18,7 @@ import type {
   LabWorkflowRecord,
 } from '../api.ts'
 import type { LabAgentLifecycleProjection, LabPresentationScope } from '../lifecycle.ts'
-import type { LabKnowledgeScopeView, LabQueryState, LabWorkbenchAdapter } from '../adapter.ts'
+import type { LabKnowledgeScopeView, LabProjectFileAdapter, LabProjectFileEventListener, LabQueryState, LabWorkbenchAdapter } from '../adapter.ts'
 
 /** Deterministic scenarios used to exercise the Agent-led workbench without a Host. */
 export type LabFixtureScenario = 'success' | 'waiting' | 'failed' | 'replan'
@@ -30,6 +34,9 @@ export const LAB_FIXTURE_IDS = {
   revisionId: 'skill-revision-fixture',
   runId: 'run-fixture',
   artifactId: 'artifact-fixture',
+  projectConfigFileId: 'project-file-config-fixture',
+  conversationOutputFileId: 'project-file-conversation-fixture',
+  runArtifactFileId: 'project-file-artifact-fixture',
   documentId: 'document-fixture',
   versionId: 'version-fixture',
   citationId: 'citation-fixture',
@@ -57,6 +64,46 @@ const ARTIFACT: LabArtifactRecord = {
   digest: 'sha256:fixture',
   createdAt: FIXTURE_TIME,
 }
+const PROJECT_FILES: readonly LabProjectFileRecord[] = [
+  {
+    projectFileId: LAB_FIXTURE_IDS.projectConfigFileId,
+    projectId: LAB_FIXTURE_IDS.projectId,
+    group: 'configuration',
+    displayName: 'workflow.plan.json',
+    relativePath: 'configuration/workflow.plan.json',
+    mediaType: 'application/json',
+    size: 256,
+    digest: 'sha256:fixture-project-config',
+    revision: 1,
+    createdAt: FIXTURE_TIME,
+  },
+  {
+    projectFileId: LAB_FIXTURE_IDS.conversationOutputFileId,
+    projectId: LAB_FIXTURE_IDS.projectId,
+    group: 'conversation-output',
+    displayName: 'goal-summary.md',
+    relativePath: 'conversation-output/goal-summary.md',
+    mediaType: 'text/markdown',
+    size: 192,
+    digest: 'sha256:fixture-conversation-output',
+    revision: 1,
+    createdAt: FIXTURE_TIME,
+  },
+  {
+    projectFileId: LAB_FIXTURE_IDS.runArtifactFileId,
+    projectId: LAB_FIXTURE_IDS.projectId,
+    group: 'run-artifacts',
+    displayName: ARTIFACT.displayName,
+    relativePath: 'run-artifacts/fixture-observation.json',
+    mediaType: ARTIFACT.mediaType,
+    size: ARTIFACT.size,
+    digest: ARTIFACT.digest,
+    revision: 1,
+    createdAt: ARTIFACT.createdAt,
+    runId: ARTIFACT.runId,
+    artifactId: ARTIFACT.artifactId,
+  },
+]
 const PROJECT: LabProjectRecord = {
   projectId: LAB_FIXTURE_IDS.projectId,
   workspaceId: LAB_FIXTURE_IDS.workspaceId,
@@ -163,6 +210,10 @@ function empty<T>(message: string): LabQueryState<T> {
   return { state: 'empty', code: 'NO_RECORDS', message }
 }
 
+function projectFileUnauthorized<T>(message: string): LabQueryState<T> {
+  return { state: 'unavailable', code: 'PROJECT_FILE_NOT_AUTHORIZED', message, retryable: false }
+}
+
 /** Lifecycle events shown in the Agent conversation for one deterministic scenario. */
 function fixtureEvents(scenario: LabFixtureScenario, run: LabRun, report: LabReportView): readonly LabAgentLifecycleProjection[] {
   const events: LabAgentLifecycleProjection[] = [
@@ -184,6 +235,12 @@ export interface LabFixtureAdapter extends LabWorkbenchAdapter {
   readonly scenario: LabFixtureScenario
   readonly events: readonly LabAgentLifecycleProjection[]
   readonly presentationScope: LabPresentationScope
+  readonly listProjectFiles: LabProjectFileAdapter['listProjectFiles']
+  readonly openProjectFile: LabProjectFileAdapter['openProjectFile']
+  readonly downloadProjectFile: LabProjectFileAdapter['downloadProjectFile']
+  readonly subscribeProjectFileEvents: LabProjectFileAdapter['subscribeProjectFileEvents']
+  readonly projectFileEvents: readonly LabProjectFileRevisionEvent[]
+  readonly publishProjectFileRevision: (file: LabProjectFileRecord) => void
 }
 
 /** Create a deterministic adapter for a success, waiting, failed, or replanning transcript.
@@ -194,6 +251,22 @@ export function createLabFixtureAdapter(scenario: LabFixtureScenario): LabFixtur
   const run = fixtureRun(scenario)
   const report = fixtureReport(scenario, run)
   const resultAssessment = fixtureAssessment(scenario)
+  let currentProjectFiles = PROJECT_FILES
+  const projectFileListeners = new Set<LabProjectFileEventListener>()
+  const projectFileEvents: LabProjectFileRevisionEvent[] = []
+  const listProjectFiles = async (projectId: string): Promise<LabQueryState<readonly LabProjectFileRecord[]>> => projectId === LAB_FIXTURE_IDS.projectId ? ready(currentProjectFiles) : empty('Fixture Project is not authorized')
+  const openProjectFile = async (projectId: string, projectFileId: string): Promise<LabQueryState<LabProjectFilePreview>> => {
+    const file = currentProjectFiles.find(item => item.projectId === projectId && item.projectFileId === projectFileId)
+    if (file === undefined) return projectFileUnauthorized('Fixture Project file is not authorized')
+    if (file.group === 'configuration') return ready({ kind: 'json', content: { planId: LAB_FIXTURE_IDS.planId, revision: file.revision, source: 'fixture' } })
+    if (file.group === 'conversation-output') return ready({ kind: 'text', content: 'Fixture conversation output' })
+    return ready({ kind: 'json', content: { artifactId: file.artifactId ?? null, runId: file.runId ?? null, status: 'READY' } })
+  }
+  const downloadProjectFile = async (projectId: string, projectFileId: string): Promise<LabQueryState<LabProjectFileDownload>> => {
+    const file = currentProjectFiles.find(item => item.projectId === projectId && item.projectFileId === projectFileId)
+    if (file === undefined) return projectFileUnauthorized('Fixture Project file is not authorized')
+    return ready({ projectFileId: file.projectFileId, displayName: file.displayName, mediaType: file.mediaType, downloadToken: `fixture-download-${file.projectFileId}-${file.revision}` })
+  }
   const adapter: LabFixtureAdapter = {
     scenario,
     events: fixtureEvents(scenario, run, report),
@@ -206,6 +279,13 @@ export function createLabFixtureAdapter(scenario: LabFixtureScenario): LabFixtur
       artifacts: [{ runId: LAB_FIXTURE_IDS.runId, artifactId: LAB_FIXTURE_IDS.artifactId }],
       citations: [{ projectId: LAB_FIXTURE_IDS.projectId, documentId: LAB_FIXTURE_IDS.documentId, versionId: LAB_FIXTURE_IDS.versionId }],
     },
+    get projectFileEvents() { return projectFileEvents },
+    publishProjectFileRevision: file => {
+      currentProjectFiles = [...currentProjectFiles.filter(item => item.projectFileId !== file.projectFileId), file]
+      const event: LabProjectFileRevisionEvent = { type: 'project-file-revision', projectId: file.projectId, projectFileId: file.projectFileId, group: file.group, revision: file.revision }
+      projectFileEvents.push(event)
+      for (const listener of projectFileListeners) listener(event)
+    },
     listProjects: async () => ready([PROJECT]),
     openProject: async projectId => projectId === LAB_FIXTURE_IDS.projectId ? ready(PROJECT_VIEW) : empty('Fixture Project is not authorized'),
     listExperiments: async projectId => projectId === LAB_FIXTURE_IDS.projectId ? ready([EXPERIMENT]) : empty('Fixture Project is not authorized'),
@@ -215,6 +295,10 @@ export function createLabFixtureAdapter(scenario: LabFixtureScenario): LabFixtur
     openRun: async runId => runId === LAB_FIXTURE_IDS.runId ? ready(run) : empty('Fixture Run is not authorized'),
     listArtifacts: async runId => runId === LAB_FIXTURE_IDS.runId ? ready([ARTIFACT]) : empty('Fixture Run is not authorized'),
     openArtifact: async (runId, artifactId) => runId === LAB_FIXTURE_IDS.runId && artifactId === LAB_FIXTURE_IDS.artifactId ? ready(ARTIFACT) : empty('Fixture Artifact is not authorized'),
+    listProjectFiles,
+    openProjectFile,
+    downloadProjectFile,
+    subscribeProjectFileEvents: listener => { projectFileListeners.add(listener); return () => { projectFileListeners.delete(listener) } },
     buildReport: async runId => runId === LAB_FIXTURE_IDS.runId ? ready(report) : empty('Fixture Run is not authorized'),
     getWorkflow: async experimentId => experimentId === LAB_FIXTURE_IDS.experimentId ? ready(WORKFLOW) : empty('Fixture Experiment is not authorized'),
     listSkillRevisions: async experimentId => experimentId === LAB_FIXTURE_IDS.experimentId ? ready([SKILL]) : empty('Fixture Experiment is not authorized'),

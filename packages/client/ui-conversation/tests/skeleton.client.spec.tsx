@@ -103,8 +103,8 @@ function mount(
     composerBlock?: { reason: string }
     /** Mutable view ledger used by registration-order regressions. */
     viewTabs?: ViewTab[]
-    /** Render the root through the LABWEAVE Agent dock presentation. */
-    presentation?: 'agent-dock'
+    /** 通过 LABWEAVE presentation 渲染根应用视图。 */
+    presentation?: 'agent-dock' | 'lab-workspace'
   } = {},
 ) {
   const root = sid('root')
@@ -400,6 +400,13 @@ describe('ConversationRoot resident composer', () => {
     expect(timeline.getAttribute('aria-expanded')).toBe('true')
     expect(b.view.getByRole('button', { name: '收起 Agent 执行时间线' })).toBeTruthy()
     expect(b.view.getAllByRole('textbox')).toHaveLength(1)
+  })
+
+  it('lab-workspace keeps one full conversation with the native Harness chrome', () => {
+    const b = mount(conversationSnapshot(), undefined, undefined, { presentation: 'lab-workspace' })
+    expect(b.view.container.querySelector('header')).not.toBeNull()
+    expect(b.view.getAllByRole('textbox')).toHaveLength(1)
+    expect(b.view.getByTestId('view-chat').closest('[hidden]')).toBeNull()
   })
 
   it('sticky composer seat wraps the whole overlay chain, not only the fallback stack', () => {

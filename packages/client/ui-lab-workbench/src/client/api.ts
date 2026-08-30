@@ -114,6 +114,49 @@ export interface LabArtifactRecord {
   readonly createdAt: number
 }
 
+/** Project 文件在授权 Workspace 中的元数据记录。 */
+export type LabProjectFileGroup = 'configuration' | 'conversation-output' | 'run-artifacts'
+
+/** 由 Host 授权的 Project 文件记录；不包含文件正文或绝对路径。 */
+export interface LabProjectFileRecord {
+  readonly projectFileId: string
+  readonly projectId: string
+  readonly group: LabProjectFileGroup
+  readonly displayName: string
+  readonly relativePath: string
+  readonly mediaType: string
+  readonly size: number
+  readonly digest: string
+  readonly revision: number
+  readonly createdAt: number
+  readonly runId?: string
+  readonly artifactId?: string
+}
+
+/** Host 对 Project 文件执行安全预览后返回的短生命周期数据。 */
+export type LabProjectFilePreview =
+  | { readonly kind: 'text'; readonly content: string }
+  | { readonly kind: 'json'; readonly content: LabJsonValue }
+  | { readonly kind: 'image'; readonly src: string; readonly alt: string }
+  | { readonly kind: 'unsupported' }
+
+/** Host 为一次 Project 文件下载动作签发的不透明句柄。 */
+export interface LabProjectFileDownload {
+  readonly projectFileId: string
+  readonly displayName: string
+  readonly mediaType: string
+  readonly downloadToken: string
+}
+
+/** Project 文件 revision 事件只携带元数据，供当前目录重新查询。 */
+export interface LabProjectFileRevisionEvent {
+  readonly type: 'project-file-revision'
+  readonly projectId: string
+  readonly projectFileId: string
+  readonly group: LabProjectFileGroup
+  readonly revision: number
+}
+
 /** A structured result assessment. Verdict ownership stays on the Host. */
 export interface LabResultAssessmentRecord {
   readonly status: 'PENDING' | 'PASSED' | 'FAILED' | 'HUMAN_QC'

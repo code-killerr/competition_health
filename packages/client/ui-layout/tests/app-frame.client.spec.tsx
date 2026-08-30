@@ -15,7 +15,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import { useSyncExternalStore } from 'react'
 import { AppFrame } from '@deepseek-ai/dsh-client-ui-layout/src/client/AppFrame.tsx'
 import type { AppFrameProps } from '@deepseek-ai/dsh-client-ui-layout/src/client/AppFrame.tsx'
-import { SIDEBAR_COLLAPSED } from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
+import { DETAILS_DEFAULT, SIDEBAR_COLLAPSED } from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
 import { createLayoutStore } from '@deepseek-ai/dsh-client-ui-layout/src/client/stores.ts'
 import type {
   SessionId, SessionListState, WorkspaceListState,
@@ -195,6 +195,41 @@ describe('AppFrame', () => {
     expect(slotCalls.filter(call => call.key === 'conversation').at(-1)?.props).toEqual({ presentation: 'agent-dock' })
   })
 
+  it('keeps the shared Conversation in the center and moves a LABWEAVE app view into details', () => {
+    const { frame, instance, getByTestId, getByRole, slotCalls } = mountFrame()
+    act(() => { instance.actions.setActiveAppView('lab-project', 'lab-workspace') })
+
+    expect(getByTestId('center-content').parentElement?.hidden).toBe(false)
+    expect(getByTestId('app-view-content').parentElement?.className).toContain('detailsCol')
+    expect(tracks(frame)).toEqual([280, DETAILS_DEFAULT])
+    expect(slotCalls.filter(call => call.key === 'conversation').at(-1)?.props).toEqual({ presentation: 'lab-workspace' })
+    act(() => { getByRole('button', { name: 'Close project workspace' }).click() })
+    expect(tracks(frame)).toEqual([280, 0])
+    act(() => { getByRole('button', { name: 'Open project workspace' }).click() })
+    expect(tracks(frame)).toEqual([280, DETAILS_DEFAULT])
+  })
+
+  it('renders a replace app view as a full page without a conversation input surface', () => {
+    const { frame, instance, getByTestId } = mountFrame()
+    act(() => { instance.actions.setActiveAppView('lab-config', 'replace') })
+
+    expect(getByTestId('app-view-content').parentElement?.className).toContain('appViewSurface')
+    expect(getByTestId('center-content').parentElement?.hidden).toBe(true)
+    expect(tracks(frame)).toEqual([280, 0])
+  })
+
+  it('lets the Project workspace grow while the center absorbs the resize', () => {
+    frameWidth = 1280
+    window.innerWidth = frameWidth
+    const { frame, instance } = mountFrame()
+    act(() => { instance.actions.setActiveAppView('lab-project', 'lab-workspace') })
+
+    expect(tracks(frame)).toEqual([280, DETAILS_DEFAULT])
+    const handles = frame.querySelectorAll('[class*="handle"]')
+    drag(handles[1]!, frameWidth - DETAILS_DEFAULT, frameWidth - 580)
+    expect(tracks(frame)).toEqual([280, 580])
+  })
+
   it('switches between the mounted workbench and Agent panes on narrow screens', () => {
     frameWidth = 700
     window.innerWidth = frameWidth
@@ -224,7 +259,7 @@ describe('AppFrame', () => {
     expect(tracks(frame)).toEqual([280, 0])
 
     act(() => { instance.actions.openDetails() })
-    expect(tracks(frame)).toEqual([280, 360])
+    expect(tracks(frame)).toEqual([280, DETAILS_DEFAULT])
 
     selectedSession.current = 's-next' as SessionId
     act(() => { rerenderFrame() })
@@ -235,12 +270,12 @@ describe('AppFrame', () => {
     selectedSessionBlank.current = true
     act(() => { rerenderFrame() })
     expect(tracks(frame)).toEqual([280, 0])
-    expect(instance.getSnapshot().details).toBe(360)
+    expect(instance.getSnapshot().details).toBe(DETAILS_DEFAULT)
 
     selectedSession.current = 's-next' as SessionId
     selectedSessionBlank.current = false
     act(() => { rerenderFrame() })
-    expect(tracks(frame)).toEqual([280, 360])
+    expect(tracks(frame)).toEqual([280, DETAILS_DEFAULT])
 
     selectedSession.current = undefined
     act(() => { rerenderFrame() })
@@ -278,11 +313,11 @@ describe('AppFrame', () => {
     act(() => { instance.actions.openDetails() })
     const handles = frame.querySelectorAll('[class*="handle"]')
     drag(handles[1]!, 1560, 1500)
-    expect(tracks(frame)[1]).toBe(420)
+    expect(tracks(frame)[1]).toBe(DETAILS_DEFAULT + 60)
   })
 
   it('drag base is the rendered (concession-clamped) width, not the preference', () => {
-    frameWidth = 1250 // step-2 squeeze: details renders 330 while preference is 360
+    frameWidth = 1250 // 第二步收缩：details 实际渲染为 330，偏好宽度为 420
     const { frame, instance } = mountFrame()
     act(() => { instance.actions.openDetails() })
     expect(tracks(frame)).toEqual([280, 330])
@@ -316,7 +351,7 @@ describe('AppFrame', () => {
     expect(tracks(frame)).toEqual([280, 330])
     frameWidth = 1920
     act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
-    expect(tracks(frame)).toEqual([280, 360])
+    expect(tracks(frame)).toEqual([280, DETAILS_DEFAULT])
   })
 
   it('drag handles disappear for collapsed columns', () => {
