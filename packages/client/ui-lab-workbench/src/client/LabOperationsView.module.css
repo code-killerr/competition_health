@@ -15,4 +15,11 @@
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .action { min-height: 36px; padding: 0 13px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 9px; color: var(--dsw-alias-text-primary); background: var(--dsw-alias-bg-surface); cursor: pointer; font: inherit; }
 .action:hover { background: var(--dsw-alias-button-secondary-fill); }
+.capabilityGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.capabilityCard { display: flex; justify-content: space-between; gap: 16px; align-items: end; min-width: 0; padding: 16px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 14px; background: var(--dsw-alias-bg-surface); }
+.capabilityCard h3 { margin: 0; font-size: 15px; }
+.capabilityCard p { margin: 7px 0 0; color: var(--dsw-alias-text-secondary); font-size: 12px; line-height: 1.45; }
+.capabilityCard[data-capability-state='unavailable'] { opacity: .78; }
+.capabilityCard[data-capability-state='unavailable'] .action { cursor: not-allowed; }
 @media (max-width: 760px) { .root { padding: 20px; } .header { display: grid; } .grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .capabilityGrid { grid-template-columns: 1fr; } .capabilityCard { align-items: flex-start; flex-direction: column; } }

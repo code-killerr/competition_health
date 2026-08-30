@@ -210,7 +210,7 @@ export function apply(ctx: ClientContext): void {
     id: 'lab-context-dock',
     order: 10,
     locale: NS,
-    inject: (): LabConversationContextInjected => ({ ui }),
+    inject: (): LabConversationContextInjected => ({ ui, loadRunContext }),
   }, LabConversationContextDock))
   for (const commandName of LAB_COMMAND_NAMES) {
     ctx.slots.inject('conversation.chat.commandview', () => ctx.slots.register({
@@ -323,6 +323,16 @@ async function listExperimentRuns(experimentId: string): Promise<LabQueryState<r
     return { state: 'ready', value: result.value }
   } catch (error) {
     return hostQueryFailure(error)
+  }
+}
+
+async function loadRunContext(experimentId: string, runId: string): Promise<{ readonly runStatus?: string; readonly currentStepId?: string }> {
+  const result = await listExperimentRuns(experimentId)
+  if (result.state !== 'ready') return {}
+  const run = result.value.find(item => item.runId === runId)
+  return run === undefined ? {} : {
+    ...run.runStatus === undefined ? {} : { runStatus: run.runStatus },
+    ...run.currentStepId === undefined ? {} : { currentStepId: run.currentStepId },
   }
 }
 

@@ -338,6 +338,10 @@
 .root[data-presentation='agent-dock'] .scrollBody {
   overflow: hidden;
   scrollbar-gutter: auto;
+  /* Agent dock stays top-aligned even while the blank session is in hero phase;
+     centering the hero scroll body would place its timeline control behind the
+     workbench instead of inside the compact conversation surface. */
+  justify-content: flex-start;
 }
 
 .root[data-presentation='agent-dock'] .composerStack {
@@ -416,6 +420,12 @@
 .root[data-phase='hero'] .scrollBody {
   justify-content: center;
   overflow-y: auto;
+}
+
+/* Agent dock 的固定工具栏必须贴在自身顶部，不能继承空白会话的居中布局。 */
+.root[data-phase='hero'][data-presentation='agent-dock'] .scrollBody {
+  justify-content: flex-start;
+  overflow-y: hidden;
 }
 
 /* Settling (session replaying, hero/docked unknown): keep the composer seat

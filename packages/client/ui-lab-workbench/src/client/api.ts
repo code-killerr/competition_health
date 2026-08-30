@@ -634,7 +634,10 @@ export async function sendLabProjectCommand(command: LabProjectCommand, signal?:
   return parseLabProjectCommandResult(body.result)
 }
 
-/** Decode a general Facade result at the JSON boundary before it reaches page state. */
+/** Decode a general Facade result at the JSON boundary before it reaches page state.
+ * @param value - Untrusted JSON value returned by the Facade.
+ * @returns The validated general command result.
+ */
 export function parseLabCommandResult(value: unknown): LabCommandResult {
   const object = record(value)
   switch (object.kind) {
@@ -654,7 +657,10 @@ export function parseLabCommandResult(value: unknown): LabCommandResult {
   }
 }
 
-/** Decode a Project Facade result at the JSON boundary before it reaches page state. */
+/** Decode a Project Facade result at the JSON boundary before it reaches page state.
+ * @param value - Untrusted JSON value returned by the Project Facade.
+ * @returns The validated Project command result.
+ */
 export function parseLabProjectCommandResult(value: unknown): LabProjectCommandResult {
   const object = record(value)
   switch (object.kind) {
@@ -676,7 +682,10 @@ export function parseLabProjectCommandResult(value: unknown): LabProjectCommandR
   }
 }
 
-/** Project one decoded Host response into the explicit workbench Project view. */
+/** Project one decoded Host response into the explicit workbench Project view.
+ * @param value - Untrusted JSON value containing the Project view records.
+ * @returns The validated workbench Project view.
+ */
 export function toProjectView(value: unknown): LabProjectView {
   const object = record(value)
   return {

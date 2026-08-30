@@ -92,7 +92,7 @@ export function LabProjectsView(props: Props): JSX.Element {
   }
 
   return (
-    <section className={css.page} aria-label={props.t('labProjectsTitle')}>
+    <section className={css.page} aria-label={props.t('labProjectsTitle')} data-lab-projects>
       <div className={css.glow} aria-hidden="true" />
       <header className={css.header}>
         <div>

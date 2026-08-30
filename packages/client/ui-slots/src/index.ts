@@ -855,6 +855,8 @@ export class SlotCore {
         ...(options.id !== undefined ? { id: options.id } : {}),
         ...(options.order !== undefined ? { order: options.order } : {}),
         ...(options.label !== undefined ? { label: options.label } : {}),
+        ...(options.conversationMode !== undefined ? { conversationMode: options.conversationMode } : {}),
+        ...(options.default !== undefined ? { default: options.default } : {}),
         ...(options.priority !== undefined ? { priority: options.priority } : {}),
       },
       ...(options.select !== undefined ? { select: options.select } : {}),

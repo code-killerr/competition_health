@@ -25,12 +25,10 @@ AppFrame
 │   │                            Devices / People and permissions
 │   ├── sidebar.workspaces       ordinary directory Workspaces and Sessions
 │   └── Settings
-├── LABWEAVE application view
-│   ├── Project / Experiment / Run context
-│   ├── lifecycle workbench      visual state, review, monitoring and evidence
-│   ├── compact Agent dock       one Harness-backed input state machine
-│   └── expandable Agent timeline
-└── Details
+├── LABWEAVE Agent conversation  complete Session timeline and one Harness-backed input
+└── Project workspace
+    ├── Project / Experiment / Run lifecycle destinations
+    └── Project files            configuration / conversation output / run artifacts
 
 Reusable Harness conversation capabilities
 ├── Session, draft, queue, slash commands, references and attachments
@@ -39,7 +37,9 @@ Reusable Harness conversation capabilities
 └── timeline, message, command and node renderers
 ```
 
-`ui-layout` owns the active root-scoped application view and exposes `openAppView(id)` and `closeAppView()`. `ui-sidebar` owns only the navigation render location. Laboratory packages register navigation controls and page components; they do not own a second shell or a second input state. In laboratory context LABWEAVE owns the visible composition and consumes reusable Harness conversation capabilities. It does not mount the default Conversation hero, header, inherited-context strip, oversized composer or full-page layout. Wide layouts keep the workbench fully visible above a compact bottom Agent dock and open the timeline as an overlay or bounded panel. Narrow layouts may switch between workbench and expanded Agent timeline, but every mode preserves one input DOM, one draft, the same mounted Session and the active laboratory context.
+`ui-layout` owns the active root-scoped application view and exposes `openAppView(id)` and `closeAppView()`. `ui-sidebar` owns only the navigation render location. Laboratory packages register navigation controls and page components; they do not own a second shell or a second input state. In laboratory context LABWEAVE owns the visible three-pane composition: the existing collapsible sidebar stays left, the complete shared Conversation stays center, and the root details panel becomes a collapsible Project workspace on the right. It does not mount the default Conversation hero, header, inherited-context strip, oversized composer, bottom Agent dock or full-page default layout. Every mode preserves one input DOM, one draft, the same mounted Session and the active laboratory context.
+
+The Project workspace contains lifecycle context and a Project files destination. The Host classifies authorized file records as project configuration, conversation output or run artifacts. A successful Host write appends a durable Project-file event containing Project ID, file record ID, group and revision metadata only. The active Project files destination reloads its same authorized catalog when it receives an event for its Project; manual refresh uses that same query. Preview and download are explicit Host-authorized adapter actions. The browser receives neither arbitrary absolute paths nor file bodies in state and offers no create, rename, upload or delete action.
 
 The visual architecture is frozen before Experiment, Run, Evidence and report details are completed. The global monitor, Project tree, configuration destinations, lifecycle workbench, Agent dock, command cards and detail views use one typography, spacing, status, focus and density system. The Project first viewport prioritizes lifecycle position, current Agent activity, critical path, failures and pending human actions; aggregate counts remain secondary and do not replace Experiment state.
 ### Implementation audit and client artifact freshness
@@ -121,9 +121,9 @@ The first client supports metadata, safe text/JSON/image previews supplied by ex
 
 Opening a Project selects its durable record, opens the Project application view and expands lifecycle destinations for `Overview`, `Planning and Workflow`, `Plan approval`, `Execution monitoring`, `Step orchestration`, `Results and evidence` and `Archive`. Conversations are supporting provenance reached from the active Project or Agent timeline, not the primary Project taxonomy. Returning to a Project restores its last valid destination from presentation state and reloads authoritative records from the Host.
 
-The Agent remains the primary orchestration path, but LABWEAVE owns its visible surface. `ui-conversation` exposes a reusable presentation contract backed by the same Session, input state machine, draft, queue, slash and reference handling, attachments, access and model controls, ask-user and approval takeovers, timeline, command and node renderers. The laboratory profile renders those capabilities as a compact bottom dock plus an expandable timeline. It SHALL NOT keep the default Conversation page beside or above the workbench, create a second text area, call a lower-level send method that bypasses the input state machine, or hide the original composer with CSS while mounting another input.
+The Agent remains the primary orchestration path, but LABWEAVE owns its visible surface. `ui-conversation` exposes a reusable presentation contract backed by the same Session, input state machine, draft, queue, slash and reference handling, attachments, access and model controls, ask-user and approval takeovers, timeline, command and node renderers. The laboratory profile renders the full shared conversation in the center column and the active Project workspace in the collapsible details column. It SHALL NOT keep the default Conversation page beside or above the workspace, create a second text area, call a lower-level send method that bypasses the input state machine, or hide the original composer with CSS while mounting another input.
 
-The Agent dock shows active Project, Workspace, Experiment and Run context in its own compact chrome. Structured Knowledge retrieval, capability gap, Workflow, Lab Skill, Plan, approval, Run, replan and result-assessment cards register through the durable Session projection and link to workbench detail pages. The laboratory UI SHALL not render objective, sample and constraint forms as a replacement for Agent-led orchestration.
+The Project workspace shows active Project, Workspace, Experiment and Run context together with the authorized file catalog. Structured Knowledge retrieval, capability gap, Workflow, Lab Skill, Plan, approval, Run, replan and result-assessment cards register through the durable Session projection and link to Project workspace detail pages. The laboratory UI SHALL not render objective, sample and constraint forms as a replacement for Agent-led orchestration.
 
 The global execution monitor summarizes active Runs, failures and pending approvals across Projects and links to their authorized destinations. It is a status and navigation projection, not a cross-Project scheduler. The configuration center exposes Knowledge, Agent, Workflow and Lab Skill, Devices, and People and permissions. Every destination consumes a real capability contribution and shows a truthful read-only or unavailable state when the capability is absent; People and permissions SHALL NOT fabricate identities, memberships or authorization.
 
@@ -149,7 +149,7 @@ During a Run, the Agent consumes logged step, observation, device, approval and 
 
 The frontend implementation begins with view models, command result types and event projections shared by two adapters. A deterministic showcase adapter replays typed fixtures through the same observable interfaces used by the Host adapter. Components render records and emit typed user intents; they do not generate domain identities, persist records, advance Run state or calculate verdicts.
 
-The first frontend slice completes typed Agent/workbench behavior, navigation, Workflow graph, Skill and Plan review, step progress, evidence and result states. A dedicated visual-architecture slice replaces the provisional split page with the hierarchical sidebar, lifecycle workbench, compact Agent dock, expandable timeline, responsive behavior and shared presentation system before detail views are completed. The following integration slice connects those components to the existing Facade and durable Session projections. Fixture-only controls are removed or confined to the configured deterministic Provider, so visual completion cannot be mistaken for backend completion.
+The first frontend slice completes typed Agent/workbench behavior, navigation, Workflow graph, Skill and Plan review, step progress, evidence and result states. A dedicated visual-architecture slice replaces the provisional split page with the hierarchical sidebar, central Conversation, right Project workspace, Project file catalog, responsive collapse behavior and shared presentation system before detail views are completed. The following integration slice connects those components to the existing Facade and durable Session projections. Fixture-only controls are removed or confined to the configured deterministic Provider, so visual completion cannot be mistaken for backend completion.
 
 **Alternative considered: style directly against ad hoc component state and reconcile APIs later.** Rejected because it would recreate the browser-owned state and disconnected-page problem this change is intended to remove.
 
@@ -203,7 +203,7 @@ Implementation first reconciles `pdf-knowledge-parser-mvp`, `pdf-docling-ingesti
 2. Add the new Project, Experiment, Session-link, Run and Artifact records and bump the pre-release storage schemas; update Session events and both SDK projections where required.
 3. Extend the typed Facade with generated create, list, open, attach/detach, retry and evidence commands while retaining Provider ownership on the Host.
 4. Define the shared frontend records, command results, event projections, reusable conversation presentation contract and presentation intents.
-5. Replace the provisional split page with the hierarchical sidebar, Project lifecycle destinations, central workbench, compact Agent dock and expandable timeline; remove obsolete context-strip, manual-ID, local state-transition and raw-JSON controls.
+5. Replace the provisional split page with the hierarchical sidebar, central Agent conversation and collapsible Project workspace; add the authorized Project file catalog and metadata-event refresh, then remove obsolete context-strip, bottom dock, manual-ID, local state-transition and raw-JSON controls.
 6. Add global monitoring and configuration destinations with truthful capability-backed unavailable states, then complete lifecycle detail views against the deterministic adapter.
 7. Connect the same components to the existing Host Facade and durable Session projections, then verify reload, isolation, approval, Runtime, result-assessment and one-input behavior.
 8. Add the single-command keyless launch and browser acceptance flow for `examples/lab-web`, then run the same UI with opt-in real-model and real-Docling capabilities when credentials and runtime are configured.

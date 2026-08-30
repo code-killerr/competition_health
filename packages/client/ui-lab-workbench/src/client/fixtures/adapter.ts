@@ -186,7 +186,10 @@ export interface LabFixtureAdapter extends LabWorkbenchAdapter {
   readonly presentationScope: LabPresentationScope
 }
 
-/** Create a deterministic adapter for a success, waiting, failed, or replanning transcript. */
+/** Create a deterministic adapter for a success, waiting, failed, or replanning transcript.
+ * @param scenario - Fixture lifecycle scenario to expose.
+ * @returns An adapter containing the scenario's records and event transcript.
+ */
 export function createLabFixtureAdapter(scenario: LabFixtureScenario): LabFixtureAdapter {
   const run = fixtureRun(scenario)
   const report = fixtureReport(scenario, run)
@@ -238,12 +241,18 @@ export function createLabFixtureAdapter(scenario: LabFixtureScenario): LabFixtur
   return adapter
 }
 
-/** Serialize fixture events for snapshot tests without adding persistence semantics. */
+/** Serialize fixture events for snapshot tests without adding persistence semantics.
+ * @param events - Lifecycle events to encode.
+ * @returns The JSON event transcript.
+ */
 export function serializeLabFixtureEvents(events: readonly LabAgentLifecycleProjection[]): string {
   return JSON.stringify(events)
 }
 
-/** Parse serialized fixture events at the JSON boundary for deterministic replay tests. */
+/** Parse serialized fixture events at the JSON boundary for deterministic replay tests.
+ * @param serialized - JSON event transcript to decode.
+ * @returns The decoded lifecycle event list.
+ */
 export function parseLabFixtureEvents(serialized: string): readonly LabAgentLifecycleProjection[] {
   const parsed: unknown = JSON.parse(serialized)
   if (!Array.isArray(parsed) || parsed.some(event => typeof event !== 'object' || event === null || typeof (event as { kind?: unknown }).kind !== 'string')) throw new Error('Invalid fixture lifecycle transcript')

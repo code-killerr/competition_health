@@ -74,6 +74,10 @@ interface ErasedRegisterOptions {
   id?: string
   order?: number
   label?: string
+  /** 根应用视图保留的 Conversation 呈现模式。 */
+  conversationMode?: 'replace' | 'split' | 'agent-dock'
+  /** 根应用视图是否为默认选择项。 */
+  default?: boolean
   /** Chain-slot routing selector (pure; the core validates presence for chain targets). */
   select?: (owner: never) => unknown
   /** Chain-slot explicit ordering override (ascending; registration order otherwise). */

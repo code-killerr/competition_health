@@ -1,4 +1,5 @@
 .root { display: grid; gap: .55rem; min-width: 0; border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px; padding: 12px; }
+.root[data-selected='true'] { border-color: var(--dsw-alias-state-info-label); box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-info-label) 18%, transparent); }
 .root header, .metadata { display: flex; align-items: center; justify-content: space-between; gap: .75rem; min-width: 0; }
 .root header { flex-wrap: wrap; }
 .root header span, .metadata, .root p { color: var(--dsw-alias-text-secondary); }

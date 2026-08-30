@@ -47,15 +47,29 @@ export function LabOperationsView(props: Props): JSX.Element {
 }
 
 function ConfigurationView({ props }: { readonly props: Props }): JSX.Element {
+  const capabilities: readonly {
+    readonly key: 'knowledge' | 'agentConfiguration' | 'workflowConfiguration' | 'devices' | 'peopleConfiguration'
+    readonly viewId?: 'lab-knowledge' | 'lab-devices'
+    readonly available: boolean
+  }[] = [
+    { key: 'knowledge', viewId: 'lab-knowledge', available: true },
+    { key: 'agentConfiguration', available: false },
+    { key: 'workflowConfiguration', available: false },
+    { key: 'devices', viewId: 'lab-devices', available: true },
+    { key: 'peopleConfiguration', available: false },
+  ]
   return <main className={css.root} aria-label={props.t('configuration')}>
     <header className={css.header}><div><span className={css.kicker}>{props.t('configurationKicker')}</span><h1>{props.t('configuration')}</h1><p>{props.t('configurationDescription')}</p></div></header>
-    <section className={css.section}><h2>{props.t('configurationGroup')}</h2><div className={css.actions}>
-      <button type="button" className={css.action} onClick={() => { props.openAppView('lab-knowledge') }}>{props.t('knowledge')}</button>
-      <button type="button" className={css.action} disabled>{props.t('agentConfiguration')}</button>
-      <button type="button" className={css.action} disabled>{props.t('workflowConfiguration')}</button>
-      <button type="button" className={css.action} onClick={() => { props.openAppView('lab-devices') }}>{props.t('devices')}</button>
-      <button type="button" className={css.action} disabled>{props.t('peopleConfiguration')}</button>
+    <section className={css.section} data-lab-configuration><h2>{props.t('configurationGroup')}</h2><div className={css.capabilityGrid}>
+      {capabilities.map(capability => (
+        <article key={capability.key} className={css.capabilityCard} data-capability-state={capability.available ? 'available' : 'unavailable'}>
+          <div><h3>{props.t(capability.key)}</h3><p>{props.t(capability.available ? 'capabilityAvailable' : 'capabilityUnavailable')}</p></div>
+          <button type="button" className={css.action} disabled={!capability.available} onClick={() => { if (capability.viewId !== undefined) props.openAppView(capability.viewId) }}>
+            {props.t(capability.key)}
+          </button>
+        </article>
+      ))}
     </div></section>
-    <div className={css.unavailable}>{props.t('configurationUnavailable')}</div>
+    <div className={css.unavailable} role="status">{props.t('configurationUnavailable')}</div>
   </main>
 }

@@ -47,6 +47,7 @@ describe('Agent lifecycle and presentation intent contract', () => {
     expect(ui.snapshot()).toMatchObject({ activeRunId: 'run-fixture', projectPage: 'execution' })
     expect(consumeLabPresentationIntent({ view: 'evidence', projectId: 'project-fixture', experimentId: 'experiment-fixture', runId: 'run-fixture', artifactId: 'artifact-fixture' }, fixture.presentationScope, target)).toMatchObject({ accepted: true })
     expect(openAppView).toHaveBeenLastCalledWith('lab-project')
+    expect(ui.snapshot().activeArtifactId).toBe('artifact-fixture')
     expect(consumeLabPresentationIntent({ view: 'citation', projectId: 'project-fixture', documentId: 'document-fixture', versionId: 'version-fixture', location: 'page:1/block:1' }, fixture.presentationScope, target)).toMatchObject({ accepted: true })
     expect(ui.snapshot().activeCitation).toMatchObject({ projectId: 'project-fixture', location: 'page:1/block:1' })
   })

@@ -150,6 +150,17 @@ describe('kind semantics', () => {
     expect(core.entries('test.list').map(e => e.options.id)).toEqual(['a', 'b', 'c'])
   })
 
+  it('list: preserves root application view mode and default selection', () => {
+    const core = new SlotCore()
+    mountFrame(core)
+    core.register({ name: 'test.list', id: 'lab', conversationMode: 'agent-dock', default: true }, Comp)
+    expect(core.entries('test.list')[0]?.options).toMatchObject({
+      id: 'lab',
+      conversationMode: 'agent-dock',
+      default: true,
+    })
+  })
+
   it('chain: missing select throws; select and priority land on the stored entry', () => {
     const core = new SlotCore()
     mountFrame(core)

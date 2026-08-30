@@ -16,7 +16,7 @@ Workbench 负责项目壳层和展示选择。Knowledge 是独立的根级 `app.
 
 #### What the model sees
 
-该包不增加面向模型的工具。它展示项目范围的 Harness 状态，并在项目壳层旁显示真实 Harness Conversation；面向模型的检索仍由 Host Agent 组合负责。
+该包不增加面向模型的工具。它从 `/api/lab` 展示项目范围的 Harness 状态，并在项目壳层旁显示真实 Harness Conversation；面向模型的检索仍由 Host Agent 组合负责。
 
 #### Token effect
 

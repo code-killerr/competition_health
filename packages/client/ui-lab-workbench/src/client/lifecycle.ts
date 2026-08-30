@@ -33,7 +33,11 @@ export type LabPresentationValidation =
   | { readonly accepted: true; readonly intent: LabPresentationIntent }
   | { readonly accepted: false; readonly code: LabPresentationErrorCode; readonly message: string }
 
-/** Validate a presentation intent against registered views and the active Project scope. */
+/** Validate a presentation intent against registered views and the active Project scope.
+ * @param value - Untrusted presentation value to validate.
+ * @param scope - Registered destinations and records authorized for presentation.
+ * @returns A typed acceptance or rejection result.
+ */
 export function validateLabPresentationIntent(value: unknown, scope: LabPresentationScope): LabPresentationValidation {
   if (!isRecord(value) || typeof value.view !== 'string') return rejected('UNKNOWN_VIEW', 'Presentation view is missing')
   const view = value.view

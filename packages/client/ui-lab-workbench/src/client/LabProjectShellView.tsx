@@ -135,7 +135,7 @@ export function LabProjectShellView(props: Props): JSX.Element {
       {page === 'planning' && <Experiments props={props} project={project} runs={runs} reviews={experimentReviews} />}
       {page === 'approval' && <Experiments props={props} project={project} runs={runs} reviews={experimentReviews} />}
       {(page === 'execution' || page === 'steps') && <><StateNoticeWhenVisible state={runsState} t={props.t} emptyMessage={props.t('stateNoExperiment')} /><Runs props={props} runs={runs} artifacts={artifacts} report={report} comparison={comparison} /></>}
-      {page === 'evidence' && <><StateNoticeWhenVisible state={artifactsState} t={props.t} emptyMessage={props.t('stateNoRun')} /><Evidence props={props} artifacts={artifacts} /></>}
+      {page === 'evidence' && <><StateNoticeWhenVisible state={artifactsState} t={props.t} emptyMessage={props.t('stateNoRun')} /><Evidence props={props} artifacts={artifacts} {...selection.activeArtifactId === undefined ? {} : { selectedArtifactId: selection.activeArtifactId }} /></>}
       {page === 'archive' && <div className={css.notice}>{props.t('archiveNotice')}</div>}
     </section>
   )
@@ -153,8 +153,8 @@ function Overview({ props, project, runs, artifacts, onNavigate }: { readonly pr
     { label: props.t('resultReport'), done: project?.evidence.some(item => item.kind === 'report') === true, page: 'evidence' as const },
   ]
   const next = stages.find(stage => !stage.done)
-  return <div className={css.lifecycleOverview}>
-    <section className={css.lifecycleCard}>
+  return <div className={css.lifecycleOverview} data-lab-lifecycle-overview>
+    <section className={css.lifecycleCard} data-lab-pending-action>
       <div className={css.sectionHeading}><div><span className={css.sectionKicker}>{props.t('agentDrivenLifecycle')}</span><h2>{props.t('currentPath')}</h2></div><strong>{next?.label ?? props.t('lifecycleComplete')}</strong></div>
       <ol className={css.stageRail}>{stages.map((stage, index) => <li key={stage.label} className={stage.done ? css.stageDone : index === stages.findIndex(item => item === next) ? css.stageCurrent : css.stagePending}><button type="button" onClick={() => { onNavigate(stage.page) }}><span>{String(index + 1).padStart(2, '0')}</span><strong>{stage.label}</strong></button></li>)}</ol>
     </section>
@@ -231,9 +231,9 @@ function runStatusKey(value: LabRunDisplayState | LabResultDisplayState): LabWor
   return keys[value]
 }
 
-function Evidence({ props, artifacts }: { readonly props: Props; readonly artifacts: readonly LabArtifactRecord[] }): JSX.Element {
+function Evidence({ props, artifacts, selectedArtifactId }: { readonly props: Props; readonly artifacts: readonly LabArtifactRecord[]; readonly selectedArtifactId?: string }): JSX.Element {
   const labels: LabArtifactPreviewLabels = { open: props.t('openArtifact'), unavailable: props.t('artifactPreviewUnavailable'), text: props.t('artifactTextPreview'), json: props.t('artifactJsonPreview'), image: props.t('artifactImagePreview'), unsupported: props.t('artifactUnsupported'), metadata: props.t('evidence') }
-  return <div className={css.list}>{artifacts.map(artifact => <LabArtifactPreview key={artifact.artifactId} artifact={artifact} labels={labels} onOpen={item => { void props.openArtifact(item.runId, item.artifactId) }} />)}</div>
+  return <div className={css.list}>{artifacts.map(artifact => <LabArtifactPreview key={artifact.artifactId} artifact={artifact} selected={artifact.artifactId === selectedArtifactId} labels={labels} onOpen={item => { void props.openArtifact(item.runId, item.artifactId) }} />)}</div>
 }
 
 function StateNoticeWhenVisible<T>(props: { readonly state: LoadingState | LabQueryState<T>; readonly t: Props['t']; readonly emptyMessage: string }): JSX.Element | null {

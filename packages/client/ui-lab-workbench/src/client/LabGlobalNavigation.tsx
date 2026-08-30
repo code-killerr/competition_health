@@ -5,7 +5,7 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import type { SidebarNavigationOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { JSX } from 'react'
 import type { LabProjectSummary } from './LabProjectsView.tsx'
-import type { LabUiContext } from './LabUiContext.ts'
+import type { LabPage, LabUiContext } from './LabUiContext.ts'
 import css from './LabGlobalNavigation.module.css'
 
 /** 导航项。 */
@@ -21,23 +21,56 @@ type Props = PropsRuntime<'sidebar.navigation'>
   & PropsLocale<'labWorkbench'>
   & InjectFace<LabGlobalNavigationInjected>
 
+type ProjectListState =
+  | { readonly state: 'loading' }
+  | { readonly state: 'ready'; readonly value: readonly LabProjectSummary[] }
+  | { readonly state: 'unavailable' }
+
+const PROJECT_PAGES: readonly { readonly page: LabPage; readonly label: 'overview' | 'planning' | 'approval' | 'execution' | 'stepOrchestration' | 'evidencePage' | 'archive' }[] = [
+  { page: 'overview', label: 'overview' },
+  { page: 'planning', label: 'planning' },
+  { page: 'approval', label: 'approval' },
+  { page: 'execution', label: 'execution' },
+  { page: 'steps', label: 'stepOrchestration' },
+  { page: 'evidence', label: 'evidencePage' },
+  { page: 'archive', label: 'archive' },
+]
+
 /** Render the root application navigation. */
 export function LabGlobalNavigation(props: Props): JSX.Element {
   const selection = useSyncExternalStore(props.ui.subscribe.bind(props.ui), () => props.ui.snapshot())
-  const [projects, setProjects] = useState<readonly LabProjectSummary[]>([])
+  const [projectsState, setProjectsState] = useState<ProjectListState>({ state: 'loading' })
   useEffect(() => {
     let current = true
-    void props.listProjects().then(value => { if (current) setProjects(value) }).catch(() => { if (current) setProjects([]) })
+    setProjectsState({ state: 'loading' })
+    void props.listProjects().then(value => {
+      if (current) setProjectsState({ state: 'ready', value })
+    }).catch(() => {
+      if (current) setProjectsState({ state: 'unavailable' })
+    })
     return () => { current = false }
-  }, [props.listProjects])
+  }, [props.listProjects, selection.activeProjectId])
+
+  useEffect(() => {
+    if (projectsState.state !== 'ready') return
+    const firstProject = projectsState.value[0]
+    if (firstProject === undefined || projectsState.value.some(project => project.projectId === selection.activeProjectId)) return
+    props.ui.selectWorkspace(firstProject.workspaceId)
+    props.ui.selectProject(firstProject.projectId)
+    props.ui.openProjectPage('overview')
+  }, [projectsState, props.ui, selection.activeProjectId])
 
   const open = (viewId: string): void => { props.openAppView(viewId); props.expandSidebar() }
-  const openProject = (project: LabProjectSummary): void => {
+  const openProject = (project: LabProjectSummary, page: LabPage = 'overview'): void => {
     props.ui.selectWorkspace(project.workspaceId)
     props.ui.selectProject(project.projectId)
-    props.ui.openProjectPage('overview')
+    props.ui.openProjectPage(page)
     open('lab-project')
   }
+  const projects = projectsState.state === 'ready' ? projectsState.value : []
+  const projectStatus = (project: LabProjectSummary): string => project.status === 'ACTIVE'
+    ? props.t('lifecycleStatusActive')
+    : props.t('archive')
 
   return (
     <nav className={css.root} aria-label={props.t('globalNavigation')}>
@@ -54,15 +87,39 @@ export function LabGlobalNavigation(props: Props): JSX.Element {
           <span className={css.mark} aria-hidden="true">P</span>
           {props.wide && <span>{props.t('projects')}</span>}
         </button>
+        {props.wide && projectsState.state === 'loading' && <div className={css.navStatus} role="status">{props.t('projectsLoading')}</div>}
+        {props.wide && projectsState.state === 'unavailable' && <div className={css.navStatus} role="status">{props.t('projectsUnavailable')}</div>}
         {props.wide && projects.map(project => (
-          <button key={project.projectId} type="button" className={project.projectId === selection.activeProjectId ? css.projectActive : css.project} onClick={() => { openProject(project) }}>
-            <span className={css.projectDot} aria-hidden="true" />
-            <span className={css.projectName}>{project.name}</span>
-            <span className={css.projectMeta} aria-label={`${project.experimentCount} ${props.t('experiments')}`}>
-              {project.activeRunCount !== undefined && project.activeRunCount > 0 ? project.activeRunCount : project.experimentCount}
-            </span>
-            {(project.failedRunCount ?? 0) > 0 && <span className={css.projectAlert} aria-label={props.t('failedRuns')}>!</span>}
-            {(project.pendingApprovalCount ?? 0) > 0 && <span className={css.projectPending} aria-label={props.t('pendingApproval')}>•</span>}
+          <div key={project.projectId} className={css.projectTree} data-project-id={project.projectId}>
+            <button type="button" className={project.projectId === selection.activeProjectId ? css.projectActive : css.project} aria-label={project.name} onClick={() => { openProject(project) }}>
+              <span className={css.projectDot} data-project-status={project.status} aria-hidden="true" />
+              <span className={css.projectName}>{project.name}</span>
+              <span className={css.projectMeta} aria-label={`${project.experimentCount} ${props.t('experiments')}`}>
+                {project.activeRunCount !== undefined && project.activeRunCount > 0 ? project.activeRunCount : project.experimentCount}
+              </span>
+              {(project.failedRunCount ?? 0) > 0 && <span className={css.projectAlert} aria-label={props.t('failedRuns')}>!</span>}
+              {(project.pendingApprovalCount ?? 0) > 0 && <span className={css.projectPending} aria-label={props.t('pendingApproval')}>•</span>}
+            </button>
+            <span className={css.projectStatus}>{projectStatus(project)}</span>
+            {project.currentStepId !== undefined && <span className={css.projectStep}>{props.t('runCurrentStep')}: {project.currentStepId}</span>}
+            <div className={css.projectDestinations} aria-label={`${project.name} ${props.t('projectNavigation')}`}>
+              {PROJECT_PAGES.map(destination => (
+                <button
+                  key={destination.page}
+                  type="button"
+                  className={selection.activeProjectId === project.projectId && selection.projectPage === destination.page ? css.destinationActive : css.destination}
+                  aria-label={`${project.name} ${props.t(destination.label)}`}
+                  onClick={() => { openProject(project, destination.page) }}
+                >
+                  {props.t(destination.label)}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+        {!props.wide && projects.map(project => (
+          <button key={project.projectId} type="button" className={css.railProject} aria-label={project.name} title={`${project.name} · ${projectStatus(project)}`} onClick={() => { openProject(project) }}>
+            <span className={css.railProjectMark} data-project-status={project.status} aria-hidden="true">{project.name.slice(0, 1).toUpperCase()}</span>
           </button>
         ))}
       </section>

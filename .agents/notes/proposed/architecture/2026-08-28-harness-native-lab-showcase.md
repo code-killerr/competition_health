@@ -22,6 +22,12 @@ The keyless showcase uses deterministic Knowledge, model and device Providers be
 
 The global monitor is a status and navigation projection rather than a cross-Project scheduler. Configuration destinations consume registered capability data and show truthful read-only or unavailable states; People and permissions never fabricate identities or authorization.
 
+## Current verification
+
+On 2026-08-30 the assembled LABWEAVE Web profile was exercised in the in-app browser. The root application view now preserves `conversationMode` and default-selection metadata, so LABWEAVE mounts the shared Conversation surface as one `agent-dock` rather than the default hero composition. The dock remains top-aligned while the conversation is in its blank/hero phase, keeping its timeline action reachable above the laboratory workbench.
+
+The verification covered the dynamic global monitor, Projects tree, Project lifecycle destinations, lifecycle-first Overview, pending-action presentation, configuration capability statuses, typed Project and Artifact selection, one textarea, draft retention while changing destinations, Agent timeline expansion, sidebar rail behavior, and desktop, tablet, and narrow layouts. The repeatable assembled browser scenario is `apps/web/tests/lab-showcase.e2e.ts`; the Stage 9 Knowledge-to-report business flow remains outside this evidence.
+
 Migration is complete only after the new surfaces are exercised and the replaced `conversation.view` workbench, default Conversation composition in the laboratory profile, flat navigation, `sidebar.footer.action`, `lab:navigate`, browser-generated business IDs, stage mapping, fixed split layout and duplicate composer are removed. The related foundation changes retain their own final verification tasks; this change must not mark those tasks complete or reimplement their owned internals.
 
 ## Alternatives considered

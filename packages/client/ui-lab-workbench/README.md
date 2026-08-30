@@ -16,7 +16,7 @@ Enable it through the opt-in example in [examples/lab-web](../../../examples/lab
 
 #### What the model sees
 
-The package adds no model-facing tool. It renders project-scoped Harness state and exposes the real Harness Conversation beside the Project shell; model-facing retrieval remains owned by the Host Agent composition.
+The package adds no model-facing tool. It renders project-scoped Harness state from `/api/lab` and exposes the real Harness Conversation beside the Project shell; model-facing retrieval remains owned by the Host Agent composition.
 
 #### Token effect
 

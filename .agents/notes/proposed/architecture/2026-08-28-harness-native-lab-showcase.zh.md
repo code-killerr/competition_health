@@ -22,6 +22,12 @@ Host 继续作为注册目录 Workspace、实验 Project、Experiment、Run 和 
 
 全局 monitor 是状态和导航投影，不是跨 Project scheduler。配置目的地消费注册 capability data，并显示真实的 read-only 或 unavailable 状态；People 和 permissions 绝不伪造 identity 或 authorization。
 
+## 当前验证
+
+2026-08-30 已在内置浏览器中实际运行 assembled LABWEAVE Web profile。根应用视图现在会保留 `conversationMode` 和默认选择元数据，因此 LABWEAVE 挂载的是一个 `agent-dock` 形式的共享 Conversation surface，而不是默认 hero 组合。对话处于空白／hero 阶段时，dock 仍保持顶部对齐，时间线操作可以在实验工作台上方正常访问。
+
+验证覆盖了动态全局 monitor、Projects tree、Project 生命周期目的地、以生命周期为主的 Overview、待处理动作展示、配置能力状态、typed Project 与 Artifact 选择、单一 textarea、跨目的地切换时的 draft 保留、Agent timeline 展开、侧栏 rail 行为，以及桌面、平板和窄桌面布局。可重复的 assembled 浏览器场景位于 `apps/web/tests/lab-showcase.e2e.ts`；第 9 阶段从 Knowledge 到报告的业务流程仍不属于这份证据。
+
 只有在新页面完成验证后删除被替代的 `conversation.view` 工作台、实验 profile 中的默认 Conversation composition、平铺导航、`sidebar.footer.action`、`lab:navigate`、浏览器生成的业务 ID、阶段映射、固定 split layout 和重复 composer，迁移才算完成。相关基础变更仍保留各自的最终验证任务；本变更不得替它们标记完成，也不得重新实现它们负责的内部能力。
 
 ## 曾考虑的替代方案

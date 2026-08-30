@@ -21,6 +21,7 @@ export interface LabUiState {
   readonly activeProjectId?: string
   readonly activeExperimentId?: string
   readonly activeRunId?: string
+  readonly activeArtifactId?: string
   readonly activeCitation?: LabCitationSelection
   readonly projectPage: LabPage
 }
@@ -56,8 +57,11 @@ export class LabUiContext {
    * @param projectId - 要选中的 Project 标识。
    */
   selectProject(projectId: string): void {
-    const { activeCitation: previousCitation, ...rest } = this.#state
+    const { activeExperimentId: previousExperimentId, activeRunId: previousRunId, activeCitation: previousCitation, activeArtifactId: previousArtifactId, ...rest } = this.#state
+    void previousExperimentId
+    void previousRunId
     void previousCitation
+    void previousArtifactId
     this.#state = { ...rest, activeProjectId: projectId }
     this.#emit()
   }
@@ -66,8 +70,9 @@ export class LabUiContext {
    * @param experimentId - 要选中的 Experiment 标识。
    */
   selectExperiment(experimentId: string): void {
-    const { activeRunId: previousRunId, ...rest } = this.#state
+    const { activeRunId: previousRunId, activeArtifactId: previousArtifactId, ...rest } = this.#state
     void previousRunId
+    void previousArtifactId
     this.#state = { ...rest, activeExperimentId: experimentId }
     this.#emit()
   }
@@ -76,7 +81,17 @@ export class LabUiContext {
    * @param runId - 要选中的 Run 标识。
    */
   selectRun(runId: string): void {
-    this.#state = { ...this.#state, activeRunId: runId }
+    const { activeArtifactId: previousArtifactId, ...rest } = this.#state
+    void previousArtifactId
+    this.#state = { ...rest, activeRunId: runId }
+    this.#emit()
+  }
+
+  /** 选择当前 Run 下的 Artifact 供 Evidence 页面定位。
+   * @param artifactId - 要定位的 Artifact 标识。
+   */
+  selectArtifact(artifactId: string): void {
+    this.#state = { ...this.#state, activeArtifactId: artifactId }
     this.#emit()
   }
 
@@ -84,7 +99,9 @@ export class LabUiContext {
    * @param citation - Host-authorized citation target.
    */
   openCitation(citation: LabCitationSelection): void {
-    this.#state = { ...this.#state, activeProjectId: citation.projectId, activeCitation: citation }
+    const { activeArtifactId: previousArtifactId, ...rest } = this.#state
+    void previousArtifactId
+    this.#state = { ...rest, activeProjectId: citation.projectId, activeCitation: citation }
     this.#emit()
   }
 

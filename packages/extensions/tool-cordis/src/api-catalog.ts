@@ -4268,20 +4268,12 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface LabDeviceProvider {\n    readonly name: string;\n    listDevices(): readonly DeviceView[];\n    healthCheck(deviceId: DeviceId): Promise<boolean>;\n    reserve(deviceId: DeviceId, runId: RunId): Promise<void>;\n    execute(request: DeviceOperationRequest): Promise<DeviceReceipt>;\n    status(deviceId: DeviceId): DeviceView | undefined;\n    stop(request: Pick<DeviceOperationRequest, \'deviceId\' | \'runId\' | \'operationId\'>): Promise<DeviceReceipt>;\n    release(deviceId: DeviceId, runId: RunId): Promise<void>;\n    dispose?(): Promise<void> | void;\n}',
   },
   {
-    name: 'LabExperimentRecord',
-    declaration: 'export interface LabExperimentRecord {\n    readonly experimentId: ExperimentId;\n    readonly projectId: LabProjectId;\n    readonly title: string;\n    readonly objective: string;\n    readonly status: LabExperimentStatus;\n    readonly createdInSessionId: SessionId;\n    readonly derivedFromExperimentId?: ExperimentId;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n}',
-  },
-  {
     name: 'LabExperimentSessionLink',
     declaration: 'export interface LabExperimentSessionLink {\n    readonly projectId: LabProjectId;\n    readonly experimentId: ExperimentId;\n    readonly sessionId: SessionId;\n    readonly role: LabExperimentSessionRole;\n    readonly linkedBy: SessionId;\n    readonly linkedAt: number;\n}',
   },
   {
     name: 'LabExperimentSessionRole',
     declaration: 'export type LabExperimentSessionRole = \'created\' | \'continued\' | \'reviewed\';',
-  },
-  {
-    name: 'LabExperimentStatus',
-    declaration: 'export type LabExperimentStatus = \'DRAFT\' | \'ACTIVE\' | \'COMPLETED\' | \'ARCHIVED\';',
   },
   {
     name: 'LabMvpWebSnapshot',
@@ -4329,7 +4321,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LabProjectConversationResult',
-    declaration: 'export type LabProjectConversationResult = {\n    readonly kind: \'project-list\';\n    readonly value: readonly LabProjectView[];\n} | {\n    readonly kind: \'project\';\n    readonly value: LabProjectView;\n} | {\n    readonly kind: \'project-context\';\n    readonly value: Readonly<Record<string, unknown>>;\n} | {\n    readonly kind: \'project-session-attach-conflict\';\n    readonly value: import(\'@deepseek-ai/dsh-experimental-lab-domain\').LabProjectSessionAttachConflict;\n} | {\n    readonly kind: \'experiment-list\';\n    readonly value: readonly LabExperimentRecord[];\n} | {\n    readonly kind: \'experiment\';\n    readonly value: LabExperimentRecord;\n} | {\n    readonly kind: \'experiment-project\';\n    readonly value: LabProjectView;\n} | {\n    readonly kind: \'run-list\';\n    readonly value: readonly RunView[];\n} | {\n    readonly kind: \'run\';\n    readonly value: RunView;\n} | {\n    readonly kind: \'run-report\';\n    readonly value: LabRunReport;\n} | {\n    readonly kind: \'run-comparison\';\n    readonly value: LabRunComparison;\n} | {\n    readonly kind: \'artifact-list\';\n    readonly value: RunView[\'artifacts\'];\n} | {\n    readonly kind: \'artifact\';\n    readonly value: RunView[\'artifacts\'][number];\n};',
+    declaration: 'export type LabProjectConversationResult = {\n    readonly kind: \'project-list\';\n    readonly value: readonly LabProjectView[];\n} | {\n    readonly kind: \'project\';\n    readonly value: LabProjectView;\n} | {\n    readonly kind: \'project-context\';\n    readonly value: LabProjectContextView | LabProjectPlanningContextView;\n} | {\n    readonly kind: \'project-session-attach-conflict\';\n    readonly value: import(\'@deepseek-ai/dsh-experimental-lab-domain\').LabProjectSessionAttachConflict;\n} | {\n    readonly kind: \'experiment-list\';\n    readonly value: readonly LabExperimentRecord[];\n} | {\n    readonly kind: \'experiment-reviews\';\n    readonly value: readonly PlanProposalResult[];\n} | {\n    readonly kind: \'experiment\';\n    readonly value: LabExperimentRecord;\n} | {\n    readonly kind: \'experiment-project\';\n    readonly value: LabProjectView;\n} | {\n    readonly kind: \'run-list\';\n    readonly value: readonly RunView[];\n} | {\n    readonly kind: \'run\';\n    readonly value: RunView;\n} | {\n    readonly kind: \'run-report\';\n    readonly value: LabRunReport;\n} | {\n    readonly kind: \'run-comparison\';\n    readonly value: LabRunComparison;\n} | {\n    readonly kind: \'artifact-list\';\n    readonly value: RunView[\'artifacts\'];\n} | {\n    readonly kind: \'artifact\';\n    readonly value: RunView[\'artifacts\'][number];\n};',
   },
   {
     name: 'LabProjectDevice',
@@ -4354,6 +4346,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'LabProjectId',
     declaration: 'export type LabProjectId = Branded<\'LabProjectId\'>;',
+  },
+  {
+    name: 'LabProjectPlanningContextView',
+    declaration: 'export interface LabProjectPlanningContextView {\n    readonly project: LabProjectContext;\n    readonly knowledgeCapability: KnowledgeCapabilityStatus;\n    readonly planningContext: PlanningContext;\n}',
   },
   {
     name: 'LabProjectSession',
@@ -4413,11 +4409,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LabWebCommand',
-    declaration: 'export type LabWebCommand = {\n    readonly sessionId?: SessionId;\n} & ({\n    readonly command: \'snapshot\';\n    readonly experimentId: ExperimentRequest[\'experimentId\'];\n} | {\n    readonly command: \'knowledge-import\';\n    readonly name: string;\n    readonly bytes: Uint8Array;\n    readonly metadata: Readonly<Record<string, string>>;\n} | {\n    readonly command: \'knowledge-search\';\n    readonly request: KnowledgeSearchRequest;\n} | {\n    readonly command: \'knowledge-fact-confirm\';\n    readonly citationId: CitationId;\n    readonly confirmedBy: string;\n    readonly note?: string;\n} | {\n    readonly command: \'knowledge-sop-create\';\n    readonly title: string;\n    readonly steps: CreateSopDraftRequest[\'steps\'];\n} | {\n    readonly command: \'knowledge-sop-get\';\n    readonly draftId: KnowledgeSopDraftId;\n} | {\n    readonly command: \'knowledge-sop-list\';\n} | {\n    readonly command: \'knowledge-sop-update\';\n    readonly draftId: KnowledgeSopDraftId;\n    readonly title: string;\n    readonly steps: UpdateSopDraftRequest[\'steps\'];\n} | {\n    readonly command: \'knowledge-sop-publish\';\n    readonly draftId: KnowledgeSopDraftId;\n    readonly publishedBy: string;\n} | {\n    readonly command: \'experiment-create\';\n    readonly request: ExperimentRequest;\n} | {\n    readonly command: \'planning-context\';\n    readonly request: ExperimentRequest;\n} | {\n    readonly command: \'plan-propose\';\n    readonly input: PlanProposalInput;\n} | {\n    readonly command: \'plan-validate\';\n    readonly planId: ExperimentPla /* …truncated — full shape in source */',
+    declaration: 'export type LabWebCommand = {\n    readonly sessionId?: SessionId;\n} & ({\n    readonly command: \'snapshot\';\n    readonly experimentId: ExperimentRequest[\'experimentId\'];\n} | {\n    readonly command: \'device-list\';\n} | {\n    readonly command: \'knowledge-import\';\n    readonly name: string;\n    readonly bytes: Uint8Array;\n    readonly metadata: Readonly<Record<string, string>>;\n} | {\n    readonly command: \'knowledge-search\';\n    readonly request: KnowledgeSearchRequest;\n} | {\n    readonly command: \'knowledge-fact-confirm\';\n    readonly citationId: CitationId;\n    readonly confirmedBy: string;\n    readonly note?: string;\n} | {\n    readonly command: \'knowledge-sop-create\';\n    readonly title: string;\n    readonly steps: CreateSopDraftRequest[\'steps\'];\n} | {\n    readonly command: \'knowledge-sop-get\';\n    readonly draftId: KnowledgeSopDraftId;\n} | {\n    readonly command: \'knowledge-sop-list\';\n} | {\n    readonly command: \'knowledge-sop-update\';\n    readonly draftId: KnowledgeSopDraftId;\n    readonly title: string;\n    readonly steps: UpdateSopDraftRequest[\'steps\'];\n} | {\n    readonly command: \'knowledge-sop-publish\';\n    readonly draftId: KnowledgeSopDraftId;\n    readonly publishedBy: string;\n} | {\n    readonly command: \'experiment-create\';\n    readonly request: ExperimentRequest;\n} | {\n    readonly command: \'planning-context\';\n    readonly request: ExperimentRequest;\n} | {\n    readonly command: \'plan-propose\';\n    readonly input: PlanProposalInput;\n} | {\n    readonly command: \'plan-va /* …truncated — full shape in source */',
   },
   {
     name: 'LabWebCommandResult',
-    declaration: 'export type LabWebCommandResult = {\n    readonly kind: \'snapshot\';\n    readonly value: unknown;\n} | {\n    readonly kind: \'knowledge-import\';\n    readonly value: unknown;\n} | {\n    readonly kind: \'knowledge-search\';\n    readonly value: unknown;\n} | {\n    readonly kind: \'knowledge-fact-confirm\';\n    readonly value: unknown;\n} | {\n    readonly kind: \'knowledge-sop\';\n    readonly value: unknown;\n} | {\n    readonly kind: \'planning-context\';\n    readonly value: unknown;\n} | {\n    readonly kind: \'plan-proposal\';\n    readonly value: unknown;\n} | {\n    readonly kind: \'plan-rejection\';\n    readonly value: unknown;\n} | {\n    readonly kind: \'skill-revision\';\n    readonly value: unknown;\n} | {\n    readonly kind: \'run\';\n    readonly value: unknown;\n} | {\n    readonly kind: \'report\';\n    readonly value: unknown;\n};',
+    declaration: 'export type LabWebCommandResult = {\n    readonly kind: \'snapshot\';\n    readonly value: LabWebSnapshotView;\n} | {\n    readonly kind: \'device-list\';\n    readonly value: readonly DeviceView[];\n} | {\n    readonly kind: \'knowledge-import\';\n    readonly value: ImportDocumentResult;\n} | {\n    readonly kind: \'knowledge-search\';\n    readonly value: {\n        readonly capability: KnowledgeCapabilityStatus;\n        readonly results: readonly KnowledgeSearchResult[];\n        readonly conflicts: readonly KnowledgeConflict[];\n    };\n} | {\n    readonly kind: \'knowledge-fact-confirm\';\n    readonly value: null;\n} | {\n    readonly kind: \'knowledge-sop\';\n    readonly value: SopDraftResult | undefined | readonly SopDraftResult[];\n} | {\n    readonly kind: \'planning-context\';\n    readonly value: PlanningContext;\n} | {\n    readonly kind: \'plan-proposal\';\n    readonly value: PlanProposalResult;\n} | {\n    readonly kind: \'plan-rejection\';\n    readonly value: PlanProposalResult;\n} | {\n    readonly kind: \'skill-revision\';\n    readonly value: LabSkillRevision;\n} | {\n    readonly kind: \'run\';\n    readonly value: RunView;\n} | {\n    readonly kind: \'report\';\n    readonly value: LabRunReport;\n};',
+  },
+  {
+    name: 'LabWebSnapshotView',
+    declaration: 'export interface LabWebSnapshotView {\n    readonly knowledge: readonly ImportStatusResult[];\n    readonly knowledgeCapability: KnowledgeCapabilityStatus;\n    readonly devices: readonly DeviceView[];\n    readonly planningContext?: PlanningContext;\n    readonly planReviews: readonly PlanProposalResult[];\n    readonly run?: RunView;\n    readonly report?: LabRunReport;\n}',
   },
   {
     name: 'LinkLabExperimentSessionRequest',

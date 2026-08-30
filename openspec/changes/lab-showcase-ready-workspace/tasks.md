@@ -171,19 +171,19 @@
 
 - [x] 8.1 审计现有页面和 tests，将 Experiment、Run、Comparison、Artifact、Result、Workflow 与 Skill 组件分类为“保留并调整”，将固定上下分屏、通用统计卡片首屏、页面级硬编码主题和通用实验命令卡片分类为“替换或删除”；本清单记录唯一任务所有权，不把组件存在视为业务阶段完成。
 - [x] 8.2 修复客户端构建阻断并协调 `TypertClientRemote` API、Host compiler face 文件集合和 JSX 设置，使仓库构建重新生成 `ui-lab-workbench/lib/client.js` 与 `apps/web/dist`；运行构建并记录产物 revision，聚焦包 typecheck 不能替代该验证。
-- [ ] 8.3 为 laboratory 启动增加客户端产物新鲜度检查；启动前验证 `src/client`、`lib/client.js` 与 Web dist 对应当前来源，过期或缺失时执行所需构建或明确失败，并验证开发 watch/HMR 与一次性 build-and-start 路径。（源码指纹和一次性构建路径已完成；watch/HMR 仍需在浏览器验收环境中完成。）
-- [ ] 8.4 在 `examples/lab-web` assembled composition 中验证实际提供的 `ui-lab-workbench/client.js` 包含当前 LABWEAVE shell 和本阶段布局；浏览器必须显示对应内容，新进程、根 HTML 或 HTTP 200 不能单独完成验证。
-- [ ] 8.5 为 `ui-conversation` 定义可复用 presentation contract，使默认 Harness composition 与 LABWEAVE composition 共享 Session、input state machine、draft、queue、slash/reference/attachment、access/model、ask-user/approval takeover、timeline 和 node renderers。增加默认 profile 不变、LABWEAVE 只有一个 input DOM、draft 跨页面保留和 takeover 可操作的组合测试；禁止复制输入状态机、CSS 隐藏旧 composer 或绕过正式 submit 路径。
-- [ ] 8.6 将侧栏重构为三个 LABWEAVE 分组：顶部全局执行监控；动态 Projects tree；配置中心。Projects tree 必须从 adapter records 渲染并反映 active Project、Run、failure 和 pending approval 状态；无 Project、loading、unavailable 和 rail 模式均可操作。
+- [x] 8.3 为 laboratory 启动增加客户端产物新鲜度检查；启动前验证 `src/client`、`lib/client.js` 与 Web dist 对应当前来源，过期或缺失时执行所需构建或明确失败，并验证开发 watch/HMR 与一次性 build-and-start 路径。已通过源码指纹、一次性构建、watch 单测和内置浏览器 HMR 验证。
+- [x] 8.4 在 `examples/lab-web` assembled composition 中验证实际提供的 `ui-lab-workbench/client.js` 包含当前 LABWEAVE shell 和本阶段布局；浏览器必须显示对应内容，新进程、根 HTML 或 HTTP 200 不能单独完成验证。
+- [x] 8.5 为 `ui-conversation` 定义可复用 presentation contract，使默认 Harness composition 与 LABWEAVE composition 共享 Session、input state machine、draft、queue、slash/reference/attachment、access/model、ask-user/approval takeover、timeline 和 node renderers。增加默认 profile 不变、LABWEAVE 只有一个 input DOM、draft 跨页面保留和 takeover 可操作的组合测试；禁止复制输入状态机、CSS 隐藏旧 composer 或绕过正式 submit 路径。
+- [x] 8.6 将侧栏重构为三个 LABWEAVE 分组：顶部全局执行监控；动态 Projects tree；配置中心。Projects tree 必须从 adapter records 渲染并反映 active Project、Run、failure 和 pending approval 状态；无 Project、loading、unavailable 和 rail 模式均可操作。
 - [x] 8.7 将每个 Project 展开为生命周期目的地：Overview、Planning/Workflow、Plan approval、Execution monitoring、Step orchestration、Results/Evidence 和 Archive。扩展 `LabUiContext` 的 destination union 并建立 record-to-destination 映射；Conversations 只作为 Session provenance 入口，不得继续作为一级项目标签。
-- [ ] 8.8 实现 LABWEAVE-owned `LabAgentSurface`：默认只显示底部紧凑输入 dock、当前 Project/Experiment/Run context、运行状态和展开时间线动作；展开后复用完整 Agent timeline、命令卡片、node 卡片、ask-user 和 approval takeover。移除默认 hero/header/context strip/大输入框的 LABWEAVE 可见组合；宽屏不得让 Agent 占据独立永久列。
+- [x] 8.8 实现 LABWEAVE-owned `LabAgentSurface`：默认只显示底部紧凑输入 dock、当前 Project/Experiment/Run context、运行状态和展开时间线动作；展开后复用完整 Agent timeline、命令卡片、node 卡片、ask-user 和 approval takeover。移除默认 hero/header/context strip/大输入框的 LABWEAVE 可见组合；宽屏不得让 Agent 占据独立永久列。
 - [x] 8.9 实现全局执行监控页和侧栏摘要，聚合各 Project 的 active Run、当前步骤、失败和 pending approval，并可跳转到授权 Project destination。该能力只做状态投影和导航，不实现跨 Project 调度、资源分配或批量执行。聚合复用 Host 已提供的 `project-list` 与 `run-list` 查询，未提供的细节保持明确 unavailable。
-- [ ] 8.10 实现配置中心目的地：Knowledge、Agent、Workflow/Lab Skill、Devices、People/permissions。Knowledge 保持独立 Provider 和 app view 所有权；其他目的地只消费真实注册能力。People/permissions 在无对应能力时显示明确 unavailable 或 read-only，不得创建样例用户、角色或授权结论。
-- [ ] 8.11 将 Project Overview 改为实验生命周期与待处理动作优先的工作区，展示目标理解、资料确认、Workflow、批准、执行、QC 和报告状态；统计数据降为辅助信息，不得用通用 KPI 卡片网格代替当前阶段、关键路径、异常和人工确认。
-- [ ] 8.12 冻结 Agent 与工作台的双向定位：Agent command/node card 可打开 Project、Knowledge、Workflow、approval、Run、step、Evidence、Result 或 citation；用户选择步骤、Artifact 或 verdict 可定位到产生该记录的 Session node。定位使用 typed presentation intent 和 `LabUiContext`，不得增加 DOM、任意 URL 或浏览器事件接口。
-- [ ] 8.13 建立统一视觉系统和响应式规则，统一 sidebar、monitor、Project destinations、configuration、Agent dock、timeline、Workflow、Run 和 Evidence 的色彩、排版、间距、状态、焦点和密度。桌面保持工作台完整可滚动且不被 Agent dock 遮挡；窄桌面和平板使用明确 pane/overlay，禁止整页被内部双滚动区域截断。
-- [ ] 8.14 将保留组件迁入新的生命周期目的地，删除固定上下分屏、相邻 Agent rail、旧 Overview 卡片网格、平铺 Projects/Knowledge/Devices 导航和完成命令专属卡片后不再使用的通用实验卡片。不得伪造第 9 阶段尚未接通的字段或 Host 动作，并通过组件清单、无死入口和单输入断言。
-- [ ] 8.15 在桌面、窄桌面和平板上完成真实 assembled 页面截图与交互审查，验证默认打开 Project Overview、项目选择同步到工作台与 Agent context、侧栏展开、Agent dock/timeline、审批、Run 状态、Evidence、主滚动容器和键盘焦点。保存证据并更新 proposed Agent Note 的最终布局决定。
+- [x] 8.10 实现配置中心目的地：Knowledge、Agent、Workflow/Lab Skill、Devices、People/permissions。Knowledge 保持独立 Provider 和 app view 所有权；其他目的地只消费真实注册能力。People/permissions 在无对应能力时显示明确 unavailable 或 read-only，不得创建样例用户、角色或授权结论。
+- [x] 8.11 将 Project Overview 改为实验生命周期与待处理动作优先的工作区，展示目标理解、资料确认、Workflow、批准、执行、QC 和报告状态；统计数据降为辅助信息，不得用通用 KPI 卡片网格代替当前阶段、关键路径、异常和人工确认。
+- [x] 8.12 冻结 Agent 与工作台的双向定位：Agent command/node card 可打开 Project、Knowledge、Workflow、approval、Run、step、Evidence、Result 或 citation；用户选择步骤、Artifact 或 verdict 可定位到产生该记录的 Session node。定位使用 typed presentation intent 和 `LabUiContext`，不得增加 DOM、任意 URL 或浏览器事件接口。
+- [x] 8.13 建立统一视觉系统和响应式规则，统一 sidebar、monitor、Project destinations、configuration、Agent dock、timeline、Workflow、Run 和 Evidence 的色彩、排版、间距、状态、焦点和密度。桌面保持工作台完整可滚动且不被 Agent dock 遮挡；窄桌面和平板使用明确 pane/overlay，禁止整页被内部双滚动区域截断。
+- [x] 8.14 将保留组件迁入新的生命周期目的地，删除固定上下分屏、相邻 Agent rail、旧 Overview 卡片网格、平铺 Projects/Knowledge/Devices 导航和完成命令专属卡片后不再使用的通用实验卡片。不得伪造第 9 阶段尚未接通的字段或 Host 动作，并通过组件清单、无死入口和单输入断言。
+- [x] 8.15 在桌面、窄桌面和平板上完成真实 assembled 页面截图与交互审查，验证默认打开 Project Overview、项目选择同步到工作台与 Agent context、侧栏展开、Agent dock/timeline、审批、Run 状态、Evidence、主滚动容器和键盘焦点。保存证据并更新 proposed Agent Note 的最终布局决定。
 
 **阶段验收：** 浏览器提供当前构建的单一 LABWEAVE 应用。宽屏完整显示中央生命周期工作台和底部紧凑 Agent dock，不显示原始大输入框、默认 Conversation 页面或永久 Agent rail；侧栏包含全局执行监控、动态 Project tree 和配置中心；Project 默认打开 Overview，并与 Agent context、Experiment 和 Run selection 同步；全页滚动、展开时间线和键盘操作不遮挡内容。第 9 阶段可以在不改变布局、导航和 Agent presentation contract 的情况下补全详情。
 

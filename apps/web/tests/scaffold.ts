@@ -300,6 +300,10 @@ export interface LaunchOptions {
   remoteAuthority?: string
   /** Reuse an existing harness home so a second Host can verify user settings across origins. */
   harnessHome?: string
+  /**
+   * 额外的本地 package.json 锚点；用于 assembled 测试把 opt-in overlay 的包加入临时 profile 解析闭包。
+   */
+  additionalInstallAnchors?: readonly string[]
 }
 
 /** Dispose the booted tree and remove both owned temp roots, reporting every independent cleanup failure. */
@@ -528,6 +532,10 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
     // harness home, with bare plugin names resolving through the flat module
     // fallback the launcher heals under <home>/profiles.
     healProfilesModuleFallback(INSTALL_ANCHOR, harnessHome)
+    for (const installAnchor of options.additionalInstallAnchors ?? []) {
+      // overlay 包不属于正式 CLI 依赖；assembled 测试单独把它们的闭包加入临时 profile。
+      healProfilesModuleFallback(installAnchor, harnessHome)
+    }
     const profileDir = join(harnessHome, 'profiles', 'scaffold')
     await mkdir(profileDir, { recursive: true })
     const rootConfig = join(profileDir, 'cordis.yml')
