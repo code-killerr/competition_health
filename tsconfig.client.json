@@ -23,6 +23,10 @@
     "packages/*/*/tests/**/*.client.spec.tsx",
     "packages/*/*/tests/**/*.client.tsx",
     "packages/*/*/tests/**/*.client.ts",
+    "packages/client/ui-lab-workbench/tests/adapter.contract.spec.ts",
+    "packages/client/ui-lab-workbench/tests/fixtures.contract.spec.ts",
+    "packages/client/ui-lab-workbench/tests/lifecycle.contract.spec.ts",
+    "packages/client/ui-lab-workbench/tests/LabUiContext.spec.ts",
     // Client package outside packages/client with a local CSS module face.
     "packages/extensions/ui-cordis/src/css-modules.d.ts",
     "packages/client/tsdown.client.ts",

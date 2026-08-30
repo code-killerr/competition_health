@@ -14,7 +14,7 @@ export type ConversationRootProps = ConversationSlotProps
 
 export function ConversationRoot({
   sessionId, useSession, useSessions, useWorkspaces, useInput, useComposerBlock,
-  renderSlot, renderSlotChain, selectWorkspace, t,
+  renderSlot, renderSlotChain, selectWorkspace, presentation = 'default', t,
 }: ConversationRootProps) {
   const openState = useSession(s => s.openState)
   const composerPhase = useSession(s => s.composerPhase)
@@ -29,6 +29,7 @@ export function ConversationRoot({
   const composerBlock = useComposerBlock(block => block)
 
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [timelineOpen, setTimelineOpen] = useState(false)
   const [pendingWorkspaceId, setPendingWorkspaceId] = useState<WorkspaceId | undefined>()
   const pickerAnchor = useRef<HTMLButtonElement>(null)
 
@@ -156,11 +157,12 @@ export function ConversationRoot({
     footer: !hero && zone !== undefined ? renderSlot('conversation.composer.dock', zone) : null,
   })
 
+  const agentDock = presentation === 'agent-dock'
   const composerBar = (
-    <div className={clsx(css.composerStack, hero && css.composerHero)}>
-      {hero && <HeroGlow className={css.heroGlow} />}
-      {hero && <HeroShell t={t} renderSlot={renderSlot} />}
-      {hero && heroWorkspaceRow}
+    <div className={clsx(css.composerStack, hero && css.composerHero, agentDock && css.agentDockComposer)}>
+      {!agentDock && hero && <HeroGlow className={css.heroGlow} />}
+      {!agentDock && hero && <HeroShell t={t} renderSlot={renderSlot} />}
+      {!agentDock && hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}
     </div>
@@ -183,11 +185,23 @@ export function ConversationRoot({
     </div>
   )
 
+  const sessionContent = renderSlot('conversation.session', {})
+
   return (
-    <div className={css.root} data-phase={phase}>
-      {renderSlot('conversation.session.header', {})}
+    <div className={css.root} data-phase={phase} data-presentation={presentation}>
+      {!agentDock && renderSlot('conversation.session.header', {})}
       <div className={css.scrollBody} data-conversation-scroll="">
-        {renderSlot('conversation.session', {})}
+        {agentDock && (
+          <div className={css.agentDockToolbar}>
+            <span>{t(timelineOpen ? 'agentDock.timelineOpen' : 'agentDock.timeline')}</span>
+            <button type="button" aria-label={t(timelineOpen ? 'agentDock.timelineOpen' : 'agentDock.timeline')} aria-expanded={timelineOpen} onClick={() => { setTimelineOpen(open => !open) }}>
+              {timelineOpen ? '−' : '+'}
+            </button>
+          </div>
+        )}
+        {agentDock
+          ? <div className={css.agentTimeline} hidden={!timelineOpen}>{sessionContent}</div>
+          : sessionContent}
         {composerSeat}
       </div>
     </div>

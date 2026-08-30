@@ -93,6 +93,12 @@
   border-top: 1px solid var(--dsw-alias-line-secondary, #dfe3e8);
 }
 
+.targetRow {
+  composes: row;
+  border-color: #e8a11a;
+  background: #fff9eb;
+}
+
 .rowText {
   display: grid;
   gap: 3px;

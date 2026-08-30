@@ -109,6 +109,9 @@ describe('project conversation protocol', () => {
     })
     expect(appended).toHaveBeenCalledWith('lab/project/created', expect.anything())
     expect(appended).toHaveBeenCalledWith('lab/project/scope-updated', expect.anything())
+    expect(appended).toHaveBeenCalledWith('lab/project/session-attached', expect.anything())
+    expect(appended).toHaveBeenCalledWith('lab/project/session-detached', expect.anything())
+    expect(appended).toHaveBeenCalledWith('lab/project/archived', expect.anything())
   })
   it('keeps empty project scope operable while Knowledge is unavailable', async () => {
     const ctx = new Context()

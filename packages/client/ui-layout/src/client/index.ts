@@ -81,7 +81,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * `id` is added beside the shipped entries instead of replacing them.
      */
     'shell.overlay': { kind: 'list'; scope: 'root' }
-    /** 与已挂载 Conversation 并列渲染的根应用页面。 */
+    /** 根应用页面；可选择替换、并列或底部 Agent dock 对话。 */
     'app.view': { kind: 'list'; scope: 'root' }
   }
 }
@@ -101,7 +101,10 @@ export interface SidebarOwnerProps {
 }
 
 /** Conversation owner share: business state and actions belong to the registrant. */
-export interface ConvOwnerProps {}
+export interface ConvOwnerProps {
+  /** Presentation selected by the active root application view. */
+  presentation?: 'default' | 'agent-dock'
+}
 
 /** Details owner share: empty — sessionId arrives as a framework-standard prop. */
 export interface DetailsOwnerProps {}

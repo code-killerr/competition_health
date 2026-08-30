@@ -1,0 +1,14 @@
+.root { display: grid; gap: 14px; }
+.header, .header > div, .summary, .field, .actions, .diff li { display: flex; align-items: center; gap: 12px; }
+.header, .field { justify-content: space-between; }
+.header h2, .diff h3 { margin: 0; }
+.header > div { align-items: baseline; }
+.header > div > span, .field > span, .muted { color: var(--dsw-alias-fg-muted, #778078); font-size: 12px; }
+.badge { padding: 4px 8px; border-radius: 999px; background: var(--dsw-alias-bg-subtle, #eef2ed); font-size: 12px; }
+.summary { align-items: stretch; flex-wrap: wrap; }
+.field { flex: 1 1 180px; min-width: 0; padding: 10px; border: 1px solid var(--dsw-alias-border-subtle, #d7ddd8); border-radius: 10px; }
+.field strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diff { display: grid; gap: 8px; padding-top: 8px; border-top: 1px solid var(--dsw-alias-border-subtle, #d7ddd8); }
+.diff ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.diff li { justify-content: space-between; padding: 8px; background: var(--dsw-alias-bg-subtle, #eef2ed); border-radius: 8px; }
+.actions { flex-wrap: wrap; }

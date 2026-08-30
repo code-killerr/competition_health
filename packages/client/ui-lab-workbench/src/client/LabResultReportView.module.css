@@ -1,0 +1,9 @@
+.root { display: grid; gap: .75rem; min-width: 0; border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px; padding: 12px; }
+.root header { display: flex; justify-content: space-between; gap: .75rem; min-width: 0; flex-wrap: wrap; }
+.root h2, .root h3, .root p { margin: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .6rem; }
+.field { display: grid; gap: .25rem; border: 1px solid var(--dsw-alias-border-l1); border-radius: 9px; padding: .6rem; }
+.field span, .criteria p { color: var(--dsw-alias-text-secondary); }
+.criteria { display: grid; gap: .45rem; }
+.criteria > div { border-top: 1px solid var(--dsw-alias-border-l1); padding-top: .4rem; }
+.gate { color: var(--dsw-alias-text-warning, #a16207); }

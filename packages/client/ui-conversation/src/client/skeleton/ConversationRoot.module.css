@@ -329,6 +329,61 @@
   z-index: 1;
 }
 
+.root[data-presentation='agent-dock'] {
+  height: 100%;
+  background: var(--dsw-alias-bg-surface);
+  --dsh-composer-side-clearance: 10px;
+}
+
+.root[data-presentation='agent-dock'] .scrollBody {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
+.root[data-presentation='agent-dock'] .composerStack {
+  gap: 0;
+  width: 100%;
+  padding: 8px 10px 10px;
+  box-sizing: border-box;
+}
+
+.root[data-presentation='agent-dock'] .composerSeat {
+  position: static;
+  background: none;
+}
+
+.agentDockToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  min-height: 30px;
+  padding: 4px 12px 0;
+  color: var(--dsw-alias-text-secondary);
+  font-size: 12px;
+}
+
+.agentDockToolbar button {
+  width: 26px;
+  height: 24px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 6px;
+  color: var(--dsw-alias-text-primary);
+  background: transparent;
+  cursor: pointer;
+}
+
+.agentTimeline {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.agentTimeline > :global([data-slot='conversation.session']) {
+  height: 100%;
+}
+
 /* Blue backdrop ellipse (figma 313:14109), centered on the input card: the
    card's resting center sits ~92px above the stack bottom (32 foot pad +
    half of the ~120px two-row card); width tracks the card (glow asset 1051

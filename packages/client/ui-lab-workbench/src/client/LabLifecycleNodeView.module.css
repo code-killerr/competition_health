@@ -1,0 +1,25 @@
+.root {
+  display: grid;
+  gap: 0.5rem;
+  width: min(100%, 48rem);
+}
+
+.root > section {
+  margin: 0;
+}
+
+.detail {
+  justify-self: start;
+  border: 1px solid var(--dsh-border-subtle, #d7d9dd);
+  border-radius: 999px;
+  background: var(--dsh-surface, #fff);
+  color: var(--dsh-text-secondary, #5f6368);
+  cursor: pointer;
+  padding: 0.35rem 0.75rem;
+}
+
+.detail:focus-visible {
+  outline: 2px solid var(--dsh-focus, #6b8cff);
+  outline-offset: 2px;
+}
+

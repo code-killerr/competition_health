@@ -1,0 +1,35 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { LabConversationContextDock } from '../src/client/LabConversationContextDock.tsx'
+import { LabConversationHeaderAction } from '../src/client/LabConversationHeaderAction.tsx'
+import { LabUiContext } from '../src/client/LabUiContext.ts'
+import { zh } from '../src/client/locales.ts'
+
+afterEach(cleanup)
+
+describe('Lab Conversation chrome', () => {
+  it('keeps the Session header action additive and opens the workbench', () => {
+    const ui = new LabUiContext()
+    ui.selectProject('project-1')
+    const openWorkbench = vi.fn()
+    render(<LabConversationHeaderAction {...({ ui, openWorkbench, t: (key: string) => String(zh[key as keyof typeof zh] ?? key), sessionId: 'session-1' as never } as unknown as Parameters<typeof LabConversationHeaderAction>[0])} />)
+
+    fireEvent.click(screen.getByRole('button', { name: zh.viewWorkbench }))
+    expect(openWorkbench).toHaveBeenCalledOnce()
+    expect(screen.getByText('project-1')).toBeTruthy()
+  })
+
+  it('separates approved Project context from Session-local attachments', () => {
+    const ui = new LabUiContext()
+    ui.selectProject('project-1')
+    ui.selectExperiment('experiment-1')
+    render(<LabConversationContextDock {...({ ui, context: () => ({ workspaceName: 'lab', workspaceDirectory: 'E:/lab', knowledgeCount: 2, deviceCount: 1 }), input: { imageIds: ['image-1' as never], draft: '', draftRev: 0, phase: 'plain', occurrences: [], queue: [] }, t: (key: string) => String(zh[key as keyof typeof zh] ?? key), session: {} as never, sessionId: 'session-1' as never } as unknown as Parameters<typeof LabConversationContextDock>[0])} />)
+
+    expect(screen.getByLabelText(zh.projectScope)).toBeTruthy()
+    expect(screen.getByLabelText(zh.sessionLocal)).toBeTruthy()
+    expect(screen.getByLabelText(zh.projectScope).textContent).toContain('2')
+    expect(screen.getByLabelText(zh.projectScope).textContent).toContain('1')
+    expect(screen.getByLabelText(zh.sessionLocal).textContent).toContain('1')
+  })
+})

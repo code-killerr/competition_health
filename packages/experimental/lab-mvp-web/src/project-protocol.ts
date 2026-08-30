@@ -1,7 +1,8 @@
 /** Dedicated JSON protocol for laboratory projects and project conversations. */
 
-import { brandId, type ArtifactId, type DeviceId, type ExperimentId, type ExperimentRequest, type LabExperimentRecord, type LabExperimentSessionRole, type LabProjectId, type LabProjectView, type PlanId, type RunId, type WorkspaceId } from '@deepseek-ai/dsh-experimental-lab-domain'
-import type { LabProjectSourceSelection } from '@deepseek-ai/dsh-experimental-lab-project'
+import { brandId, type ArtifactId, type DeviceId, type ExperimentId, type ExperimentRequest, type LabExperimentRecord, type LabExperimentSessionRole, type LabProjectContext, type LabProjectId, type LabProjectView, type PlanId, type RunId, type WorkspaceId } from '@deepseek-ai/dsh-experimental-lab-domain'
+import type { KnowledgeCapabilityStatus, LabProjectSourceSelection } from '@deepseek-ai/dsh-experimental-lab-project'
+import type { PlanProposalResult, PlanningContext } from '@deepseek-ai/dsh-experimental-lab-planning'
 import type { LabRunReport, RunView } from '@deepseek-ai/dsh-experimental-lab-runtime'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 
@@ -18,6 +19,19 @@ export interface LabRunComparison {
   readonly artifactCounts: { readonly left: number; readonly right: number }
 }
 
+/** Project scope and capability status returned by a project query. */
+export interface LabProjectContextView {
+  readonly project: LabProjectContext
+  readonly knowledgeCapability: KnowledgeCapabilityStatus
+}
+
+/** Project scope plus the Agent-facing planning projection. */
+export interface LabProjectPlanningContextView {
+  readonly project: LabProjectContext
+  readonly knowledgeCapability: KnowledgeCapabilityStatus
+  readonly planningContext: PlanningContext
+}
+
 /** Project/conversation command parsed at the Web boundary. */
 export type LabProjectConversationCommand = { readonly sessionId?: SessionId } & (
   | { readonly command: 'project-create'; readonly workspaceId?: WorkspaceId; readonly name: string; readonly description?: string }
@@ -32,6 +46,7 @@ export type LabProjectConversationCommand = { readonly sessionId?: SessionId } &
   | { readonly command: 'project-context'; readonly projectId: LabProjectId }
   | { readonly command: 'project-planning-context'; readonly projectId: LabProjectId; readonly request: ExperimentRequest }
   | { readonly command: 'experiment-list'; readonly projectId: LabProjectId }
+  | { readonly command: 'experiment-reviews'; readonly experimentId: ExperimentId }
   | { readonly command: 'experiment-open'; readonly projectId: LabProjectId; readonly experimentId: ExperimentId }
   | { readonly command: 'experiment-create'; readonly projectId: LabProjectId; readonly title: string; readonly objective: string }
   | { readonly command: 'experiment-derive'; readonly projectId: LabProjectId; readonly sourceExperimentId: ExperimentId; readonly title: string; readonly objective: string }
@@ -51,9 +66,10 @@ export type LabProjectConversationCommand = { readonly sessionId?: SessionId } &
 export type LabProjectConversationResult =
   | { readonly kind: 'project-list'; readonly value: readonly LabProjectView[] }
   | { readonly kind: 'project'; readonly value: LabProjectView }
-  | { readonly kind: 'project-context'; readonly value: Readonly<Record<string, unknown>> }
+  | { readonly kind: 'project-context'; readonly value: LabProjectContextView | LabProjectPlanningContextView }
   | { readonly kind: 'project-session-attach-conflict'; readonly value: import('@deepseek-ai/dsh-experimental-lab-domain').LabProjectSessionAttachConflict }
   | { readonly kind: 'experiment-list'; readonly value: readonly LabExperimentRecord[] }
+  | { readonly kind: 'experiment-reviews'; readonly value: readonly PlanProposalResult[] }
   | { readonly kind: 'experiment'; readonly value: LabExperimentRecord }
   | { readonly kind: 'experiment-project'; readonly value: LabProjectView }
   | { readonly kind: 'run-list'; readonly value: readonly RunView[] }
@@ -73,7 +89,7 @@ export function parseLabProjectConversationCommand(value: unknown): LabProjectCo
     'project-create', 'project-list', 'project-open', 'project-scope-update',
     'project-session-create',
     'project-session-attach', 'project-session-detach', 'project-session-rename', 'project-archive', 'project-context',
-    'project-planning-context', 'experiment-list', 'experiment-open', 'experiment-create', 'experiment-derive',
+    'project-planning-context', 'experiment-list', 'experiment-reviews', 'experiment-open', 'experiment-create', 'experiment-derive',
     'experiment-session-link', 'run-list', 'run-open', 'run-start', 'run-stop', 'run-retry', 'run-compare', 'run-report',
     'artifact-list', 'artifact-open',
   ] as const)
@@ -143,6 +159,8 @@ export function parseLabProjectConversationCommand(value: unknown): LabProjectCo
         }
       case 'experiment-list':
         return { command, projectId: projectId(object.projectId, 'command.projectId') }
+      case 'experiment-reviews':
+        return { command, experimentId: experimentId(object.experimentId, 'command.experimentId') }
       case 'experiment-open':
         return { command, projectId: projectId(object.projectId, 'command.projectId'), experimentId: experimentId(object.experimentId, 'command.experimentId') }
       case 'experiment-create':

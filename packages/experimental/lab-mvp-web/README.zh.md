@@ -1,7 +1,7 @@
 # @deepseek-ai/dsh-experimental-lab-mvp-web
 [English](README.md) | 中文
 
-opt-in 实验工作台使用的最小 Host Consumer。它保留只读 `snapshot()`，并增加类型化命令 Facade 与 loopback `/api/lab` 路由。它编排已有 Knowledge、Planning、Skill、Device、Runtime、Session 和 Storage Consumer，不直接访问 Provider 数据库或设备。
+opt-in 实验工作台使用的最小 Host Consumer。通用实验 Facade 仍保留只读 `snapshot()` 命令，但页面组合使用 LABWEAVE adapter 暴露的 Project、Experiment、Run、Artifact、Knowledge 和结果窄查询。它增加 loopback `/api/lab` 路由，编排已有 Knowledge、Planning、Skill、Device、Runtime、Session 和 Storage Consumer，不直接访问 Provider 数据库或设备。
 
 Project 命令使用已注册的 Workspace 记录和 Host 生成的 Project ID。`project-session-attach` 在 Workspace 冲突时返回不移动 Session 的结果，`project-session-detach` 保留 Session 日志，`project-archive` 保留全部 Project Session 供后续查看。
 

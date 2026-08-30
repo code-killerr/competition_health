@@ -1,0 +1,10 @@
+.root { display: grid; gap: 12px; }
+.header, .cardHeader, .field { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.header h2, .cardHeader h3 { margin: 0; }
+.header > span, .status { color: var(--dsw-alias-fg-muted, #778078); font-size: 12px; }
+.list { display: grid; gap: 10px; }
+.card { border: 1px solid var(--dsw-alias-border-subtle, #d7ddd8); border-radius: 12px; padding: 12px; background: var(--dsw-alias-bg-surface, #fff); }
+.body { display: grid; gap: 8px; margin-top: 10px; }
+.field { font-size: 13px; }
+.field span { color: var(--dsw-alias-fg-muted, #778078); }
+.body p { margin: 0; line-height: 1.5; }

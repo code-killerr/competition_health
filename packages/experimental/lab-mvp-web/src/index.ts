@@ -6,7 +6,7 @@ import type { DeviceView } from '@deepseek-ai/dsh-experimental-lab-device'
 import type { LabExperimentCacheService } from '@deepseek-ai/dsh-experimental-lab-cache'
 import type { ImportStatusResult } from '@deepseek-ai/dsh-experimental-lab-knowledge'
 import { createLabKnowledgeConsumer, type KnowledgeCapabilityStatus, type LabKnowledgeConsumer, type LabProjectWorkspaceRegistry } from '@deepseek-ai/dsh-experimental-lab-project'
-import type { LabProjectConversationCommand, LabProjectConversationResult, LabRunComparison } from './project-protocol.ts'
+import type { LabProjectContextView, LabProjectConversationCommand, LabProjectConversationResult, LabProjectPlanningContextView, LabRunComparison } from './project-protocol.ts'
 import type { PlanProposalResult, PlanningContext } from '@deepseek-ai/dsh-experimental-lab-planning'
 import type { ExecutionStepSpec, LabRunReport, RunView } from '@deepseek-ai/dsh-experimental-lab-runtime'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
@@ -71,6 +71,8 @@ export class LabMvpWebService extends Service {
     switch (command.command) {
       case 'snapshot':
         return { kind: 'snapshot', value: await this.snapshot(command.experimentId) }
+      case 'device-list':
+        return { kind: 'device-list', value: this.ctx.labDevices.listDevices().map(device => ({ ...device, capabilities: device.capabilities.map(capability => ({ ...capability, parameters: { ...capability.parameters } })) })) }
       case 'knowledge-import':
         return {
           kind: 'knowledge-import',
@@ -259,6 +261,8 @@ export class LabMvpWebService extends Service {
         return { kind: 'project-context', value: await this.projectPlanningContext(command.projectId, command.request, command.sessionId) }
       case 'experiment-list':
         return { kind: 'experiment-list', value: await this.ctx.labProjects.listExperiments(command.projectId) }
+      case 'experiment-reviews':
+        return { kind: 'experiment-reviews', value: this.ctx.labPlanning.listProposals(command.experimentId) }
       case 'experiment-open': {
         const experiment = await this.experimentInProject(command.projectId, command.experimentId)
         return { kind: 'experiment', value: experiment }
@@ -426,7 +430,7 @@ export class LabMvpWebService extends Service {
     if (sessions !== undefined && sessions.get(sessionId) === undefined) throw new Error(`session "${sessionId}" is not available`)
   }
 
-  private async projectContext(projectId: LabProjectId, sessionId?: SessionId): Promise<Readonly<Record<string, unknown>>> {
+  private async projectContext(projectId: LabProjectId, sessionId?: SessionId): Promise<LabProjectContextView> {
     return {
       project: await this.ctx.labProjects.context(projectId, sessionId),
       knowledgeCapability: await this.knowledgeConsumer().capability(),
@@ -437,7 +441,7 @@ export class LabMvpWebService extends Service {
     projectId: LabProjectId,
     request: ExperimentRequest,
     sessionId?: SessionId,
-  ): Promise<Readonly<Record<string, unknown>>> {
+  ): Promise<LabProjectPlanningContextView> {
     const project = await this.ctx.labProjects.context(projectId, sessionId)
     const consumer = this.knowledgeConsumer()
     const knowledgeCapability = await consumer.capability()

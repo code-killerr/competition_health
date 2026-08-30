@@ -1,0 +1,14 @@
+.root { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--dsw-alias-border-subtle, #d7ddd8); border-radius: 12px; background: var(--dsw-alias-bg-surface, #fff); }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.header > div { display: grid; gap: 2px; }
+.header span { color: var(--dsw-alias-fg-muted, #778078); font-size: 12px; }
+.header .commandName { color: var(--dsw-alias-fg-muted, #778078); font-family: ui-monospace, monospace; font-size: 11px; }
+.fields { display: grid; gap: 6px; margin: 0; }
+.fields > div { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 8px; }
+.fields dt { color: var(--dsw-alias-fg-muted, #778078); font-size: 12px; }
+.fields dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.fields dd[data-error='true'] { color: var(--dsw-alias-fg-danger, #b42318); }
+.parameters { border-top: 1px solid var(--dsw-alias-border-subtle, #d7ddd8); padding-top: 8px; }
+.parameters summary { cursor: pointer; color: var(--dsw-alias-fg-muted, #778078); font-size: 12px; }
+.parameters pre { margin: 8px 0 0; max-height: 160px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, monospace; }
+.root button { justify-self: start; border: 0; border-radius: 999px; padding: 5px 10px; background: var(--dsw-alias-bg-subtle, #eef2ed); cursor: pointer; }

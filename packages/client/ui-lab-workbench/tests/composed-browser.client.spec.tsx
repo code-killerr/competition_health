@@ -67,10 +67,10 @@ describe('Harness-native laboratory browser composition', () => {
     const { runtime, prompt } = await bench()
     const view = runtime.renderRoot()
 
-    fireEvent.click(view.getByRole('tab', { name: 'lab-workbench' }))
-    expect(view.getByRole('heading', { name: '实验自动化工作台' })).toBeTruthy()
     const composer = view.container.querySelector('[data-composer-card] textarea')
     if (!(composer instanceof HTMLTextAreaElement)) throw new Error('Harness composer is missing')
+    expect(view.container.querySelectorAll('[data-composer-card] textarea')).toHaveLength(1)
+    expect(view.container.querySelector('[data-request-stage]')).toBeNull()
     fireEvent.change(composer, { target: { value: '制定一个校准实验计划' } })
     fireEvent.keyDown(composer, { key: 'Enter' })
     await waitFor(() => { expect(prompt).toHaveBeenCalledOnce() })

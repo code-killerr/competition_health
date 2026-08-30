@@ -2,11 +2,11 @@
 
 [English](README.md) | 中文
 
-实验室流程的 opt-in dsh.client 工作台贡献者。它注册 Harness 原生侧栏导航和 conversation.view 贡献，通过类型化浏览器客户端访问 /api/lab，并将 Provider、数据库、Skill 执行器和 Agent loop 保留在 Host 侧。
+实验室流程的 opt-in dsh.client 工作台贡献者。它注册 Harness 原生侧栏导航和根级 application view，通过类型化浏览器客户端访问 /api/lab，并将 Provider、数据库、Skill 执行器和 Agent loop 保留在 Host 侧。
 
-Workbench 负责 Knowledge 工作区的放置，不负责 Knowledge 实现。它声明单一 session 作用域的 `lab.knowledge.workspace` slot；独立的 Knowledge 工作区贡献者通过当前 MVP 公开 Facade 完成 PDF 录入、引用检索和 SOP 管理。
+Workbench 负责项目壳层和展示选择。Knowledge 是独立的根级 `app.view#lab-knowledge` 贡献者，项目壳层不会复制或包裹 Knowledge 的实现。
 
-工作台覆盖项目和 Session 导航、需求录入、本地演示或作用域化 Agent 规划、Skill 与计划审查、受控运行、步骤证据、验证和最终报告展示。人工操作仍是明确的工作台操作。
+工作台覆盖项目和 Session 导航、Agent 生命周期投影、Knowledge 与能力范围、Skill 与计划审查、受控运行、步骤证据、验证和最终报告展示。实验目标只通过现有 Harness composer 提交；缺少输入时由 Agent 补问或现有 ask-user interaction 处理，不再提供第二套需求表单。人工操作仍是明确的工作台操作。
 
 通过 [examples/lab-web](../../../examples/lab-web/) 中的 opt-in 示例启用。默认 Web profile 不加载本包。
 
@@ -16,7 +16,7 @@ Workbench 负责 Knowledge 工作区的放置，不负责 Knowledge 实现。它
 
 #### What the model sees
 
-该包不增加面向模型的工具。它展示项目范围的 Harness 状态，并在 `lab.knowledge.workspace` 挂载 Knowledge Consumer；面向模型的检索仍由 Host Agent 组合负责。
+该包不增加面向模型的工具。它展示项目范围的 Harness 状态，并在项目壳层旁显示真实 Harness Conversation；面向模型的检索仍由 Host Agent 组合负责。
 
 #### Token effect
 

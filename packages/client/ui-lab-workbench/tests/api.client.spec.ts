@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { sendLabCommand } from '../src/client/api.ts'
+import { parseLabCommandResult, parseLabProjectCommandResult, sendLabCommand } from '../src/client/api.ts'
 
 afterEach(() => { vi.unstubAllGlobals() })
 
@@ -18,5 +18,29 @@ describe('lab workbench browser API', () => {
     const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined
     const requestBody = typeof requestInit?.body === 'string' ? requestInit.body : '{}'
     expect(JSON.parse(requestBody) as unknown).toMatchObject({ sessionId: 'session-1' })
+  })
+
+  it('decodes explicit Agent and Project result variants at the wire boundary', () => {
+    const snapshot = parseLabCommandResult({
+      kind: 'snapshot',
+      value: { knowledge: [], devices: [], planReviews: [] },
+    })
+    expect(snapshot).toMatchObject({ kind: 'snapshot', value: { knowledge: [], devices: [], planReviews: [] } })
+
+    const project = parseLabProjectCommandResult({
+      kind: 'project',
+      value: {
+        project: { projectId: 'project-1', workspaceId: 'workspace-1', name: 'Demo', description: '', status: 'ACTIVE', createdAt: 1, updatedAt: 1 },
+        sources: [], devices: [], sessions: [], sharedFacts: [], evidence: [], experiments: [], experimentSessions: [],
+      },
+    })
+    expect(project.kind).toBe('project')
+    if (project.kind !== 'project') throw new Error('project result was not decoded')
+    expect(project.value.project?.projectId).toBe('project-1')
+  })
+
+  it('rejects an unknown result variant before it reaches page state', () => {
+    expect(() => parseLabCommandResult({ kind: 'legacy-snapshot', value: {} })).toThrow(/未知结果类型/)
+    expect(() => parseLabProjectCommandResult({ kind: 'legacy-project', value: {} })).toThrow(/未知结果类型/)
   })
 })

@@ -1,7 +1,7 @@
 # @deepseek-ai/dsh-experimental-lab-mvp-web
 English | [中文](README.zh.md)
 
-Minimal Host Consumer for the opt-in laboratory workbench. It preserves the read-only `snapshot()` surface and adds a typed command Facade plus the loopback `/api/lab` route. It orchestrates existing Knowledge, Planning, Skill, Device, Runtime, Session, and Storage Consumers; it does not access provider databases or devices directly.
+Minimal Host Consumer for the opt-in laboratory workbench. It retains the read-only `snapshot()` command for the general laboratory Facade, while page composition uses the typed Project, Experiment, Run, Artifact, Knowledge and result queries exposed by the LABWEAVE adapter. It adds the loopback `/api/lab` route and orchestrates existing Knowledge, Planning, Skill, Device, Runtime, Session, and Storage Consumers; it does not access provider databases or devices directly.
 
 Project commands use registered Workspace records and Host-generated Project IDs. `project-session-attach` reports Workspace conflicts without moving a Session, `project-session-detach` preserves the Session log, and `project-archive` preserves all Project Sessions for later inspection.
 

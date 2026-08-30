@@ -1,0 +1,10 @@
+.headerAction, .contextDock, .contextGroup { display: flex; align-items: center; gap: 8px; }
+.headerAction { flex-wrap: wrap; }
+.headerAction span, .contextGroup span { color: var(--dsw-alias-fg-muted, #778078); font-size: 12px; }
+.headerAction button { border: 0; border-radius: 999px; padding: 4px 8px; background: var(--dsw-alias-bg-subtle, #eef2ed); cursor: pointer; }
+.contextDock { align-items: stretch; flex-wrap: wrap; max-width: 100%; max-height: none; overflow: visible; padding: 8px 12px; border: 1px solid var(--dsw-alias-border-subtle, #d7ddd8); border-radius: 10px; }
+.contextGroup { min-width: 0; flex-wrap: wrap; }
+.contextGroup strong { font-size: 12px; }
+.contextGroup span { min-width: 0; overflow-wrap: anywhere; }
+.contextGroup + .contextGroup { padding-left: 12px; border-left: 1px solid var(--dsw-alias-border-subtle, #d7ddd8); }
+@media (max-width: 700px) { .contextGroup + .contextGroup { padding-left: 0; border-left: 0; } }

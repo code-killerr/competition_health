@@ -1,10 +1,10 @@
 /** Knowledge workspace body; all persistence goes through the current MVP public Web Facade. */
 
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { useCallback, useEffect, useState } from 'react'
+import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { JSX } from 'react'
 import css from './KnowledgeWorkspace.module.css'
-import type {} from '@deepseek-ai/dsh-client-ui-lab-workbench/client'
 
 interface ImportStatus {
   readonly documentId: string
@@ -48,10 +48,13 @@ type Snapshot = {
 }
 
 type KnowledgeWorkspaceOwnerProps = {
+  readonly sessionId?: string
   readonly projectId?: string
+  readonly ui?: KnowledgeWorkspaceUi | undefined
+  readonly openProjects?: (() => void) | undefined
   readonly experimentId?: string
   readonly selectedSources?: readonly { readonly documentId: string; readonly versionId: string }[]
-  readonly onSourceToggle?: (source: { readonly documentId: string; readonly versionId: string }) => void
+  readonly onSourceToggle?: ((source: { readonly documentId: string; readonly versionId: string }) => void | Promise<void>) | undefined
   readonly onCitationAvailable?: (citation: {
     readonly citationId: string
     readonly documentId: string
@@ -62,15 +65,40 @@ type KnowledgeWorkspaceOwnerProps = {
   }) => void
 }
 
+/** Read-only presentation selection supplied by the optional Lab Workbench. */
+export interface KnowledgeWorkspaceUi {
+  /** Return the current presentation selection. */
+  readonly snapshot: () => KnowledgeUiSelection
+  /** Subscribe to presentation selection changes. */
+  readonly subscribe: (listener: () => void) => () => void
+}
+
+interface KnowledgeUiSelection {
+  readonly activeProjectId?: string
+  readonly activeCitation?: { readonly documentId: string; readonly versionId: string; readonly location?: string }
+}
+
 type ApiResult = {
   readonly kind?: string
   readonly value?: unknown
 }
 
 export type KnowledgeWorkspaceProps =
-  & PropsRuntime<'lab.knowledge.workspace'>
+  & PropsRuntime<'app.view'>
   & PropsLocale<'labKnowledgeWorkspace'>
-  & KnowledgeWorkspaceOwnerProps
+  & Partial<KnowledgeWorkspaceOwnerProps>
+
+type Translate = KnowledgeWorkspaceProps['t']
+
+const EMPTY_SELECTION: KnowledgeUiSelection = {}
+const EMPTY_UNSUBSCRIBE = (): void => {}
+
+/** Create a root Knowledge view with optional Workbench presentation services. */
+export function createKnowledgeWorkspaceView(injected: Pick<KnowledgeWorkspaceOwnerProps, 'ui' | 'openProjects' | 'onSourceToggle'>): (props: KnowledgeWorkspaceProps) => JSX.Element {
+  return function KnowledgeWorkspaceView(props: KnowledgeWorkspaceProps): JSX.Element {
+    return <KnowledgeWorkspace {...props} ui={injected.ui} openProjects={injected.openProjects} onSourceToggle={injected.onSourceToggle} />
+  }
+}
 
 /** Render the public Knowledge workspace in the Lab Workbench slot. */
 export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element {
@@ -85,16 +113,30 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>()
   const [notice, setNotice] = useState<string | undefined>()
+  const subscribe = useCallback((listener: () => void): (() => void) => props.ui?.subscribe(listener) ?? EMPTY_UNSUBSCRIBE, [props.ui])
+  const getSelection = useCallback(() => props.ui?.snapshot() ?? EMPTY_SELECTION, [props.ui])
+  const selection = useSyncExternalStore(subscribe, getSelection, getSelection)
 
-  const sessionId = String(props.sessionId)
-  const experimentId = props.experimentId ?? 'experiment-1'
-  const selectedSources = props.selectedSources ?? []
+  const sessionId = props.sessionId === undefined ? undefined : String(props.sessionId)
+  const experimentId = props.experimentId
+  const experimentScope = experimentId === undefined ? {} : { experimentId }
+  const selectedProjectId = props.ui === undefined ? props.projectId : selection.activeProjectId
+  const canAttachSources = selectedProjectId !== undefined && props.onSourceToggle !== undefined
+  const [attachedSources, setAttachedSources] = useState(props.selectedSources ?? [])
+  const selectedSources = props.selectedSources ?? attachedSources
+  const citationTarget = selection.activeCitation
+  const request = (command: Record<string, unknown>): Promise<unknown> => callLab(command, props.t('requestFailed'))
 
   const refresh = useCallback(async (): Promise<void> => {
-    const value = await callLab({ command: 'snapshot', experimentId, sessionId })
+    if (experimentId === undefined) {
+      setCapability({ state: 'unavailable' })
+      setImports([])
+      return
+    }
+    const value = await request({ command: 'snapshot', ...sessionId === undefined ? {} : { sessionId }, ...experimentScope })
     const snapshot = parseSnapshot(value)
     setCapability(parseCapability(snapshot))
-    setImports((snapshot.knowledge ?? []).map(parseImportStatus))
+    setImports((snapshot.knowledge ?? []).map(item => parseImportStatus(item, props.t)))
   }, [experimentId, sessionId])
 
   useEffect(() => {
@@ -114,10 +156,19 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
     }
   }
 
+  const toggleSource = (source: { readonly documentId: string; readonly versionId: string }): void => {
+    void run(async () => {
+      await props.onSourceToggle?.(source)
+      setAttachedSources(current => current.some(item => item.documentId === source.documentId && item.versionId === source.versionId)
+        ? current.filter(item => item.documentId !== source.documentId || item.versionId !== source.versionId)
+        : [...current, source])
+    })
+  }
+
   const importFile = (file: File): void => {
     void run(async () => {
       const bytes = new Uint8Array(await file.arrayBuffer())
-      const value = await callLab({
+      const value = await request({
         command: 'knowledge-import',
         sessionId,
         name: file.name,
@@ -141,13 +192,13 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
 
   const search = (): void => {
     void run(async () => {
-      const value = await callLab({
+      const value = await request({
         command: 'knowledge-search',
         sessionId,
-        request: { query: query.trim(), limit: 10, experimentId },
+        request: { query: query.trim(), limit: 10, ...experimentScope },
       })
       const result = record(value)
-      const nextCitations = array(result.results).map(parseCitation)
+      const nextCitations = array(result.results).map(item => parseCitation(item, props.t))
       setCitations(nextCitations)
       nextCitations.forEach((citation) => { props.onCitationAvailable?.(citation) })
     })
@@ -155,16 +206,16 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
 
   const createSop = (citation: Citation): void => {
     void run(async () => {
-      const nextTitle = title.trim() || 'Knowledge procedure'
-      const step = createStep(citation)
-      const value = await callLab({
+      const nextTitle = title.trim() || props.t('defaultSopTitle')
+      const step = createStep(citation, props.t)
+      const value = await request({
         command: 'knowledge-sop-create',
         sessionId,
         title: nextTitle,
         steps: [step],
       })
       setTitle(nextTitle)
-      setDraft(parseSop(value))
+      setDraft(parseSop(value, props.t))
     })
   }
 
@@ -172,18 +223,18 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
     if (draft === undefined) return
     void run(async () => {
       const step = draft.steps[0]
-      if (step === undefined) throw new Error('SOP has no step to review')
+      if (step === undefined) throw new Error(props.t('noStepToReview'))
       const citationId = step.citations[0]
-      if (citationId === undefined) throw new Error('SOP step has no citation')
-      await callLab({ command: 'knowledge-fact-confirm', sessionId, citationId, confirmedBy: reviewer.trim() })
-      const value = await callLab({
+      if (citationId === undefined) throw new Error(props.t('noCitationInStep'))
+      await request({ command: 'knowledge-fact-confirm', sessionId, citationId, confirmedBy: reviewer.trim() })
+      const value = await request({
         command: 'knowledge-sop-update',
         sessionId,
         draftId: draft.draftId,
         title: draft.title,
         steps: [step],
       })
-      setDraft(parseSop(value))
+      setDraft(parseSop(value, props.t))
       setNotice(props.t('reviewed'))
     })
   }
@@ -191,13 +242,13 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
   const publish = (): void => {
     if (draft === undefined) return
     void run(async () => {
-      const value = await callLab({
+      const value = await request({
         command: 'knowledge-sop-publish',
         sessionId,
         draftId: draft.draftId,
         publishedBy: reviewer.trim(),
       })
-      setDraft(parseSop(value))
+      setDraft(parseSop(value, props.t))
       setNotice(props.t('published'))
     })
   }
@@ -210,11 +261,16 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
           <span className={css.eyebrow}>{props.t('publicContract')}</span>
         </div>
         <div className={css.status}>
-          <span>{props.t('project')}: {props.projectId || props.t('noProject')}</span>
+          <span>{props.t('project')}: {selectedProjectId || props.t('noProject')}</span>
           <span>{props.t('capability')}</span>
           <span className={css.badge}>{capability.state === 'available' ? props.t('available') : props.t('unavailable')}</span>
         </div>
       </header>
+      {citationTarget !== undefined && (
+        <div className={css.notice} role='status'>
+          {props.t('citationTarget')}: {citationTarget.location ?? props.t('citationLocated')}
+        </div>
+      )}
       {(error !== undefined || notice !== undefined) && (
         <div className={error === undefined ? css.notice : css.error} role="status">
           {error === undefined ? notice : props.t('error') + ': ' + error}
@@ -241,14 +297,13 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
             {imports.map(item => (
               <li key={item.versionId} className={css.row}>
                 <span className={css.rowText}>
-                  <strong>{item.sourceName ?? item.documentId}</strong>
-                  <span className={css.muted}>{item.documentId}:{item.versionId}</span>
+                  <strong>{item.sourceName ?? props.t('unknownDocument')}</strong>
                 </span>
                 <span className={css.actions}>
                   <span className={css.badge}>{item.status}</span>
                   {item.status === 'READY' && (
-                    <button type="button" className={css.button} disabled={busy} onClick={() => { props.onSourceToggle?.({ documentId: item.documentId, versionId: item.versionId }) }}>
-                      {selectedSources.some(source => source.documentId === item.documentId && source.versionId === item.versionId) ? props.t('removeFromProject') : props.t('addToProject')}
+                    <button type="button" className={css.button} disabled={busy || !canAttachSources} onClick={() => { toggleSource({ documentId: item.documentId, versionId: item.versionId }) }}>
+                      {selectedSources.some((source: { readonly documentId: string; readonly versionId: string }) => source.documentId === item.documentId && source.versionId === item.versionId) ? props.t('removeFromProject') : props.t('addToProject')}
                     </button>
                   )}
                 </span>
@@ -256,6 +311,11 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
             ))}
           </ul>
           {imports.length === 0 && <span className={css.muted}>{props.t('empty')}</span>}
+          {selectedProjectId === undefined && (
+            <button type="button" className={css.button} disabled={busy || props.openProjects === undefined} onClick={() => { props.openProjects?.() }}>
+              {props.t('openProjects')}
+            </button>
+          )}
         </section>
         <section className={css.panel}>
           <h4>{props.t('search')}</h4>
@@ -266,11 +326,11 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
           <button type="button" className={css.button} disabled={busy || query.trim() === ''} onClick={search}>{props.t('searchAction')}</button>
           <ul className={css.list}>
             {citations.map(citation => (
-              <li key={citation.citationId} className={css.row}>
+              <li key={citation.citationId} className={citationTarget !== undefined && citation.documentId === citationTarget.documentId && citation.versionId === citationTarget.versionId ? css.targetRow : css.row}>
                 <span className={css.rowText}>
-                  <strong>{citation.citationId}</strong>
+                  <strong>{props.t('citation')}</strong>
                   <span className={css.muted}>{citation.excerpt}</span>
-                  <span className={css.muted}>{citation.documentId}:{citation.versionId} · {citation.location}</span>
+                  <span className={css.muted}>{props.t('source')}: {citation.location}</span>
                 </span>
                 <button type="button" className={css.button} disabled={busy || !citation.confirmed} onClick={() => { createSop(citation) }}>
                   {props.t('createSop')}
@@ -293,7 +353,7 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
             <div className={css.row}>
               <span className={css.rowText}>
                 <strong>{draft.title}</strong>
-                <span className={css.muted}>{draft.draftId} · {draft.status}</span>
+                <span className={css.muted}>{draft.status}</span>
                 <span className={css.muted}>{draft.blockers.join('; ')}</span>
               </span>
             </div>
@@ -313,30 +373,30 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
   )
 }
 
-function createStep(citation: Citation): SopStep {
+function createStep(citation: Citation, t: Translate): SopStep {
   return {
     order: 1,
-    title: 'Use cited source',
+    title: t('sourceStepTitle'),
     instruction: citation.excerpt,
     requiredInputs: [],
-    completionCriteria: ['operator confirms completion'],
+    completionCriteria: [t('operatorCompletion')],
     citations: [citation.citationId],
     missingFields: [],
   }
 }
 
-async function callLab(command: Record<string, unknown>): Promise<unknown> {
+async function callLab(command: Record<string, unknown>, requestFailed: string): Promise<unknown> {
   const response = await fetch('/api/lab', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(command),
   })
-  const body = record(await response.json())
+  const body = record(await response.json(), requestFailed)
   if (!response.ok) {
-    const error = record(body.error)
-    throw new Error(stringValue(error.message) ?? 'Knowledge Facade request failed')
+    const error = record(body.error, requestFailed)
+    throw new Error(stringValue(error.message) ?? requestFailed)
   }
-  const result: ApiResult = record(body.result)
+  const result: ApiResult = record(body.result, requestFailed)
   return result.value
 }
 
@@ -352,35 +412,35 @@ function parseCapability(snapshot: Snapshot): { readonly state: string; readonly
     ...capability.reason === undefined ? {} : { reason: capability.reason },
   }
 }
-function parseImportStatus(value: unknown): ImportStatus {
+function parseImportStatus(value: unknown, t?: Translate): ImportStatus {
   const item = record(value)
   const metadata = recordOrUndefined(item.metadata)
   const sourceName = stringValue(metadata?.sourceName)
   const error = stringValue(item.error)
   return {
-    documentId: stringValue(item.documentId) ?? 'unknown-document',
-    versionId: stringValue(item.versionId) ?? 'unknown-version',
+    documentId: stringValue(item.documentId) ?? t?.('unknownDocument') ?? '',
+    versionId: stringValue(item.versionId) ?? t?.('unknownVersion') ?? '',
     status: stringValue(item.status) ?? 'UNKNOWN',
     ...sourceName === undefined ? {} : { sourceName },
     ...error === undefined ? {} : { error },
   }
 }
 
-function parseCitation(value: unknown): Citation {
+function parseCitation(value: unknown, t?: Translate): Citation {
   const item = record(value)
   const provenance = stringValue(item.provenance)
   return {
-    citationId: stringValue(item.citationId) ?? 'unknown-citation',
-    documentId: stringValue(item.documentId) ?? 'unknown-document',
-    versionId: stringValue(item.versionId) ?? 'unknown-version',
-    location: stringValue(item.location) ?? 'unknown-location',
+    citationId: stringValue(item.citationId) ?? t?.('unknownCitation') ?? '',
+    documentId: stringValue(item.documentId) ?? t?.('unknownDocument') ?? '',
+    versionId: stringValue(item.versionId) ?? t?.('unknownVersion') ?? '',
+    location: stringValue(item.location) ?? t?.('unknownLocation') ?? '',
     excerpt: stringValue(item.excerpt) ?? '',
     confirmed: item.confirmed === true,
     ...provenance === undefined ? {} : { provenance },
   }
 }
 
-function parseSop(value: unknown): SopDraft {
+function parseSop(value: unknown, t?: Translate): SopDraft {
   const result = record(value)
   const draft = record(result.draft)
   const steps = array(draft.steps).map((item) => {
@@ -396,7 +456,7 @@ function parseSop(value: unknown): SopDraft {
     }
   })
   return {
-    draftId: stringValue(draft.draftId) ?? 'unknown-draft',
+    draftId: stringValue(draft.draftId) ?? t?.('unknownDraft') ?? '',
     title: stringValue(draft.title) ?? '',
     status: stringValue(draft.status) ?? 'UNKNOWN',
     steps,
@@ -404,8 +464,8 @@ function parseSop(value: unknown): SopDraft {
   }
 }
 
-function record(value: unknown): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('response must be an object')
+function record(value: unknown, invalidResponse = ''): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error(invalidResponse)
   return value as Record<string, unknown>
 }
 

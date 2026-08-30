@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-Independent dsh.client Knowledge workspace for the current laboratory MVP. It mounts into the public lab.knowledge.workspace slot declared by ui-lab-workbench and uses only the typed /api/lab Facade for PDF import, READY status, citation retrieval, fact confirmation, SOP review and publication.
+Independent dsh.client Knowledge workspace for the current laboratory MVP. It registers the root app.view#lab-knowledge page and uses only the typed /api/lab Facade for PDF import, READY status, citation retrieval, fact confirmation, SOP review and publication.
 
 ## Model Experience
 

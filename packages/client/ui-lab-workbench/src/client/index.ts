@@ -1,277 +1,385 @@
-/** 实验自动化工作台的浏览器插件；通过 `conversation.view` 接入现有会话视图。 */
+/** 实验自动化工作台的浏览器插件；通过根级 app.view 与真实 Harness Conversation 组合。 */
 
 import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
-import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { LabWorkbench } from './LabWorkbench.tsx'
 import { LabGlobalNavigation } from './LabGlobalNavigation.tsx'
 import type { LabGlobalNavigationInjected } from './LabGlobalNavigation.tsx'
 import { LabProjectsView } from './LabProjectsView.tsx'
 import type { LabProjectSummary, LabProjectsInjected } from './LabProjectsView.tsx'
+import { LabProjectShellView } from './LabProjectShellView.tsx'
+import type { LabProjectShellInjected } from './LabProjectShellView.tsx'
+import { LabDevicesView } from './LabDevicesView.tsx'
+import type { LabDevicesInjected } from './LabDevicesView.tsx'
 import { LabUiContext } from './LabUiContext.ts'
-import {
-  LabApiError,
-  sendLabProjectCommand,
-  sendLabCommand,
-  toSnapshot,
-  type LabCommand,
-  type LabExperimentRequest,
-  type LabPlan,
-  type LabProjectCommand,
-  type LabProjectView,
-  type LabSkillDraft,
-} from './api.ts'
+import type { LabCitationSelection } from './LabUiContext.ts'
+import { LabApiError, sendLabCommand, sendLabProjectCommand } from './api.ts'
+import type { LabDevice, LabPlanReview, LabProjectView, LabReportView, LabRun, LabArtifactRecord, LabRunComparisonView } from './api.ts'
 import { en, zh, type LabWorkbenchKey } from './locales.ts'
-import { createLabWorkbenchStore } from './store.ts'
-import type { LabWorkbenchInjected } from './LabWorkbench.tsx'
+import type { LabQueryState } from './adapter.ts'
+import { LabConversationHeaderAction } from './LabConversationHeaderAction.tsx'
+import type { LabConversationHeaderInjected } from './LabConversationHeaderAction.tsx'
+import { LabConversationContextDock } from './LabConversationContextDock.tsx'
+import type { LabConversationContextInjected } from './LabConversationContextDock.tsx'
+import { LabCommandCard, LAB_COMMAND_NAMES } from './LabCommandCard.tsx'
+import type { LabCommandCardInjected } from './LabCommandCard.tsx'
+import { LabLifecycleNodeView } from './LabLifecycleNodeView.tsx'
+import type { LabLifecycleNodeInjected } from './LabLifecycleNodeView.tsx'
+import { consumeLabPresentationIntent } from './LabPresentationConsumer.ts'
+import type { LabPresentationTarget } from './LabPresentationConsumer.ts'
+import { LabOperationsView } from './LabOperationsView.tsx'
+import type { LabOperationsInjected } from './LabOperationsView.tsx'
+
+export { LabWorkbenchError } from './adapter.ts'
+export type { LabAdapterErrorCode, LabQueryState, LabWorkbenchAdapter, LabWorkbenchActions, LabWorkbenchQueries, LabKnowledgeScopeView } from './adapter.ts'
+export { createLabFixtureAdapter, LAB_FIXTURE_IDS, parseLabFixtureEvents, serializeLabFixtureEvents } from './fixtures/adapter.ts'
+export type { LabFixtureAdapter, LabFixtureScenario } from './fixtures/adapter.ts'
+export { validateLabPresentationIntent } from './lifecycle.ts'
+export type { LabAgentLifecycleProjection, LabPresentationErrorCode, LabPresentationIntent, LabPresentationScope, LabPresentationValidation, LabPresentationView } from './lifecycle.ts'
+export { consumeLabPresentationIntent } from './LabPresentationConsumer.ts'
+export type { LabPresentationTarget } from './LabPresentationConsumer.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
-  interface SlotMap {
-    /** 独立 Knowledge workspace 的公共挂载点。 */
-    'lab.knowledge.workspace': { kind: 'single'; scope: 'session'; owner: import('./LabWorkbench.tsx').LabKnowledgeWorkspaceOwnerProps }
-  }
   interface LocaleNamespaceMap {
-    /** 实验工作台的阶段与操作文案。 */
+    /** 实验工作台的页面与 Agent 上下文文案。 */
     labWorkbench: LabWorkbenchKey
   }
 }
 
 export type { LabWorkbenchKey } from './locales.ts'
-export type { LabKnowledgeWorkspaceOwnerProps } from './LabWorkbench.tsx'
 export { LabUiContext } from './LabUiContext.ts'
+export { LabCitationLink } from './LabCitationLink.tsx'
+export type { LabCitationLinkProps, LabCitationOrigin } from './LabCitationLink.tsx'
+export { LabAgentLifecycleView } from './LabAgentLifecycleView.tsx'
+export type { LabAgentLifecycleViewProps, LabLifecycleLabels } from './LabAgentLifecycleView.tsx'
+export { LabWorkflowView } from './LabWorkflowView.tsx'
+export type { LabWorkflowLabels, LabWorkflowViewProps } from './LabWorkflowView.tsx'
+export { LabSkillView } from './LabSkillView.tsx'
+export type { LabSkillLabels, LabSkillReviewAction, LabSkillReviewState, LabSkillRevisionChange, LabSkillViewProps } from './LabSkillView.tsx'
+export { LabRunResultView, getResultDisplayState, getRunDisplayState } from './LabRunResultView.tsx'
+export type { LabResultDisplayState, LabRunDisplayState, LabRunResultLabels, LabRunResultViewProps } from './LabRunResultView.tsx'
+export { LabConversationHeaderAction } from './LabConversationHeaderAction.tsx'
+export type { LabConversationHeaderInjected } from './LabConversationHeaderAction.tsx'
+export { LabConversationContextDock } from './LabConversationContextDock.tsx'
+export type { LabConversationContextInjected, LabConversationContextSource } from './LabConversationContextDock.tsx'
+export { LabCommandCard, LAB_COMMAND_NAMES } from './LabCommandCard.tsx'
+export type { LabCommandCardInjected } from './LabCommandCard.tsx'
+export { LabLifecycleNodeView } from './LabLifecycleNodeView.tsx'
+export type { LabLifecycleNodeInjected } from './LabLifecycleNodeView.tsx'
 export type { LabProjectSummary, LabProjectsInjected } from './LabProjectsView.tsx'
+export { LabExperimentDetailView } from './LabExperimentDetailView.tsx'
+export type { LabExperimentDetailLabels, LabExperimentDetailViewProps } from './LabExperimentDetailView.tsx'
+export { LabRunDetailView } from './LabRunDetailView.tsx'
+export type { LabRunDetailLabels, LabRunDetailViewProps } from './LabRunDetailView.tsx'
+export { LabRunComparisonView } from './LabRunComparisonView.tsx'
+export type { LabRunComparisonLabels } from './LabRunComparisonView.tsx'
+export { LabArtifactPreview } from './LabArtifactPreview.tsx'
+export type { LabArtifactPreviewLabels, LabArtifactPreviewValue } from './LabArtifactPreview.tsx'
+export { LabResultReportView } from './LabResultReportView.tsx'
+export type { LabResultReportLabels } from './LabResultReportView.tsx'
+export type { LabDevicesInjected, LabDevicesUi } from './LabDevicesView.tsx'
+export type { LabCitationSelection } from './LabUiContext.ts'
 
 const NS = 'labWorkbench'
+
+/** Host-owned Project scope actions consumed by the independent Knowledge view. */
+export interface LabProjectActions {
+  /** Toggle one Knowledge source in a Project's Host-owned source scope. */
+  readonly toggleSource: (projectId: string, source: { readonly documentId: string; readonly versionId: string }) => Promise<void>
+}
+
+/** Typed navigation service for Agent and conversation presentation consumers. */
+export interface LabPresentationController {
+  /** Open Knowledge and preserve the authorized citation target for the page. */
+  readonly openCitation: (citation: LabCitationSelection) => void
+  /** Validate and consume an Agent presentation request before changing client selection. */
+  readonly present: (value: unknown, scope: import('./lifecycle.ts').LabPresentationScope) => import('./lifecycle.ts').LabPresentationValidation
+}
 
 /** 工作台所需的客户端 Service。 */
 export const inject = ['slots', 'locale', 'sessions', 'layout', 'workspaces']
 
-/** 注册实验工作台及其唯一状态实例。 */
+/** 注册 LABWEAVE 页面，并让真实 Harness Conversation 以底部 Agent dock 作为唯一输入面。 */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-lab-workbench: dictionaries')
 
-  const store = createLabWorkbenchStore()
   const ui = new LabUiContext()
   ctx.effect(() => ctx.reflect.provide('labUi', ui), 'ui-lab-workbench: presentation selection')
+  const projectActions: LabProjectActions = { toggleSource: toggleProjectSource }
+  ctx.effect(() => ctx.reflect.provide('labProjectActions', projectActions), 'ui-lab-workbench: project scope actions')
+  const presentation: LabPresentationController = {
+    openCitation: citation => {
+      ui.openCitation(citation)
+      ctx.layout.openAppView('lab-knowledge')
+    },
+    present: (value, scope) => consumeLabPresentationIntent(value, scope, {
+      ui,
+      openAppView: viewId => { ctx.layout.openAppView(viewId) },
+    } satisfies LabPresentationTarget),
+  }
+  ctx.effect(() => ctx.reflect.provide('labPresentation', presentation), 'ui-lab-workbench: presentation controller')
 
-  const pageInjected = (): LabProjectsInjected => ({
-    ui,
-    listProjects: listProjectSummaries,
-    createProject: createProjectSummary,
-  })
   const registerProjects = (): (() => void) => ctx.slots.register({
     name: 'app.view',
     id: 'lab-projects',
+    default: true,
+    conversationMode: 'agent-dock',
     order: 10,
     locale: NS,
-    inject: pageInjected,
+    inject: (): LabProjectsInjected => ({
+      ui,
+      listProjects: listProjectSummaries,
+      createProject: createProjectSummary,
+      openProjectView: () => { ctx.layout.openAppView('lab-project') },
+    }),
   }, LabProjectsView)
   ctx.slots.inject('app.view', registerProjects)
+
+  const registerProjectShell = (): (() => void) => ctx.slots.register({
+    name: 'app.view',
+    id: 'lab-project',
+    order: 11,
+    conversationMode: 'agent-dock',
+
+    locale: NS,
+    inject: (): LabProjectShellInjected => ({
+      ui,
+      loadProject: loadProjectView,
+      listRuns: listExperimentRuns,
+      listArtifacts: listRunArtifacts,
+      loadRunReport,
+      openArtifact,
+      loadExperimentReviews,
+      compareRuns,
+      retryRun,
+      openSession: (sessionId) => { ctx.sessions.open(sessionId as SessionId) },
+    }),
+  }, LabProjectShellView)
+  ctx.slots.inject('app.view', registerProjectShell)
+
+  const registerMonitor = (): (() => void) => ctx.slots.register({
+    name: 'app.view', id: 'lab-monitor', order: 8, conversationMode: 'agent-dock', locale: NS,
+    inject: (): LabOperationsInjected => ({ kind: 'monitor', ui, listProjects: listProjectSummaries, openAppView: viewId => { ctx.layout.openAppView(viewId) } }),
+  }, LabOperationsView)
+  ctx.slots.inject('app.view', registerMonitor)
+
+  const registerConfiguration = (): (() => void) => ctx.slots.register({
+    name: 'app.view', id: 'lab-config', order: 9, conversationMode: 'agent-dock', locale: NS,
+    inject: (): LabOperationsInjected => ({ kind: 'configuration', ui, listProjects: listProjectSummaries, openAppView: viewId => { ctx.layout.openAppView(viewId) } }),
+  }, LabOperationsView)
+  ctx.slots.inject('app.view', registerConfiguration)
+
+  const registerDevices = (): (() => void) => ctx.slots.register({
+    name: 'app.view',
+    id: 'lab-devices',
+    order: 13,
+    locale: NS,
+    inject: (): LabDevicesInjected => ({
+      ui,
+      source: 'real',
+      loadDevices: listDevices,
+    }),
+  }, LabDevicesView)
+  ctx.slots.inject('app.view', registerDevices)
 
   const registerGlobalNavigation = (): (() => void) => ctx.slots.register({
     name: 'sidebar.navigation',
     id: 'lab-global-navigation',
     order: 10,
     locale: NS,
-    inject: (): LabGlobalNavigationInjected => ({ openAppView: (viewId) => { ctx.layout.openAppView(viewId) } }),
+    inject: (): LabGlobalNavigationInjected => ({
+      openAppView: (viewId) => { ctx.layout.openAppView(viewId) },
+      ui,
+      listProjects: listProjectSummaries,
+    }),
   }, LabGlobalNavigation)
   ctx.slots.inject('sidebar.navigation', registerGlobalNavigation)
 
-  const register = (): (() => void) => ctx.slots.register({
-    name: 'conversation.view',
-    id: 'lab-workbench',
-    order: 20,
+  ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register({
+    name: 'conversation.session.header.actions',
+    id: 'lab-context-action',
+    order: 30,
     locale: NS,
-    children: {
-      'lab.knowledge.workspace': { kind: 'single', scope: 'session' },
-    },
-    store,
-    inject: (sessionId: SessionId, actions: BoundActions<typeof store>): LabWorkbenchInjected => {
-      let latestExperimentId: string | undefined
-      const withSession = (command: LabCommand): LabCommand => ({ ...command, sessionId })
-      const withProjectSession = (command: LabProjectCommand): LabProjectCommand => ({ ...command, sessionId })
-      const run = async (label: string, command: LabCommand): Promise<void> => {
-        actions.setPending(label)
-        actions.setError(undefined)
-        try {
-          const result = await sendLabCommand(withSession(command))
-          applyResult(actions, command, result.value)
-          if (command.command !== 'snapshot' && command.command !== 'knowledge-search' && latestExperimentId !== undefined) await refresh(latestExperimentId)
-        } catch (error) {
-          actions.setError(formatError(error))
-        } finally {
-          actions.setPending(undefined)
-        }
-      }
+    inject: (): LabConversationHeaderInjected => ({ ui, openWorkbench: () => { ctx.layout.openAppView('lab-project') } }),
+  }, LabConversationHeaderAction))
+  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+    name: 'conversation.input.dock',
+    id: 'lab-context-dock',
+    order: 10,
+    locale: NS,
+    inject: (): LabConversationContextInjected => ({ ui }),
+  }, LabConversationContextDock))
+  for (const commandName of LAB_COMMAND_NAMES) {
+    ctx.slots.inject('conversation.chat.commandview', () => ctx.slots.register({
+      name: 'conversation.chat.commandview',
+      key: commandName,
+      locale: NS,
+      inject: (): LabCommandCardInjected => ({ openWorkbench: () => { ctx.layout.openAppView('lab-project') } }),
+    }, LabCommandCard))
+  }
+  ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
+    name: 'conversation.chat.node',
+    key: 'lab-lifecycle',
+    locale: NS,
+    inject: (): LabLifecycleNodeInjected => ({
+      openDetail: event => { openLifecycleDetail(event, ui, ctx) },
+      openCitation: citation => { presentation.openCitation(citation) },
+    }),
+  }, LabLifecycleNodeView))
 
-      const refresh = async (experimentId: string): Promise<void> => {
-        latestExperimentId = experimentId
-        await run('snapshot', { command: 'snapshot', experimentId })
-      }
-
-
-      const projectRun = async (label: string, command: LabProjectCommand): Promise<unknown> => {
-        actions.setPending(label)
-        actions.setError(undefined)
-        try {
-          const result = await sendLabProjectCommand(withProjectSession(command))
-          if (Array.isArray(result.value)) {
-            actions.setProjectViews(result.value.map(toProjectView))
-            return result.value
-          } else {
-            const view = toProjectView(result.value)
-            const project = view.project ?? {}
-            const projectId = typeof project.projectId === 'string' ? project.projectId : undefined
-            const projectName = typeof project.name === 'string' ? project.name : undefined
-            if (projectId !== undefined) actions.setProjectId(projectId)
-            if (projectName !== undefined) actions.setProjectName(projectName)
-            actions.setProjectView(view)
-            actions.setSelectedSourceKeysText(view.sources.map(source => `${stringValue(source.documentId)}:${stringValue(source.versionId)}`).join('\n'))
-            actions.setSelectedDeviceIdsText(view.devices.map(device => stringValue(device.deviceId, stringValue(device.id))).filter(value => value !== '').join(', '))
-            return result.value
-          }
-        } catch (error) {
-          actions.setError(formatError(error))
-        } finally {
-          actions.setPending(undefined)
-        }
-      }
-
-      const listProjects = async (): Promise<void> => { await projectRun('project-list', { command: 'project-list' }) }
-      const openSession = (targetSessionId: string): void => { ctx.sessions.open(targetSessionId as SessionId) }
-      const createSession = async (projectId: string, title?: string): Promise<void> => {
-        const value = await projectRun('project-session-create', {
-          command: 'project-session-create',
-          projectId,
-          ...title === undefined ? {} : { title },
-        })
-        if (value === undefined || Array.isArray(value)) return
-        const sessions = toProjectView(value).sessions
-        const created = sessions.at(-1)
-        if (created !== undefined && typeof created.sessionId === 'string') openSession(created.sessionId)
-      }
-      const openProject = async (projectId: string): Promise<void> => { await projectRun('project-open', { command: 'project-open', projectId }) }
-      const createProject = async (name: string): Promise<void> => {
-        await projectRun('project-create', { command: 'project-create', name })
-      }
-      const updateProjectScope = async (
-        projectId: string,
-        sources: readonly { readonly documentId: string; readonly versionId: string }[],
-        deviceIds: readonly string[],
-      ): Promise<void> => { await projectRun('project-scope-update', { command: 'project-scope-update', projectId, sources, deviceIds }) }
-      const associateSession = async (projectId: string, targetSessionId: string, title?: string): Promise<void> => { await projectRun('project-session-attach', {
-        command: 'project-session-attach',
-        projectId,
-        targetSessionId,
-        ...title === undefined ? {} : { title },
-      }) }
-      const renameSession = async (projectId: string, targetSessionId: string, title: string): Promise<void> => { await projectRun('project-session-rename', {
-        command: 'project-session-rename',
-        projectId,
-        targetSessionId,
-        title,
-      }) }
-
-
-
-      const requestAction = async (label: string, request: LabExperimentRequest, command: LabCommand): Promise<void> => {
-        latestExperimentId = request.experimentId
-        await run(label, command)
-      }
-
-      const createExperiment = (request: LabExperimentRequest): Promise<void> => requestAction('experiment-create', request, { command: 'experiment-create', request })
-      const buildContext = (request: LabExperimentRequest): Promise<void> => requestAction('planning-context', request, { command: 'planning-context', request })
-      const proposeLocalPlan = async (request: LabExperimentRequest, content: string): Promise<void> => {
-        let input: {
-          readonly request: LabExperimentRequest
-          readonly plan: LabPlan
-          readonly skillDrafts: LabSkillDraft[]
-        }
-        try {
-          const value = JSON.parse(content) as unknown
-          const object = asRecord(value)
-          if (!Array.isArray(object.skillDrafts) || !isRecord(object.plan)) throw new Error('本地计划 JSON 必须包含 plan 对象和 skillDrafts 数组')
-          input = {
-            request,
-            plan: object.plan,
-            skillDrafts: object.skillDrafts as LabSkillDraft[],
-          }
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error)
-          actions.setError(formatError(new LabApiError('INVALID_OUTPUT', message)))
-          return
-        }
-        await requestAction('plan-propose', request, {
-          command: 'plan-propose',
-          input,
-        })
-      }
-      const validatePlan = (planId: string): Promise<void> => run('plan-validate', { command: 'plan-validate', planId })
-      const approvePlan = (experimentId: string, planId: string, approvedBy: string): Promise<void> => run('plan-approve', { command: 'plan-approve', experimentId, planId, approvedBy })
-      const validateSkill = (revisionId: string): Promise<void> => run('skill-validate', { command: 'skill-validate', revisionId })
-      const approveSkill = (revisionId: string, approvedBy: string): Promise<void> => run('skill-approve', { command: 'skill-approve', revisionId, approvedBy })
-      const activateSkill = (revisionId: string): Promise<void> => run('skill-activate', { command: 'skill-activate', revisionId })
-      const startRun = (experimentId: string, planId: string): Promise<void> => run('run-start', { command: 'run-start', experimentId, planId })
-      const executeStep = (runId: string): Promise<void> => run('run-step', { command: 'run-step', runId })
-      const confirmStep = (runId: string, evidence: string, confirmedBy: string, stepId?: string): Promise<void> => run('run-confirm', {
-        command: 'run-confirm',
-        runId,
-        evidence: splitLines(evidence),
-        confirmedBy,
-        ...stepId === undefined || stepId.trim() === '' ? {} : { stepId },
-      })
-      const stopRun = (runId: string, requestedBy: string): Promise<void> => run('run-stop', { command: 'run-stop', runId, requestedBy })
-      const report = (runId: string): Promise<void> => run('run-report', { command: 'run-report', runId })
-
-      return {
-        refresh,
-        listProjects,
-        openSession,
-        createSession,
-        openProject,
-        createProject,
-        updateProjectScope,
-        associateSession,
-        renameSession,
-        createExperiment,
-        buildContext,
-
-        proposeLocalPlan,
-        validatePlan,
-        approvePlan,
-        validateSkill,
-        approveSkill,
-        activateSkill,
-        startRun,
-        executeStep,
-        confirmStep,
-        stopRun,
-        report,
-      }
-    },
-  }, LabWorkbench)
-
-  ctx.slots.inject('conversation.view', register)
 }
 
-function formatError(error: unknown): string {
-  return error instanceof LabApiError ? error.code + ': ' + error.message : error instanceof Error ? error.message : String(error)
+function openLifecycleDetail(event: import('./lifecycle.ts').LabAgentLifecycleProjection, ui: LabUiContext, ctx: ClientContext): void {
+  if (event.kind === 'execution') {
+    if (event.run.runId !== undefined) ui.selectRun(event.run.runId)
+    ui.openProjectPage('execution')
+  } else if (event.kind === 'result-assessment') {
+    ui.selectRun(event.runId)
+    ui.openProjectPage('evidence')
+  } else if (event.kind === 'report') {
+    ui.openProjectPage('evidence')
+  } else {
+    ui.openProjectPage('planning')
+  }
+  // The application view is intentionally selected after the typed UI state.
+  // The workbench then reloads the owning Host records for that selection.
+  ctx.layout.openAppView('lab-project')
+}
+
+async function listDevices(experimentId: string): Promise<LabQueryState<readonly LabDevice[]>> {
+  try {
+    void experimentId
+    const result = await sendLabCommand({ command: 'device-list' })
+    if (result.kind !== 'device-list') return hostQueryFailure('设备列表响应格式无效')
+    return { state: 'ready', value: result.value }
+  } catch (error) {
+    return hostQueryFailure(error)
+  }
 }
 
 async function listProjectSummaries(): Promise<readonly LabProjectSummary[]> {
   const result = await sendLabProjectCommand({ command: 'project-list' })
   if (result.kind !== 'project-list' || !Array.isArray(result.value)) throw new LabApiError('INVALID_RESPONSE', '项目列表响应格式无效')
-  return result.value.map(value => projectSummary(value))
+  return Promise.all(result.value.map(async value => {
+    const summary = projectSummary(value)
+    const experiments = array(asRecord(value).experiments).flatMap(item => {
+      const record = asRecord(item)
+      return typeof record.experimentId === 'string' ? [record.experimentId] : []
+    })
+    const states = await Promise.all(experiments.map(experimentId => listExperimentRuns(experimentId)))
+    const runs = states.flatMap(state => state.state === 'ready' ? [...state.value] : [])
+    const active = runs.filter(run => run.runStatus === 'CREATED' || run.runStatus === 'WAITING_CONFIRMATION' || run.runStatus === 'RUNNING' || run.runStatus === 'BLOCKED')
+    const activeRunCount = active.length
+    const failedRunCount = runs.filter(run => run.runStatus === 'FAILED').length
+    const pendingApprovalCount = runs.filter(run => run.runStatus === 'WAITING_CONFIRMATION').length
+    const currentStepId = active.find(run => run.currentStepId !== undefined)?.currentStepId
+    return currentStepId === undefined
+      ? { ...summary, activeRunCount, failedRunCount, pendingApprovalCount }
+      : { ...summary, activeRunCount, failedRunCount, pendingApprovalCount, currentStepId }
+  }))
+}
+
+async function toggleProjectSource(projectId: string, source: { readonly documentId: string; readonly versionId: string }): Promise<void> {
+  const current = await sendLabProjectCommand({ command: 'project-open', projectId })
+  if (current.kind !== 'project') throw new LabApiError('INVALID_RESPONSE', '项目范围响应格式无效')
+  const existing = current.value.sources.some(item => item.documentId === source.documentId && item.versionId === source.versionId)
+  const sources = current.value.sources.flatMap(item => item.documentId !== undefined && item.versionId !== undefined
+    ? [{ documentId: item.documentId, versionId: item.versionId }]
+    : [])
+  const nextSources = existing
+    ? sources.filter(item => item.documentId !== source.documentId || item.versionId !== source.versionId)
+    : [...sources, source]
+  const deviceIds = current.value.devices.flatMap(item => {
+    const deviceId = item.deviceId ?? item.id
+    return deviceId === undefined ? [] : [deviceId]
+  })
+  const updated = await sendLabProjectCommand({ command: 'project-scope-update', projectId, sources: nextSources, deviceIds })
+  if (updated.kind !== 'project') throw new LabApiError('INVALID_RESPONSE', '项目范围更新响应格式无效')
 }
 
 async function createProjectSummary(workspaceId: string, name: string): Promise<LabProjectSummary> {
   const result = await sendLabProjectCommand({ command: 'project-create', workspaceId, name })
   if (result.kind !== 'project') throw new LabApiError('INVALID_RESPONSE', '项目创建响应格式无效')
   return projectSummary(result.value)
+}
+
+async function loadProjectView(projectId: string): Promise<LabQueryState<LabProjectView>> {
+  try {
+    const result = await sendLabProjectCommand({ command: 'project-open', projectId })
+    if (result.kind !== 'project') return hostQueryFailure('项目详情响应格式无效')
+    return { state: 'ready', value: result.value }
+  } catch (error) {
+    return hostQueryFailure(error)
+  }
+}
+
+async function listExperimentRuns(experimentId: string): Promise<LabQueryState<readonly LabRun[]>> {
+  try {
+    const result = await sendLabProjectCommand({ command: 'run-list', experimentId })
+    if (result.kind !== 'run-list') return hostQueryFailure('Run 列表响应格式无效')
+    return { state: 'ready', value: result.value }
+  } catch (error) {
+    return hostQueryFailure(error)
+  }
+}
+
+async function loadRunReport(runId: string): Promise<LabQueryState<LabReportView>> {
+  try {
+    const result = await sendLabProjectCommand({ command: 'run-report', runId })
+    if (result.kind !== 'run-report') return hostQueryFailure('Run 报告响应格式无效')
+    return { state: 'ready', value: result.value }
+  } catch (error) {
+    return hostQueryFailure(error)
+  }
+}
+
+async function listRunArtifacts(runId: string): Promise<LabQueryState<readonly LabArtifactRecord[]>> {
+  try {
+    const result = await sendLabProjectCommand({ command: 'artifact-list', runId })
+    if (result.kind !== 'artifact-list') return hostQueryFailure('Artifact 列表响应格式无效')
+    return { state: 'ready', value: result.value }
+  } catch (error) {
+    return hostQueryFailure(error)
+  }
+}
+
+async function loadExperimentReviews(experimentId: string): Promise<LabQueryState<readonly LabPlanReview[]>> {
+  try {
+    const result = await sendLabProjectCommand({ command: 'experiment-reviews', experimentId })
+    if (result.kind !== 'experiment-reviews') return hostQueryFailure('实验计划审查响应格式无效')
+    return { state: 'ready', value: result.value }
+  } catch (error) {
+    return hostQueryFailure(error)
+  }
+}
+
+async function compareRuns(leftRunId: string, rightRunId: string): Promise<LabQueryState<LabRunComparisonView>> {
+  try {
+    const result = await sendLabProjectCommand({ command: 'run-compare', leftRunId, rightRunId })
+    if (result.kind !== 'run-comparison') return hostQueryFailure('Run 比较响应格式无效')
+    return { state: 'ready', value: result.value }
+  } catch (error) {
+    return hostQueryFailure(error)
+  }
+}
+
+async function openArtifact(runId: string, artifactId: string): Promise<LabArtifactRecord> {
+  const result = await sendLabProjectCommand({ command: 'artifact-open', runId, artifactId })
+  if (result.kind !== 'artifact') throw new LabApiError('INVALID_RESPONSE', 'Artifact 打开响应格式无效')
+  return result.value
+}
+
+async function retryRun(runId: string): Promise<LabRun> {
+  const result = await sendLabProjectCommand({ command: 'run-retry', runId })
+  if (result.kind !== 'run') throw new LabApiError('INVALID_RESPONSE', 'Run 重试响应格式无效')
+  return result.value
+}
+
+function hostQueryFailure<T>(error: unknown): LabQueryState<T> {
+  return { state: 'failed', code: 'PROVIDER_UNAVAILABLE', message: error instanceof Error ? error.message : String(error), retryable: true }
 }
 
 function projectSummary(value: unknown): LabProjectSummary {
@@ -295,31 +403,8 @@ function projectSummary(value: unknown): LabProjectSummary {
 }
 
 function stringField(value: unknown, path: string): string {
-  if (typeof value !== 'string' || value.trim() === '') throw new LabApiError('INVALID_RESPONSE', `${path} 缺少有效字符串`)
+  if (typeof value !== 'string' || value.trim() === '') throw new LabApiError('INVALID_RESPONSE', path + ' 缺少有效字符串')
   return value
-}
-function stringValue(value: unknown, fallback = ''): string {
-  return typeof value === 'string' ? value : fallback
-}
-function applyResult(actions: BoundActions<ReturnType<typeof createLabWorkbenchStore>>, command: LabCommand, value: unknown): void {
-  if (command.command === 'snapshot' || command.command === 'experiment-create') {
-    actions.setSnapshot(toSnapshot(value))
-    return
-  }
-  if (command.command === 'planning-context') {
-    actions.setPlanningContext(asRecord(value))
-  }
-}
-function toProjectView(value: unknown): LabProjectView {
-  const object = asRecord(value)
-  return {
-    project: asRecord(object.project),
-    sources: array(object.sources).map(item => asRecord(item)),
-    devices: array(object.devices).map(item => asRecord(item)),
-    sessions: array(object.sessions).map(item => asRecord(item)),
-    sharedFacts: array(object.sharedFacts).map(item => asRecord(item)),
-    evidence: array(object.evidence).map(item => asRecord(item)),
-  }
 }
 
 function array(value: unknown): unknown[] {
@@ -329,12 +414,4 @@ function array(value: unknown): unknown[] {
 function asRecord(value: unknown): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
   return value as Record<string, unknown>
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function splitLines(value: string): readonly string[] {
-  return value.split(/\r?\n/).map(item => item.trim()).filter(item => item !== '')
 }

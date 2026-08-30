@@ -1,0 +1,150 @@
+.root {
+  min-height: 100%;
+  padding: 32px clamp(20px, 5vw, 72px);
+  color: #e8f0ea;
+  background: radial-gradient(circle at top right, #203526 0, #0d1512 48%, #0a0f0e 100%);
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.eyebrow {
+  color: #9bd47b;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 8px 0 0;
+  font-size: clamp(30px, 4vw, 52px);
+  font-weight: 500;
+}
+
+.summary {
+  color: #aebdb3;
+  font-size: 14px;
+}
+
+.status {
+  min-width: 168px;
+  padding: 14px 16px;
+  border: 1px solid #315540;
+  border-radius: 14px;
+  background: #14251a;
+}
+
+.statusLabel {
+  display: block;
+  color: #93a89a;
+  font-size: 12px;
+}
+
+.statusValue {
+  display: block;
+  margin-top: 5px;
+  color: #b9f18e;
+  font-size: 16px;
+}
+
+.notice {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid #5d5130;
+  border-radius: 12px;
+  color: #e5d7a1;
+  background: #2a2415;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  padding: 20px;
+  border: 1px solid #2c4635;
+  border-radius: 16px;
+  background: rgba(19, 32, 24, .86);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.deviceName {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.deviceId,
+.muted {
+  color: #91a397;
+  font-size: 12px;
+}
+
+.badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #07100a;
+  background: #a7e681;
+  font-size: 11px;
+}
+
+.badgeMuted {
+  color: #d5c58d;
+  background: #544924;
+}
+
+.details {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0 0;
+  color: #c4d1c8;
+  font-size: 13px;
+}
+
+.details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.capability {
+  padding: 5px 8px;
+  border: 1px solid #42624b;
+  border-radius: 8px;
+  color: #b9d6be;
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .root {
+    padding: 24px 18px;
+  }
+
+  .header {
+    display: block;
+  }
+
+  .status {
+    margin-top: 18px;
+  }
+}

@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-当前实验室 MVP 的独立 dsh.client Knowledge 工作区。它挂载到 ui-lab-workbench 声明的公开 lab.knowledge.workspace slot，只通过类型化 /api/lab Facade 完成 PDF 导入、READY 状态、引用检索、事实确认、SOP 审核和发布。
+当前实验室 MVP 的独立 dsh.client Knowledge 工作区。它注册为根级 app.view#lab-knowledge 页面，只通过类型化 /api/lab Facade 完成 PDF 导入、READY 状态、引用检索、事实确认、SOP 审核和发布。
 
 ## Model Experience
 

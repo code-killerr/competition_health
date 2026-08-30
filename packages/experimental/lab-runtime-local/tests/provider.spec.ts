@@ -229,6 +229,7 @@ describe('local runtime controlled execution', () => {
   it('rejects the pre-multi-run SQLite state format during recovery', async () => {
     const root = await mkdtemp(join(tmpdir(), 'lab-runtime-legacy-'))
     const path = join(root, 'runtime.sqlite')
+    let provider: LocalLabRuntimeProvider | undefined
     try {
       const database = new DatabaseSync(path)
       database.exec('CREATE TABLE experiments (experiment_id TEXT PRIMARY KEY, state_json TEXT NOT NULL) STRICT')
@@ -238,9 +239,10 @@ describe('local runtime controlled execution', () => {
       )
       database.close()
 
-      const provider = new LocalLabRuntimeProvider(device, new SqliteRuntimeStateStore(path))
+      provider = new LocalLabRuntimeProvider(device, new SqliteRuntimeStateStore(path))
       await expect(provider.readyState()).rejects.toThrow(/unsupported runtime state version/)
     } finally {
+      await provider?.dispose()
       await rm(root, { recursive: true, force: true })
     }
   })

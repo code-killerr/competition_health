@@ -1,0 +1,16 @@
+.root { display: grid; gap: 14px; }
+.header, .header > div, .summary, .summaryItem, .step { display: flex; align-items: center; gap: 12px; }
+.header, .summaryItem { justify-content: space-between; }
+.header h2, .step h3 { margin: 0; }
+.header > div { align-items: baseline; }
+.header > div > span, .summaryItem > span { color: var(--dsw-alias-fg-muted, #778078); font-size: 12px; }
+.badge { border-radius: 999px; padding: 4px 8px; background: var(--dsw-alias-bg-subtle, #eef2ed); font-size: 12px; }
+.summary { flex-wrap: wrap; align-items: stretch; }
+.summaryItem { min-width: 120px; flex: 1 1 120px; padding: 10px; border: 1px solid var(--dsw-alias-border-subtle, #d7ddd8); border-radius: 10px; }
+.summaryItem strong { text-align: right; }
+.steps { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.step { align-items: flex-start; padding: 12px; border: 1px solid var(--dsw-alias-border-subtle, #d7ddd8); border-radius: 12px; }
+.stepMarker { display: grid; place-items: center; flex: 0 0 28px; height: 28px; border-radius: 50%; background: #d8e9d2; color: #23452c; font-weight: 700; }
+.stepBody { display: grid; gap: 10px; min-width: 0; flex: 1; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.empty { margin: 0; color: var(--dsw-alias-fg-muted, #778078); }

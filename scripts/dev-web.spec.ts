@@ -3,7 +3,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import type { TsdownBundle } from 'tsdown'
-import { discoverLibraryDirs, discoverPluginDirs, watchClientPlugins } from './dev-web.ts'
+import { assertClientBuildFresh, discoverLibraryDirs, discoverPluginDirs, watchClientPlugins } from './dev-web.ts'
+
+it('rejects a watch session without a complete client build record', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-dev-web-freshness-'))
+  try {
+    expect(() => { assertClientBuildFresh(root) }).toThrow(/client build record.*missing/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
 
 it('discovers dsh.client packages with sibling roles', async () => {
   const root = await mkdtemp(join(tmpdir(), 'dsh-dev-web-discovery-'))

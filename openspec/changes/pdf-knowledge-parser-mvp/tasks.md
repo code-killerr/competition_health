@@ -22,5 +22,5 @@
 
 - [x] 4.1 Add Provider tests for content-hash deduplication, configured PDF parser citations, parser-unavailable failure, FTS5-only retrieval and SOP publication gating; verify the focused Knowledge test suite passes.
 - [x] 4.2 Add a composed keyless test using one real PDF fixture with the deterministic parser, then publish a cited SOP and retrieve its published step; verify the test does not require a model key or network.
-- [ ] 4.3 Run the MVP package tests, typecheck and OpenSpec validation; verify no production `pdf-knowledge-parser` artifacts or unrelated packages are modified.
+- [x] 4.3 Run the MVP package tests, typecheck and OpenSpec validation; verify no production `pdf-knowledge-parser` artifacts or unrelated packages are modified.
 

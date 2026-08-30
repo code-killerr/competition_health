@@ -5,15 +5,21 @@ import {
   type ExperimentPlan,
   type ExperimentRequest,
   type CitationId,
+  type KnowledgeConflict,
   type KnowledgeSearchRequest,
+  type KnowledgeSearchResult,
   type KnowledgeSopDraftId,
   type PlanParameter,
   type PlanStep,
   type UnitValue,
 } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { PlanProposalInput } from '@deepseek-ai/dsh-experimental-lab-planning'
-import type { CreateSopDraftRequest, UpdateSopDraftRequest } from '@deepseek-ai/dsh-experimental-lab-knowledge'
-import type { LabSkillDraft } from '@deepseek-ai/dsh-experimental-lab-skill'
+import type { CreateSopDraftRequest, ImportDocumentResult, ImportStatusResult, SopDraftResult, UpdateSopDraftRequest } from '@deepseek-ai/dsh-experimental-lab-knowledge'
+import type { PlanProposalResult, PlanningContext } from '@deepseek-ai/dsh-experimental-lab-planning'
+import type { LabSkillDraft, LabSkillRevision } from '@deepseek-ai/dsh-experimental-lab-skill'
+import type { DeviceView } from '@deepseek-ai/dsh-experimental-lab-device'
+import type { LabRunReport, RunView } from '@deepseek-ai/dsh-experimental-lab-runtime'
+import type { KnowledgeCapabilityStatus } from '@deepseek-ai/dsh-experimental-lab-project'
 import type { OperationId, PlanStepId, RunId, SkillRevisionId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 
@@ -28,23 +34,36 @@ export type LabWebErrorCode =
   | 'PROVIDER_UNAVAILABLE'
   | 'INTERNAL_ERROR'
 
-/** Facade 返回的命令结果。 */
+/** Serializable snapshot assembled from the Host capability projections. */
+export interface LabWebSnapshotView {
+  readonly knowledge: readonly ImportStatusResult[]
+  readonly knowledgeCapability: KnowledgeCapabilityStatus
+  readonly devices: readonly DeviceView[]
+  readonly planningContext?: PlanningContext
+  readonly planReviews: readonly PlanProposalResult[]
+  readonly run?: RunView
+  readonly report?: LabRunReport
+}
+
+/** Facade results grouped by the capability that owns each record. */
 export type LabWebCommandResult =
-  | { readonly kind: 'snapshot'; readonly value: unknown }
-  | { readonly kind: 'knowledge-import'; readonly value: unknown }
-  | { readonly kind: 'knowledge-search'; readonly value: unknown }
-  | { readonly kind: 'knowledge-fact-confirm'; readonly value: unknown }
-  | { readonly kind: 'knowledge-sop'; readonly value: unknown }
-  | { readonly kind: 'planning-context'; readonly value: unknown }
-  | { readonly kind: 'plan-proposal'; readonly value: unknown }
-  | { readonly kind: 'plan-rejection'; readonly value: unknown }
-  | { readonly kind: 'skill-revision'; readonly value: unknown }
-  | { readonly kind: 'run'; readonly value: unknown }
-  | { readonly kind: 'report'; readonly value: unknown }
+  | { readonly kind: 'snapshot'; readonly value: LabWebSnapshotView }
+  | { readonly kind: 'device-list'; readonly value: readonly DeviceView[] }
+  | { readonly kind: 'knowledge-import'; readonly value: ImportDocumentResult }
+  | { readonly kind: 'knowledge-search'; readonly value: { readonly capability: KnowledgeCapabilityStatus; readonly results: readonly KnowledgeSearchResult[]; readonly conflicts: readonly KnowledgeConflict[] } }
+  | { readonly kind: 'knowledge-fact-confirm'; readonly value: null }
+  | { readonly kind: 'knowledge-sop'; readonly value: SopDraftResult | undefined | readonly SopDraftResult[] }
+  | { readonly kind: 'planning-context'; readonly value: PlanningContext }
+  | { readonly kind: 'plan-proposal'; readonly value: PlanProposalResult }
+  | { readonly kind: 'plan-rejection'; readonly value: PlanProposalResult }
+  | { readonly kind: 'skill-revision'; readonly value: LabSkillRevision }
+  | { readonly kind: 'run'; readonly value: RunView }
+  | { readonly kind: 'report'; readonly value: LabRunReport }
 
 /** 可执行的 Web 命令；领域 ID 已在解析阶段完成 branding。 */
 export type LabWebCommand = { readonly sessionId?: SessionId } & (
   | { readonly command: 'snapshot'; readonly experimentId: ExperimentRequest['experimentId'] }
+  | { readonly command: 'device-list' }
   | { readonly command: 'knowledge-import'; readonly name: string; readonly bytes: Uint8Array; readonly metadata: Readonly<Record<string, string>> }
   | { readonly command: 'knowledge-search'; readonly request: KnowledgeSearchRequest }
   | { readonly command: 'knowledge-fact-confirm'; readonly citationId: CitationId; readonly confirmedBy: string; readonly note?: string }
@@ -76,7 +95,7 @@ export type LabWebCommand = { readonly sessionId?: SessionId } & (
 export function parseLabWebCommand(value: unknown): LabWebCommand {
   const object = record(value, 'command')
   const command = literal(object.command, 'command.command', [
-    'snapshot', 'knowledge-import', 'knowledge-search', 'knowledge-fact-confirm', 'experiment-create', 'planning-context',
+    'snapshot', 'device-list', 'knowledge-import', 'knowledge-search', 'knowledge-fact-confirm', 'experiment-create', 'planning-context',
     'knowledge-sop-create', 'knowledge-sop-get', 'knowledge-sop-list', 'knowledge-sop-update', 'knowledge-sop-publish',
     'plan-propose', 'plan-validate', 'plan-approve', 'plan-reject', 'run-start', 'run-step',
     'skill-validate', 'skill-approve', 'skill-activate', 'run-confirm', 'run-stop', 'run-report',
@@ -86,6 +105,8 @@ export function parseLabWebCommand(value: unknown): LabWebCommand {
     switch (command) {
       case 'snapshot':
         return { command, experimentId: experimentId(object.experimentId, 'command.experimentId') }
+      case 'device-list':
+        return { command }
       case 'knowledge-import':
         return {
           command,

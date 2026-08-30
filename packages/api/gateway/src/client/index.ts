@@ -52,6 +52,11 @@ interface RemoteNamespaceHandle {
   readonly dispose: TypertDisposer
 }
 
+/** Resolve a generated namespace only in the compiler face that declares it. */
+type ClientRemoteNamespace<Name extends string> = Name extends keyof TypertClientRemote
+  ? TypertClientRemote[Name]
+  : never
+
 /** One descriptor's mounted variants, for the group disposer to unwind. */
 interface InstalledMethod {
   readonly descriptor: InvocationDescriptor
@@ -94,6 +99,13 @@ interface RemoteEventSubscription {
 }
 
 class ClientRemoteService extends Service implements TypertClientRemote {
+  declare readonly commands: ClientRemoteNamespace<'commands'>
+  declare readonly goals: ClientRemoteNamespace<'goals'>
+  declare readonly dynamicCordisRunner: ClientRemoteNamespace<'dynamicCordisRunner'>
+  declare readonly fileReferences: ClientRemoteNamespace<'fileReferences'>
+  declare readonly pluginInventory: ClientRemoteNamespace<'pluginInventory'>
+  declare readonly messageFeedback: ClientRemoteNamespace<'messageFeedback'>
+  declare readonly sessionReferences: ClientRemoteNamespace<'sessionReferences'>
   private readonly ownerCtx: Context
   private readonly namespaces = new Map<string, RemoteNamespaceHandle>()
   private readonly subscriptions = new Map<string, RemoteEventSubscription[]>()

@@ -28,11 +28,18 @@ const CLIENT_COMMIT_HASH_VARIABLE = 'DSH_CLIENT_COMMIT_HASH'
 /** Repository-relative path of the complete client build record. */
 export const CLIENT_BUILD_RECORD_PATH = '.dsh-build/client-build-environment.json'
 
-const CLIENT_BUILD_RECORD_FORMAT = 1
+const CLIENT_BUILD_RECORD_FORMAT = 2
 const CLIENT_ARTIFACT_PATTERNS = [
   'apps/web/dist/**/*',
   'packages/*/*/lib/client.js',
   'packages/*/*/lib/client.js.map',
+] as const
+const CLIENT_SOURCE_PATTERNS = [
+  'apps/web/index.html',
+  'apps/web/src/**/*',
+  'apps/web/vite.config.ts',
+  'packages/client/*/src/**/*',
+  'packages/client/tsdown.client.ts',
 ] as const
 
 /** Public values embedded in one set of client artifacts. */
@@ -81,12 +88,22 @@ interface ClientArtifactDigest {
   readonly sha256: string
 }
 
+/** Digest of the source files that feed the Web client artifacts. */
+interface ClientSourceDigest {
+  /** Number of source files covered by the digest. */
+  readonly fileCount: number
+  /** Lowercase SHA-256 digest of sorted paths and file contents. */
+  readonly sha256: string
+}
+
 /** Durable description of one complete root client build. */
 export interface ClientBuildRecord {
   /** Record schema version. */
   readonly formatVersion: number
   /** Exact public environment embedded by Vite and tsdown. */
   readonly environment: ClientBuildEnvironment
+  /** Digest of the source files that must be newer than the recorded build. */
+  readonly source: ClientSourceDigest
   /** Digest that binds the environment to the current artifacts. */
   readonly artifacts: ClientArtifactDigest
 }
@@ -201,6 +218,7 @@ export function writeClientBuildRecord(
   const record: ClientBuildRecord = {
     formatVersion: CLIENT_BUILD_RECORD_FORMAT,
     environment: clientBuildEnvironment(environment),
+    source: clientSourceDigest(root),
     artifacts: clientArtifactDigest(root),
   }
   const path = resolve(root, CLIENT_BUILD_RECORD_PATH)
@@ -240,16 +258,36 @@ export function readClientBuildRecord(
       `client artifacts differ from ${CLIENT_BUILD_RECORD_PATH}; run a complete pnpm run build before consuming them`,
     )
   }
+  const source = clientSourceDigest(root)
+  if (source.fileCount !== record.source.fileCount || source.sha256 !== record.source.sha256) {
+    throw new Error(
+      `client sources differ from ${CLIENT_BUILD_RECORD_PATH}; run a complete pnpm run build before consuming them`,
+    )
+  }
   return record
 }
 
 /** Return the deterministic digest of every artifact affected by the public client environment. */
 function clientArtifactDigest(root: string): ClientArtifactDigest {
-  const paths = globSync([...CLIENT_ARTIFACT_PATTERNS], { cwd: root })
+  return digestFiles(root, CLIENT_ARTIFACT_PATTERNS, 'complete client build produced no Vite or dynamic client artifacts')
+}
+
+/** Return the deterministic digest of every source file feeding the client build. */
+function clientSourceDigest(root: string): ClientSourceDigest {
+  return digestFiles(root, CLIENT_SOURCE_PATTERNS, 'client build has no source files')
+}
+
+/** Hash one sorted set of repository-relative files. */
+function digestFiles<T extends { readonly fileCount: number; readonly sha256: string }>(
+  root: string,
+  patterns: readonly string[],
+  emptyMessage: string,
+): T {
+  const paths = globSync([...patterns], { cwd: root })
     .map(path => path.replaceAll('\\', '/'))
     .filter(path => statSync(resolve(root, path)).isFile())
     .sort()
-  if (paths.length === 0) throw new Error('complete client build produced no Vite or dynamic client artifacts')
+  if (paths.length === 0) throw new Error(emptyMessage)
 
   const digest = createHash('sha256')
   for (const path of paths) {
@@ -259,12 +297,12 @@ function clientArtifactDigest(root: string): ClientArtifactDigest {
     digest.update(`${content.byteLength}:`)
     digest.update(content)
   }
-  return { fileCount: paths.length, sha256: digest.digest('hex') }
+  return { fileCount: paths.length, sha256: digest.digest('hex') } as T
 }
 
 /** Parse and validate the persisted record before any consumer trusts it. */
 function parseClientBuildRecord(value: unknown): ClientBuildRecord {
-  if (!isObject(value) || !hasExactKeys(value, ['artifacts', 'environment', 'formatVersion'])) {
+  if (!isObject(value) || !hasExactKeys(value, ['artifacts', 'environment', 'formatVersion', 'source'])) {
     throw new Error(`client build record ${CLIENT_BUILD_RECORD_PATH} has an invalid top-level schema`)
   }
   if (value.formatVersion !== CLIENT_BUILD_RECORD_FORMAT) {
@@ -291,9 +329,22 @@ function parseClientBuildRecord(value: unknown): ClientBuildRecord {
   if (typeof value.artifacts.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(value.artifacts.sha256)) {
     throw new Error(`client build record ${CLIENT_BUILD_RECORD_PATH} has an invalid SHA-256 digest`)
   }
+  if (!isObject(value.source) || !hasExactKeys(value.source, ['fileCount', 'sha256'])) {
+    throw new Error(`client build record ${CLIENT_BUILD_RECORD_PATH} has an invalid source digest`)
+  }
+  if (!Number.isSafeInteger(value.source.fileCount) || Number(value.source.fileCount) < 1) {
+    throw new Error(`client build record ${CLIENT_BUILD_RECORD_PATH} has an invalid source file count`)
+  }
+  if (typeof value.source.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(value.source.sha256)) {
+    throw new Error(`client build record ${CLIENT_BUILD_RECORD_PATH} has an invalid source SHA-256 digest`)
+  }
   return {
     formatVersion: CLIENT_BUILD_RECORD_FORMAT,
     environment,
+    source: {
+      fileCount: Number(value.source.fileCount),
+      sha256: value.source.sha256,
+    },
     artifacts: {
       fileCount: Number(value.artifacts.fileCount),
       sha256: value.artifacts.sha256,

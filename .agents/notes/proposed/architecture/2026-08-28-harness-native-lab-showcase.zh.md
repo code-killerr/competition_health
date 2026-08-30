@@ -12,17 +12,23 @@ Status: proposed
 
 ## 方案
 
-本变更只补齐产品级组合和持久化实验关系，不重复实现已有基础能力。Harness 的 `ui-layout` 提供根作用域的应用视图注册表，`ui-sidebar` 提供追加式一级导航位置。实验相关包通过这些公开扩展点注册 Projects、Knowledge 和 Devices，不创建第二套应用壳、主路由或 composer。
+本变更只补齐产品级组合和持久化实验关系，不重复实现已有基础能力。Harness 的 `ui-layout` 提供根作用域的应用视图注册表，`ui-sidebar` 提供追加式一级导航位置。LABWEAVE 使用这些 contract 构成一个层级应用壳：全局执行监控、动态 Project tree、Project 生命周期目的地，以及包含 Knowledge、Agent、Workflow 和 Lab Skill、Devices、People 和 permissions 的配置中心。实验相关包不创建第二套应用壳或主路由。
+
+LABWEAVE 负责可见的 Agent composition。它消费可复用的 `ui-conversation` presentation contract，并共用同一 Session、input state machine、draft、queue、slash/reference handling、attachment、access/model control、interaction takeover、timeline 和 node renderer。实验 profile 将这些能力呈现为底部紧凑 Agent dock 和可展开 timeline，而不是保留默认 Conversation hero、header、context strip、超大 composer 或永久相邻 Agent 列。整个页面只有一个 input DOM、一个 draft 和一个 Session。
 
 Host 继续作为注册目录 Workspace、实验 Project、Experiment、Run 和 Artifact manifest 的权威来源。一个 Project 精确关联一个目录 Workspace，但不替换 Workspace 身份。Session 仍然是 Harness Conversation，并通过 `created`、`continued` 或 `reviewed` 关系显式关联 Experiment。一个 Experiment 保留多个不可变 Run，重试通过新 Run 记录来源。浏览器状态只保存页面展示选择，业务记录通过 typed Facade 命令重新加载。
 
 无模型演示使用确定性的 Knowledge、模型和设备 Provider，但仍通过真实能力配置使用的 Host Facade、Session events、审批门禁、Runtime 记录和浏览器贡献。界面根据 Provider 元数据标记模拟或不可用状态，不创建浏览器专属记录，不根据缺少 API key 推断演示模式，也不使用静态 fixture 替代真实规划和执行路径。
 
-只有在新页面完成验证后删除被替代的 `conversation.view` 工作台、`sidebar.footer.action` 导航、`lab:navigate` 事件、浏览器生成的业务 ID、阶段映射和第二套 composer，迁移才算完成。相关基础变更仍保留各自的最终验证任务；本变更不得替它们标记完成，也不得重新实现它们负责的内部能力。
+全局 monitor 是状态和导航投影，不是跨 Project scheduler。配置目的地消费注册 capability data，并显示真实的 read-only 或 unavailable 状态；People 和 permissions 绝不伪造 identity 或 authorization。
+
+只有在新页面完成验证后删除被替代的 `conversation.view` 工作台、实验 profile 中的默认 Conversation composition、平铺导航、`sidebar.footer.action`、`lab:navigate`、浏览器生成的业务 ID、阶段映射、固定 split layout 和重复 composer，迁移才算完成。相关基础变更仍保留各自的最终验证任务；本变更不得替它们标记完成，也不得重新实现它们负责的内部能力。
 
 ## 曾考虑的替代方案
 
 **保留阶段工作台并在旁边增加更多页面。** 不采用，因为它会保留错误的会话范围归属，并形成第二套导航和交互模型。
+
+**把默认 Conversation 页面保留在实验工作台上方或旁边。** 不采用，因为这种共存会留下两个视觉产品、遮蔽生命周期工作台，并阻止 LABWEAVE 把 Agent orchestration 呈现为融合的实验控制界面。
 
 **使用带本地记录的独立浏览器演示。** 不采用，因为它无法证明 Host 持久化、Session 来源、审批、Runtime 状态或刷新后的连续性。
 
@@ -32,11 +38,12 @@ Host 继续作为注册目录 Workspace、实验 Project、Experiment、Run 和 
 
 ## 验收标准
 
-- 没有 Session 时，Projects、Knowledge 和 Devices 可以从 Harness 根应用视图打开；选择 Session 后返回现有 Conversation，且不卸载 Conversation。
+- 没有 Session 时，根侧栏已经提供全局 monitor、动态 Project tree 和配置中心；选择 Project 后打开其最后一个有效生命周期目的地。
+- LABWEAVE 提供一个由 Harness Session 和 input state machine 驱动的紧凑 Agent input 和可展开 timeline；实验 profile 不渲染默认 Conversation composition 或第二个输入。
 - Project、Experiment、Run 和 Artifact 由 Host 服务生成并持久化；浏览器只提交用户字段和已选择的已有记录。
 - 一个 Experiment 可以保留多个终态 Run，包含重试来源，并在启动它的 Session 关闭或归档后继续存在。
 - 无模型验收流程从来源和引用开始，经过真实 Facade 与 Session event 路径，完成计划、审批、Run、Artifact 和报告。
-- 最终浏览器组合只有一个应用壳、一个一级导航、一个 composer 和一个共享数据源，旧工作台机制已经移除。
+- 最终浏览器组合只有一个应用壳、一套层级导航、一个 Agent input 和一个共享数据源，旧工作台与共存机制已经移除。
 - `lab-harness-native-workspace` 和 `pdf-knowledge-parser-mvp` 继续负责各自的最终验证门禁，`pdf-knowledge-parser` 继续不属于本展示变更范围。
 
 ## 风险
@@ -45,3 +52,4 @@ Host 继续作为注册目录 Workspace、实验 Project、Experiment、Run 和 
 - 拒绝预发布的旧 Project 和 Runtime 格式需要新的确定性 fixture。接受这一代价是为了避免兼容分支继续保留不清晰的归属和过时的单 Run 状态。
 - 确定性 Provider 可能被误认为生产能力。必须通过 Provider 元数据、可见状态和可选真实配置明确区分，同时保持用户流程不变。
 - 如果只检查视觉结果，迁移可能遗留无用的阶段代码。浏览器验收和源码检查必须共同确认旧注册、事件、ID 和重复 composer 已移除。
+- LABWEAVE 专用输入可能悄悄丢失 Harness draft、queue、attachment 或 takeover 行为。实现必须复用正式 conversation presentation contract，assembled tests 必须断言单 input DOM 和完整 interaction path。

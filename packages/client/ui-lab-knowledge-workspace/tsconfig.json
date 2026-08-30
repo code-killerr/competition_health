@@ -9,8 +9,8 @@
     { "path": "../../../vendor/cordis" },
     { "path": "../locale" },
     { "path": "../runtime" },
+    { "path": "../ui-layout" },
     { "path": "../ui-slots" },
-    { "path": "../ui-lab-workbench" },
     { "path": "../../runtime-diagnostics/invariants" }
   ]
 }

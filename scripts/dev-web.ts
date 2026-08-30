@@ -10,15 +10,15 @@
  * sources: `tsc -b tsconfig.client.json` emits `lib/types` (the tsdown lib
  * entries are that emit, not `src`), tsdown bundles `lib/index.js` and
  * `lib/client.js`, and `vite build` rewrites `apps/web/dist`, which `dsh web`
- * serves. A missing stage does not fail — it silently shows the previous
- * artifact, so an edit appears to do nothing.
+ * serves. Startup verifies the complete client-build record first, so a
+ * missing or stale stage fails before the browser can show a previous artifact.
  *
  * MUST NOT run concurrently with `pnpm run build`: both write the same
  * `lib/` and `apps/web/dist/` trees.
  *
  * Usage: `pnpm exec tsx scripts/dev-web.ts [--poll[=ms]]`. Requires one prior
- * `pnpm run build`: every stage is incremental over the previous stage's output
- * and none of them bootstraps a missing tree. `--poll` switches the source
+ * `pnpm run build`: the startup freshness check rejects missing or stale
+ * artifacts before the incremental stages begin. `--poll` switches the source
  * watchers to polling (default 500ms): network mounts (weka) deliver no inotify
  * events, so native watching sees the initial build only and never a source
  * change. Polling has to reach tsc too — a native-watching tsc never re-emits
@@ -34,6 +34,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execa } from 'execa'
 import { build } from 'tsdown'
 import type { TsdownBundle } from 'tsdown'
+import { readClientBuildRecord } from './client-build-environment.ts'
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 
@@ -135,6 +136,11 @@ export async function watchClientPlugins(
   return bundles
 }
 
+/** Reject a watch session whose source, client bundles, or Web dist are stale. */
+export function assertClientBuildFresh(root = repoRoot): void {
+  readClientBuildRecord(root)
+}
+
 /**
  * Live watcher processes to terminate when this script is interrupted. Stages
  * register themselves as they start, so the set is complete from the first
@@ -175,6 +181,12 @@ interface StageHandle {
 const invokedPath = process.argv[1]
 const isMain = invokedPath !== undefined && import.meta.url === pathToFileURL(resolve(invokedPath)).href
 if (isMain) {
+  try {
+    assertClientBuildFresh()
+  } catch (error) {
+    console.error(`dev-web: ${error instanceof Error ? error.message : String(error)}`)
+    process.exit(1)
+  }
   const pluginDirs = discoverPluginDirs()
   const libraryDirs = discoverLibraryDirs()
   if (pluginDirs.length === 0) {

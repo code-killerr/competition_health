@@ -22,7 +22,7 @@ export interface AppViewRegistry {
    * @param key - 要读取的 slot 名称。
    * @returns 当前 slot 的有效 entry。
    */
-  entriesOfSlot(key: string): readonly { options: { id?: string } }[]
+  entriesOfSlot(key: string): readonly { options: { id?: string; conversationMode?: 'replace' | 'split' | 'agent-dock'; default?: boolean } }[]
   /**
    * 监听根应用视图 entry 的注册和卸载。
    * @param key - 要监听的 slot 名称。
@@ -79,6 +79,10 @@ export class LayoutController implements ILayout {
    */
   attachPanels(actions: PanelActions): void {
     this.#panels = actions
+    if (this.#activeAppViewId !== undefined) {
+      const entry = this.#appViews?.entriesOfSlot('app.view').find(candidate => candidate.options.id === this.#activeAppViewId)
+      actions.setActiveAppView(this.#activeAppViewId, entry?.options.conversationMode ?? 'replace')
+    }
   }
 
   /** Toggle the sidebar panel (closed ⟷ contract default width). */
@@ -104,6 +108,13 @@ export class LayoutController implements ILayout {
   attachAppViews(registry: AppViewRegistry): () => void {
     this.#disposeAppViewSubscription?.()
     this.#appViews = registry
+    if (this.#activeAppViewId === undefined) {
+      const entry = registry.entriesOfSlot('app.view').find(candidate => candidate.options.default === true && candidate.options.id !== undefined)
+      if (entry?.options.id !== undefined) {
+        this.#activeAppViewId = entry.options.id
+        this.#panels?.setActiveAppView(entry.options.id, entry.options.conversationMode ?? 'replace')
+      }
+    }
     const dispose = registry.subscribe('app.view', () => {
       if (this.#activeAppViewId !== undefined && !this.#hasAppView(this.#activeAppViewId)) {
         this.closeAppView()
@@ -131,7 +142,8 @@ export class LayoutController implements ILayout {
     if (this.#appViews === undefined) throw new Error('layout: app view registry not wired')
     if (!this.#hasAppView(viewId)) throw new Error(`APP_VIEW_NOT_FOUND: ${viewId}`)
     const panels = this.#require()
-    panels.setActiveAppView(viewId)
+    const entry = this.#appViews.entriesOfSlot('app.view').find(candidate => candidate.options.id === viewId)
+    panels.setActiveAppView(viewId, entry?.options.conversationMode ?? 'replace')
     this.#activeAppViewId = viewId
   }
 

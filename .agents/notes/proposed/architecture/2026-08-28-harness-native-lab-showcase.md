@@ -12,17 +12,23 @@ Several active OpenSpec changes already own parts of the foundation. `lab-harnes
 
 ## Proposal
 
-The showcase change adds only the missing product-level composition and durable experiment relationships. Harness `ui-layout` owns a root-scoped application-view registry and `ui-sidebar` owns an additive primary-navigation seat. Laboratory packages register Projects, Knowledge and Devices into those public surfaces; they do not create a second application shell, primary router or composer.
+The showcase change adds only the missing product-level composition and durable experiment relationships. Harness `ui-layout` owns a root-scoped application-view registry and `ui-sidebar` owns an additive primary-navigation seat. LABWEAVE uses those contracts for one hierarchical shell: a global execution monitor, a dynamic Project tree, Project lifecycle destinations and a configuration center for Knowledge, Agent, Workflow and Lab Skill, Devices, and People and permissions. Laboratory packages do not create a second application shell or primary router.
+
+LABWEAVE owns the visible Agent composition. It consumes a reusable `ui-conversation` presentation contract backed by the same Session, input state machine, draft, queue, slash and reference handling, attachments, access and model controls, interaction takeovers, timeline and node renderers. The laboratory profile presents those capabilities as a compact bottom Agent dock with an expandable timeline instead of retaining the default Conversation hero, header, context strip, oversized composer or a permanent adjacent Agent column. It has one input DOM, one draft and one Session.
 
 The Host remains authoritative for registered directory Workspaces, laboratory Projects, Experiments, Runs and Artifact manifests. A Project links to exactly one directory Workspace without replacing Workspace identity. A Session remains a Harness conversation and records explicit `created`, `continued` or `reviewed` links to an Experiment. An Experiment retains multiple immutable Runs, and a retry creates a new Run with provenance. Browser state stores only presentation selection and reloads business records through typed Facade commands.
 
 The keyless showcase uses deterministic Knowledge, model and device Providers behind the same Host Facade, Session events, approval gates, Runtime records and browser contributions used by the real-capability profile. The UI labels simulated or unavailable capabilities from Provider metadata. It does not create browser-only records, infer demo mode from a missing API key, or replace the real planning and execution path with static fixtures.
 
-Migration is complete only after the new surfaces are exercised and the replaced `conversation.view` workbench, `sidebar.footer.action` navigation, `lab:navigate` event, browser-generated business IDs, stage mapping and second composer are removed. The related foundation changes retain their own final verification tasks; this change must not mark those tasks complete or reimplement their owned internals.
+The global monitor is a status and navigation projection rather than a cross-Project scheduler. Configuration destinations consume registered capability data and show truthful read-only or unavailable states; People and permissions never fabricate identities or authorization.
+
+Migration is complete only after the new surfaces are exercised and the replaced `conversation.view` workbench, default Conversation composition in the laboratory profile, flat navigation, `sidebar.footer.action`, `lab:navigate`, browser-generated business IDs, stage mapping, fixed split layout and duplicate composer are removed. The related foundation changes retain their own final verification tasks; this change must not mark those tasks complete or reimplement their owned internals.
 
 ## Alternatives considered
 
 **Keep the stage workbench and add more pages beside it.** Rejected because it preserves the incorrect session-scoped ownership and produces a second navigation and interaction model.
+
+**Keep the default Conversation page above or beside the laboratory workbench.** Rejected because coexistence leaves two visual products, obscures the lifecycle workbench and prevents LABWEAVE from presenting Agent orchestration as an integrated laboratory control surface.
 
 **Use a standalone browser demo with local records.** Rejected because it cannot prove Host persistence, Session provenance, approval, Runtime state or refresh continuity.
 
@@ -32,11 +38,12 @@ Migration is complete only after the new surfaces are exercised and the replaced
 
 ## Acceptance criteria
 
-- Projects, Knowledge and Devices open from a Harness root application view when no Session exists, and selecting a Session returns to the existing Conversation without unmounting it.
+- The root sidebar exposes the global monitor, dynamic Project tree and configuration center before a Session exists; selecting a Project opens its last valid lifecycle destination.
+- LABWEAVE exposes one compact Agent input and one expandable timeline backed by the Harness Session and input state machine; the laboratory profile does not render the default Conversation composition or a second input.
 - Project, Experiment, Run and Artifact records are generated and persisted by Host services; browser code submits user fields and selected existing records only.
 - One Experiment can retain multiple terminal Runs, including retry provenance, after the launching Session closes or is archived.
 - The keyless acceptance journey traverses the real Facade and Session event path from source and citation through plan, approval, Run, Artifact and report.
-- The final browser composition has one shell, one primary navigation, one composer and one shared data source, with the replaced workbench mechanisms absent.
+- The final browser composition has one shell, one hierarchical navigation, one Agent input and one shared data source, with the replaced workbench and coexistence mechanisms absent.
 - `lab-harness-native-workspace` and `pdf-knowledge-parser-mvp` remain responsible for their own final verification gates, while `pdf-knowledge-parser` remains outside this showcase scope.
 
 ## Risks
@@ -45,3 +52,4 @@ Migration is complete only after the new surfaces are exercised and the replaced
 - Rejecting old pre-release Project and Runtime formats requires fresh deterministic fixtures. This is accepted because compatibility shims would preserve ambiguous ownership and obsolete single-Run state.
 - Deterministic Providers can be mistaken for production capability. Provider metadata, visible status and an opt-in real profile must make the distinction explicit without changing the user flow.
 - The migration can leave dead stage code behind if implementation checks only visual output. Browser and source-level acceptance must verify removal of the old registrations, events, IDs and duplicate composer.
+- A LABWEAVE-specific input can silently lose Harness draft, queue, attachment or takeover behavior. The implementation must reuse the official conversation presentation contract and assembled tests must assert one input DOM and the complete interaction path.

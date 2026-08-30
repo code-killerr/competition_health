@@ -96,8 +96,11 @@ export function AppFrame({
     const current = s.current
     return current !== undefined && s.byId[current]?.blank === false ? current : undefined
   })
+  const splitConversation = panels.activeAppViewId !== undefined && panels.activeAppViewMode === 'split'
+  const agentDockConversation = panels.activeAppViewId !== undefined && panels.activeAppViewMode === 'agent-dock'
   const frameRef = useRef<HTMLDivElement | null>(null)
   const [viewport, setViewport] = useState(() => window.innerWidth)
+  const [mobilePane, setMobilePane] = useState<'workbench' | 'agent'>('workbench')
 
   const lastSession = useRef(detailsSession)
   useLayoutEffect(() => {
@@ -189,13 +192,19 @@ export function AppFrame({
             is session-maybe; the strict details entry naturally renders
             empty while no session is current. */}
         <CenterColumn>
-          <div className={css.conversationSurface} hidden={panels.activeAppViewId !== undefined}>
-            {renderSlot('conversation', {})}
-          </div>
-          <div className={css.appViewSurface} hidden={panels.activeAppViewId === undefined}>
+          {splitConversation && narrow && (
+            <div className={css.paneSwitch} role='tablist' aria-label='Agent and workbench panes'>
+              <button type='button' role='tab' aria-selected={mobilePane === 'workbench'} aria-label='Workbench' onClick={() => { setMobilePane('workbench') }}>W</button>
+              <button type='button' role='tab' aria-selected={mobilePane === 'agent'} aria-label='Agent' onClick={() => { setMobilePane('agent') }}>A</button>
+            </div>
+          )}
+          <div className={agentDockConversation ? css.appViewAgent : splitConversation ? css.appViewSplit : css.appViewSurface} hidden={panels.activeAppViewId === undefined || (splitConversation && narrow && mobilePane !== 'workbench')}>
             {panels.activeAppViewId === undefined
               ? null
               : renderSlot('app.view', {}, { only: panels.activeAppViewId })}
+          </div>
+          <div className={agentDockConversation ? css.conversationAgent : splitConversation ? css.conversationSplit : css.conversationSurface} data-lab-agent-surface={agentDockConversation || undefined} hidden={(panels.activeAppViewId !== undefined && !splitConversation && !agentDockConversation) || (splitConversation && narrow && mobilePane !== 'agent')}>
+            {renderSlot('conversation', { presentation: agentDockConversation ? 'agent-dock' : 'default' })}
           </div>
         </CenterColumn>
         <DetailsColumn>{renderSlot('details', {})}</DetailsColumn>

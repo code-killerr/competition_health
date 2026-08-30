@@ -27,6 +27,7 @@ type LayoutState = {
   narrow: boolean
   narrowExpanded: boolean
   activeAppViewId?: string
+  activeAppViewMode?: 'replace' | 'split' | 'agent-dock'
 }
 
 /**
@@ -40,7 +41,7 @@ type LayoutActions = {
   setNarrow: (draft: LayoutState, narrow: boolean) => void
   openDetails: (draft: LayoutState) => void
   closeDetails: (draft: LayoutState) => void
-  setActiveAppView: (draft: LayoutState, viewId: string | undefined) => void
+  setActiveAppView: (draft: LayoutState, viewId: string | undefined, mode?: 'replace' | 'split' | 'agent-dock') => void
 }
 
 /**
@@ -74,9 +75,14 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
       },
       openDetails: (d) => { if (d.details === 0) d.details = DETAILS_DEFAULT },
       closeDetails: (d) => { d.details = 0 },
-      setActiveAppView: (d, viewId: string | undefined) => {
-        if (viewId === undefined) delete d.activeAppViewId
-        else d.activeAppViewId = viewId
+      setActiveAppView: (d, viewId: string | undefined, mode: 'replace' | 'split' | 'agent-dock' = 'replace') => {
+        if (viewId === undefined) {
+          delete d.activeAppViewId
+          delete d.activeAppViewMode
+        } else {
+          d.activeAppViewId = viewId
+          d.activeAppViewMode = mode
+        }
       },
     },
   })

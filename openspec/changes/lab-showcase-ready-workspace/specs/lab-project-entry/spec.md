@@ -38,12 +38,23 @@ The system SHALL let an existing Session attach to or detach from a LabProject o
 - **THEN** the system SHALL preserve Harness Session logs and require a separate explicit action for destructive removal of laboratory records
 
 ### Requirement: The active inherited context is visible before submission
-The conversation view SHALL display the active Project, Workspace directory, Experiment, selected Knowledge count, selected device count and temporary attachment state before the user submits a prompt. The display SHALL distinguish Project-approved context from Session-local context.
+The LABWEAVE Agent surface and active workbench SHALL display the active Project, Workspace directory, Experiment, selected Knowledge count, selected device count and temporary attachment state before the user submits a prompt. The display SHALL distinguish Project-approved context from Session-local context without requiring the default Harness conversation header or context strip.
 
 #### Scenario: Start a new Project Session
 - **WHEN** a user starts another Session inside a Project
-- **THEN** the context display shows inherited Project scope without presenting another Session's private messages or unapproved plan as confirmed context
+- **THEN** the Agent surface shows inherited Project scope without presenting another Session's private messages or unapproved Plan as confirmed context
 
 #### Scenario: Change Project scope
 - **WHEN** selected Knowledge or devices change
-- **THEN** the context display updates before the next Agent request and identifies the changed scope
+- **THEN** the Agent surface and affected workbench view update before the next Agent request and identify the changed scope
+
+### Requirement: Project files use the linked Workspace as an authorized root
+Generated Workflow and Lab Skill documents, configuration snapshots, intermediate assets and reports SHALL be written only through Host-authorized file operations rooted in the Project's linked Workspace. Browser input and Agent output SHALL not supply arbitrary absolute paths. Domain identities, approval state, Session evidence and Runtime state SHALL remain owned by their services rather than by project files.
+
+#### Scenario: Save a generated Workflow draft
+- **WHEN** an Agent-proposed Workflow or Lab Skill draft is accepted for review
+- **THEN** the Host stores its document under the linked Project Workspace and records the authorized artifact reference in the Project and Session evidence
+
+#### Scenario: Proposed path leaves the Workspace
+- **WHEN** an Agent or browser request attempts to write outside the linked Workspace
+- **THEN** the Host rejects the operation without creating or modifying the target file

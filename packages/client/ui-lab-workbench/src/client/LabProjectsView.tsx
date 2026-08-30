@@ -1,6 +1,6 @@
 /** Projects 一级页面；只展示 Host 返回的项目记录并发起明确的创建动作。 */
 
-import { useEffect, useSyncExternalStore, useState } from 'react'
+import { useEffect, useRef, useSyncExternalStore, useState } from 'react'
 import type { JSX } from 'react'
 import type { PropsLocale, PropsRuntime, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { LabUiContext } from './LabUiContext.ts'
@@ -15,6 +15,10 @@ export interface LabProjectSummary {
   readonly status: 'ACTIVE' | 'ARCHIVED'
   readonly sessionCount: number
   readonly experimentCount: number
+  readonly activeRunCount?: number
+  readonly failedRunCount?: number
+  readonly pendingApprovalCount?: number
+  readonly currentStepId?: string
 }
 
 /** Project 页面宿主动作。 */
@@ -22,6 +26,7 @@ export interface LabProjectsInjected {
   readonly ui: LabUiContext
   readonly listProjects: () => Promise<readonly LabProjectSummary[]>
   readonly createProject: (workspaceId: string, name: string) => Promise<LabProjectSummary>
+  readonly openProjectView?: () => void
 }
 
 type Props = PropsRuntime<'app.view'> & PropsLocale<'labWorkbench'> & InjectFace<LabProjectsInjected>
@@ -35,16 +40,32 @@ export function LabProjectsView(props: Props): JSX.Element {
   const [workspaceId, setWorkspaceId] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [error, setError] = useState<string | undefined>()
+  const workspaceInitialized = useRef(false)
+
+  const selectProject = (project: LabProjectSummary): void => {
+    props.ui.selectWorkspace(project.workspaceId)
+    props.ui.selectProject(project.projectId)
+  }
 
   useEffect(() => {
-    if (workspaceId === '' && workspaces[0] !== undefined) setWorkspaceId(String(workspaces[0].workspaceId))
-  }, [workspaceId, workspaces])
+    if (workspaceInitialized.current || workspaceId !== '' || workspaces[0] === undefined) return
+    workspaceInitialized.current = true
+    const initialWorkspaceId = String(workspaces[0].workspaceId)
+    setWorkspaceId(initialWorkspaceId)
+    props.ui.selectWorkspace(initialWorkspaceId)
+  }, [props.ui, workspaceId, workspaces])
+
+  useEffect(() => {
+    if (projects.activeProjectId !== undefined) props.openProjectView?.()
+  }, [projects.activeProjectId, props.openProjectView])
 
   const refresh = async (): Promise<void> => {
     setStatus('loading')
     setError(undefined)
     try {
-      setItems(await props.listProjects())
+      const nextItems = await props.listProjects()
+      setItems(nextItems)
+      if (props.ui.snapshot().activeProjectId === undefined && nextItems[0] !== undefined) selectProject(nextItems[0])
       setStatus('idle')
     } catch (reason) {
       setStatus('error')
@@ -61,7 +82,7 @@ export function LabProjectsView(props: Props): JSX.Element {
     try {
       const created = await props.createProject(workspaceId, name.trim())
       setItems(current => [created, ...current])
-      props.ui.selectProject(created.projectId)
+      selectProject(created)
       setName('')
       setStatus('idle')
     } catch (reason) {
@@ -100,7 +121,7 @@ export function LabProjectsView(props: Props): JSX.Element {
             <span>{props.t('labProjectsWorkspace')}</span>
             <select
               value={workspaceId}
-              onChange={(event) => { setWorkspaceId(event.currentTarget.value) }}
+              onChange={(event) => { const nextWorkspaceId = event.currentTarget.value; setWorkspaceId(nextWorkspaceId); props.ui.selectWorkspace(nextWorkspaceId) }}
               disabled={workspaces.length === 0}
             >
               {workspaces.length === 0 && <option value="">{props.t('labProjectsNoWorkspace')}</option>}
@@ -127,7 +148,7 @@ export function LabProjectsView(props: Props): JSX.Element {
           {items.length === 0 && status !== 'loading' ? <p className={css.empty}>{props.t('labProjectsEmpty')}</p> : (
             <div className={css.projectList}>
               {items.map(project => (
-                <button key={project.projectId} type="button" className={css.projectRow} onClick={() => { props.ui.selectProject(project.projectId) }}>
+                <button key={project.projectId} type="button" className={css.projectRow} onClick={() => { selectProject(project) }}>
                   <span className={css.projectOrb} aria-hidden="true" />
                   <span className={css.projectMain}><strong>{project.name}</strong><small>{project.workspaceId}</small></span>
                   <span className={css.projectStats}>{props.t('labProjectsSessions')}: {project.sessionCount} · {props.t('labProjectsExperiments')}: {project.experimentCount}</span>

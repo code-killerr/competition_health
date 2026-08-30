@@ -46,6 +46,9 @@ function buildFixture(environment: Record<string, string>): string {
   const fixtureRoot = mkdtempSync(join(tmpdir(), 'dsh-client-build-'))
   roots.push(fixtureRoot)
   write(join(fixtureRoot, 'apps/web/dist/index.html'), '<main></main>')
+  write(join(fixtureRoot, 'apps/web/index.html'), '<title>fixture</title>')
+  write(join(fixtureRoot, 'apps/web/vite.config.ts'), 'export default {}\n')
+  write(join(fixtureRoot, 'packages/client/example/src/index.ts'), 'export const fixture = true\n')
   write(join(fixtureRoot, 'packages/client/example/lib/client.js'), 'module.exports = {}\n')
   writeClientBuildRecord(fixtureRoot, environment)
   return fixtureRoot
@@ -161,6 +164,10 @@ describe('client build environment', () => {
 
     write(join(official, 'apps/web/dist/index.html'), '<main>changed</main>')
     expect(() => { readClientBuildRecord(official) }).toThrow(/artifacts differ/)
+
+    const sourcePath = join(defaultBuild, 'packages/client/example/src/index.ts')
+    writeFileSync(sourcePath, 'export const fixture = false\n')
+    expect(() => { readClientBuildRecord(defaultBuild) }).toThrow(/sources differ/)
   })
 
   it('keeps public client values out of workflow-wide environments', () => {

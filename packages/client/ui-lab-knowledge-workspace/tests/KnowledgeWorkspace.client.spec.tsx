@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { KnowledgeWorkspace, type KnowledgeWorkspaceProps } from '../src/client/KnowledgeWorkspace.tsx'
 import { zh } from '../src/client/locales.ts'
 
 afterEach(() => {
+  cleanup()
   vi.unstubAllGlobals()
 })
 
@@ -44,6 +45,7 @@ describe('Knowledge workspace browser flow', () => {
     const props = {
       sessionId: 'session-1',
       projectId: 'project-1',
+      experimentId: 'experiment-1',
       t: (key: keyof typeof zh): string => zh[key],
       onSourceToggle,
       onCitationAvailable,
@@ -57,10 +59,11 @@ describe('Knowledge workspace browser flow', () => {
     await waitFor(() => { expect(screen.getByText('READY')).toBeTruthy() })
     fireEvent.click(screen.getByRole('button', { name: zh.addToProject }))
     expect(onSourceToggle).toHaveBeenCalledWith({ documentId: 'document-1', versionId: 'version-1' })
+    await waitFor(() => { expect(screen.getByRole('button', { name: zh.removeFromProject })).toBeTruthy() })
 
     fireEvent.change(screen.getByLabelText(zh.query), { target: { value: 'cited source' } })
     fireEvent.click(screen.getByRole('button', { name: zh.searchAction }))
-    await waitFor(() => { expect(screen.getByText('citation-1')).toBeTruthy() })
+    await waitFor(() => { expect(screen.getByText(/page:1\/block:1/)).toBeTruthy() })
     expect(onCitationAvailable).toHaveBeenCalledWith(expect.objectContaining({ citationId: 'citation-1' }))
 
     fireEvent.click(screen.getByRole('button', { name: zh.createSop }))
@@ -80,6 +83,60 @@ describe('Knowledge workspace browser flow', () => {
       'knowledge-sop-update',
       'knowledge-sop-publish',
     ])
+  })
+
+  it('keeps Knowledge usable without a Project and offers the Projects action', () => {
+    const openProjects = vi.fn()
+    const props = {
+      t: (key: keyof typeof zh): string => zh[key],
+      openProjects,
+    } as unknown as KnowledgeWorkspaceProps
+    render(<KnowledgeWorkspace {...props} />)
+
+    const addButton = screen.queryByRole('button', { name: zh.addToProject })
+    expect(addButton).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: zh.openProjects }))
+    expect(openProjects).toHaveBeenCalledOnce()
+  })
+
+  it('follows the active Project from the observable selection', async () => {
+    let selection: { readonly activeProjectId?: string } = {}
+    const listeners = new Set<() => void>()
+    const ui = {
+      snapshot: () => selection,
+      subscribe: (listener: () => void): (() => void) => {
+        listeners.add(listener)
+        return () => { listeners.delete(listener) }
+      },
+    }
+    const props = {
+      t: (key: keyof typeof zh): string => zh[key],
+      ui,
+      onSourceToggle: vi.fn(),
+    } as unknown as KnowledgeWorkspaceProps
+    render(<KnowledgeWorkspace {...props} />)
+
+    expect(screen.getByRole('button', { name: zh.openProjects })).toBeTruthy()
+    selection = { activeProjectId: 'project-from-selection' }
+    for (const listener of listeners) listener()
+    await waitFor(() => { expect(screen.queryByRole('button', { name: zh.openProjects })).toBeNull() })
+  })
+
+  it('shows a failed Knowledge capability without fabricating a source', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true, result: { kind: 'snapshot', value: { knowledgeCapability: { state: 'unavailable', reason: 'Docling is not configured' }, knowledge: [] } } }),
+    })))
+    const props = {
+      sessionId: undefined,
+      projectId: 'project-1',
+      t: (key: keyof typeof zh): string => zh[key],
+    } as unknown as KnowledgeWorkspaceProps
+    render(<KnowledgeWorkspace {...props} />)
+
+    await waitFor(() => { expect(screen.getByText(zh.unavailable)).toBeTruthy() })
+    expect(screen.getAllByText(zh.empty)).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: zh.addToProject })).toBeNull()
   })
 })
 

@@ -103,6 +103,8 @@ function mount(
     composerBlock?: { reason: string }
     /** Mutable view ledger used by registration-order regressions. */
     viewTabs?: ViewTab[]
+    /** Render the root through the LABWEAVE Agent dock presentation. */
+    presentation?: 'agent-dock'
   } = {},
 ) {
   const root = sid('root')
@@ -267,6 +269,7 @@ function mount(
     renderSlot,
     renderSlotChain,
     selectWorkspace: retargetWorkspace,
+    ...(options.presentation === undefined ? {} : { presentation: options.presentation }),
     t,
   }
   const view = render(<ConversationRoot {...props} />)
@@ -384,6 +387,19 @@ describe('ConversationRoot resident composer', () => {
     expect(b.slotCalls).toContain('conversation.session.header.lineage')
     expect(b.slotCalls).toContain('conversation.session.header.actions')
     expect(b.slotCalls).toContain('conversation.session.header.utilities')
+  })
+
+  it('agent-dock keeps one composer and exposes the resident timeline on demand', () => {
+    const b = mount(conversationSnapshot(), undefined, undefined, { presentation: 'agent-dock' })
+    expect(b.view.container.querySelector('header')).toBeNull()
+    expect(b.view.getByRole('textbox')).toBeTruthy()
+    const timeline = b.view.getByRole('button', { name: '查看 Agent 执行时间线' })
+    expect(timeline.getAttribute('aria-expanded')).toBe('false')
+    expect(b.view.getByTestId('view-chat').closest('[hidden]')).not.toBeNull()
+    fireEvent.click(timeline)
+    expect(timeline.getAttribute('aria-expanded')).toBe('true')
+    expect(b.view.getByRole('button', { name: '收起 Agent 执行时间线' })).toBeTruthy()
+    expect(b.view.getAllByRole('textbox')).toHaveLength(1)
   })
 
   it('sticky composer seat wraps the whole overlay chain, not only the fallback stack', () => {

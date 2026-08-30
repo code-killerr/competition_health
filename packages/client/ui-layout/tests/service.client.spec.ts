@@ -74,7 +74,7 @@ describe('LayoutController', () => {
 
     service.openAppView('test-page')
     expect(service.activeAppView()).toBe('test-page')
-    expect(panels.setActiveAppView).toHaveBeenCalledWith('test-page')
+    expect(panels.setActiveAppView).toHaveBeenCalledWith('test-page', 'replace')
 
     ids.length = 0
     changed?.()

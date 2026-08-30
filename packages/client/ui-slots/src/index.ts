@@ -491,6 +491,10 @@ export type KindOptions<
       id: string
       order?: number
       label?: SlotLabel
+      /** Root application views may keep the active Conversation mounted below the view. */
+      conversationMode?: 'replace' | 'split' | 'agent-dock'
+      /** Root application views may request selection after the root entry mounts. */
+      default?: boolean
       /** Cell shadowing rank (ascending, default 0, lowest renders; same id + same priority throws — see {@link SlotCore.register}). */
       priority?: number
     }
@@ -556,7 +560,7 @@ type BaseOptions<
  */
 export interface StoredEntry {
   component: unknown
-  options: { key?: string; id?: string; order?: number; label?: SlotLabel; priority?: number }
+  options: { key?: string; id?: string; order?: number; label?: SlotLabel; conversationMode?: 'replace' | 'split' | 'agent-dock'; default?: boolean; priority?: number }
   /** Chain routing selector (type-erased like `inject`; present exactly on chain-slot entries). */
   select?: ((owner: never) => unknown) | undefined
   /** Registrant business face; positional params derive from the declaration (sessionId?, actions?). */
@@ -594,6 +598,8 @@ interface ErasedOptions {
   id?: string | undefined
   order?: number | undefined
   label?: SlotLabel | undefined
+  conversationMode?: 'replace' | 'split' | 'agent-dock' | undefined
+  default?: boolean | undefined
   select?: ((owner: never) => unknown) | undefined
   priority?: number | undefined
   children?: Record<string, SlotSpec<SlotEntryDef>> | undefined

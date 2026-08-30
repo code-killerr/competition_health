@@ -10,6 +10,7 @@ function props(): {
   value: LabProjectsProps
   listProjects: ReturnType<typeof vi.fn>
   createProject: ReturnType<typeof vi.fn>
+  openProjectView: ReturnType<typeof vi.fn>
   ui: LabUiContext
 } {
   const ui = new LabUiContext()
@@ -19,15 +20,17 @@ function props(): {
   const createProject = vi.fn().mockResolvedValue({
     projectId: 'project-2', workspaceId: 'workspace-1', name: 'New project', description: '', status: 'ACTIVE', sessionCount: 0, experimentCount: 0,
   })
+  const openProjectView = vi.fn()
   const value = {
     ui,
     listProjects,
     createProject,
+    openProjectView,
     t: (key: string) => key,
     useWorkspaces: (selector: (state: { readonly items: readonly { readonly workspaceId: string; readonly title: string; readonly path: string }[] }) => unknown) => selector({ items: [{ workspaceId: 'workspace-1', title: 'Lab', path: '/lab' }] }),
     useSessions: () => undefined,
   } as unknown as LabProjectsProps
-  return { value, listProjects, createProject, ui }
+  return { value, listProjects, createProject, openProjectView, ui }
 }
 
 describe('LabProjectsView', () => {
@@ -44,6 +47,7 @@ describe('LabProjectsView', () => {
     await waitFor(() => { expect(setup.createProject).toHaveBeenCalledWith('workspace-1', 'New project') })
     expect(setup.ui.snapshot().activeProjectId).toBe('project-2')
     expect(setup.listProjects).toHaveBeenCalledTimes(1)
+    expect(setup.openProjectView).toHaveBeenCalledTimes(2)
   })
 
   it('keeps creation unavailable when Host exposes no Workspace', () => {

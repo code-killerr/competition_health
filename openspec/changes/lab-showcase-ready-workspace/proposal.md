@@ -1,36 +1,39 @@
 ## Why
 
-The laboratory prototype has real Project, Session, Knowledge, Planning, Skill, Device and Runtime paths, but users still encounter manual identifiers, stage-oriented forms, raw JSON and separate demonstrations instead of one coherent product. This change turns those existing capabilities into one launchable, easy-to-navigate, evidence-backed prototype that begins with an ordinary Agent conversation or an explicitly created laboratory project and remains truthful about unavailable integrations.
+The laboratory repository already contains Knowledge, Planning, Lab Skill, Device, Runtime, Project, Session and evidence capabilities, but the current browser integration presents them mainly as adjacent management pages. The showcase must integrate those completed foundations around one Harness Agent that drives the experiment lifecycle while a shared workbench visualizes, configures and approves the Agent's work.
 
 ## What Changes
 
-- Finish the current laboratory workspace integration prerequisites: mount the separately owned Knowledge workspace, consume its public source/version/citation records and prove the composed import-to-planning path.
-- Require every laboratory Project to reference one Harness directory Workspace without merging their identities; keep the directory Workspace responsible for files and Session grouping and the LabProject responsible for experimental scope and evidence.
-- Add chat-first and project-first entry paths, generated opaque identifiers, explicit attach/detach behavior and visible context changes when an existing Session joins a project.
-- Promote Experiment to a durable project-owned record, keep Session-to-Experiment provenance explicit and let an Experiment retain multiple immutable Runs without making Session lifetime control execution.
-- Add the missing additive Harness application-view and sidebar-navigation extension points, then replace the developer-oriented stage console with Project, conversation, Experiment, Run and Evidence views that use those extension points together with the existing workspace, conversation, primitive, trajectory and attachment plugins.
-- Add a compact active-context strip, structured plan and approval cards, Run tables and detail views, evidence grouping, actionable empty/error states and responsive presentation suitable for a live product demonstration.
-- Make the existing `examples/lab-web` composition the single prototype entry with one launch command, one navigation shell and one shared Project/Session/Experiment/Run state; do not deliver disconnected pages or a second browser-only application.
-- Preserve a keyless deterministic demonstration path and add an opt-in real-model/real-Docling path; neither path may present mock devices, skipped capabilities or browser presets as production execution.
-- Keep production authentication, multi-tenant authorization, electronic signatures, remote device transport, OCR, advanced metric explorers and arbitrary object schemas out of this change.
+- Make the existing Harness Agent the primary interaction and orchestration surface from goal clarification through knowledge retrieval, Plan and declarative Lab Skill proposal, approval, execution monitoring, result assessment and revision feedback.
+- Present LABWEAVE as one Harness-native laboratory shell. Its sidebar groups cross-Project execution monitoring, a dynamic Project tree and a configuration center; its central workbench shows the active Project, Experiment Workflow, steps, progress, evidence and result state.
+- Replace the default Conversation page chrome in laboratory context with a LABWEAVE-owned Agent surface. The compact Agent dock and expandable timeline reuse the active Harness Session, input machine, draft, queue, slash/reference/attachment handling, interaction takeovers and message/node renderers; they do not preserve the default hero, header, context strip, large composer or full-page Conversation layout.
+- Organize each expanded Project around the user-facing experiment lifecycle: Overview, Planning and Workflow, Plan approval, Execution monitoring, Step orchestration, Results and Evidence, and Archive. Keep the active Experiment and Run as explicit selections inside that Project rather than making record-type tabs the primary navigation.
+- Expose Knowledge, Agent configuration, Workflow/Lab Skill configuration, Devices and People/Permissions as one configuration group. A destination without a complete configured capability must render a truthful read-only or unavailable state; this change does not fabricate team identity or authorization records.
+- Let the Agent emit validated presentation intents that navigate the workbench to registered Project, Knowledge, Experiment, Run, Evidence and citation views without granting the model direct DOM or router control.
+- Implement and visually verify the complete frontend journey first against typed records, command results and deterministic event fixtures that match the production adapters. Browser components do not create authoritative records, advance Runs or calculate verdicts.
+- Connect the completed Host capabilities in a following integration phase by replacing fixture adapters with the existing typed Facade, Session events and service-backed projections without changing the user workflow.
+- Treat the product-facing Experiment Workflow as the approved Plan plus locked Lab Skill revisions compiled into an ExecutionGraph. Do not introduce a second durable workflow engine or use Harness Skills as the experiment state database.
+- Keep Plan approval, Lab Skill activation, risky execution, QC disposition and final release human-gated. Agent output is advisory until deterministic validation and configured approval requirements succeed.
+- Preserve generated opaque identities, Workspace-rooted project files, durable Experiments, multiple immutable Runs, Artifacts and reports as Host-owned records shared by conversation and workbench views.
+- Preserve the deterministic keyless demonstration and opt-in real-provider path through the same Agent, command, event, approval and Runtime interfaces.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `lab-project-entry`: Conversation-first and project-first entry, Workspace-to-LabProject association, generated identities, Session attachment and visible inherited context.
-- `lab-project-knowledge-workspace`: Independent Knowledge workspace navigation, project source selection and a composed source-to-cited-planning workflow through public laboratory capability records.
-- `lab-experiment-workbench`: Durable project-owned Experiments, explicit Session provenance, multiple Runs, structured execution/evidence views and report navigation.
-- `lab-showcase-navigation`: One integrated Harness-native prototype, product information architecture, reusable UI components, responsive states and a deterministic end-to-end showcase journey.
+- `lab-project-entry`: Conversation-first and project-first entry, Workspace-to-LabProject association, generated identities, Session attachment, inherited Agent context and a Host-authorized project file root.
+- `lab-project-knowledge-workspace`: Independent Knowledge navigation, Project source selection, Agent retrieval and capability-gap handling, and navigable citations through public laboratory records.
+- `lab-experiment-workbench`: Agent-led Experiment Workflow and Lab Skill proposal, approval, execution monitoring, replanning, result assessment, durable Experiments, multiple Runs and evidence-backed reports.
+- `lab-showcase-navigation`: One integrated Harness application with hierarchical global, Project and configuration navigation, a LABWEAVE-owned Agent surface, validated Agent-driven navigation, responsive states and a deterministic end-to-end showcase.
 
 ### Modified Capabilities
 
-None. The repository has no synchronized main OpenSpec capabilities yet; this change depends on active laboratory changes and records its resulting user-facing requirements as new capabilities.
+None. The repository has no synchronized main OpenSpec capabilities yet; this change records the integrated user-facing behavior produced from the existing active laboratory foundations.
 
 ## Impact
 
-- Affects the experimental laboratory domain, project persistence, Runtime persistence, Session event projections, `/api/lab` project/experiment/Run commands and the TypeScript/Python SDK projections required by Session event changes.
-- Extends `ui-layout` with a root-scoped application-view registry and navigation service and extends `ui-sidebar` with an additive primary-navigation seat; `@deepseek-ai/dsh-client-ui-lab-workbench` consumes those contracts instead of `sidebar.footer.action`, browser events or a replacement shell.
-- Depends on the public Knowledge capability and workspace contribution completed by `pdf-knowledge-parser-mvp`/`pdf-knowledge-parser` and closes the remaining integration tasks in `lab-harness-native-workspace` before showcase acceptance.
-- Requires a proposed Agent Note because it changes project ownership, experiment execution history and product navigation across packages.
-- Evolves `examples/lab-web` into the single prototype composition and adds focused domain, protocol, browser, keyless composed and opt-in real-capability verification; it does not change the default Web profile until that composition passes its acceptance flow.
+- Affects the laboratory client contributors, `ui-layout` composition, `ui-sidebar` navigation, reusable conversation presentation contracts, typed `/api/lab` commands, Session event projections and `examples/lab-web` acceptance flow.
+- Reuses the existing Knowledge, Planning, Lab Skill, Device, Runtime, Project, Session, Approval and Artifact services; it does not replace their ownership or reimplement their Provider logic in the browser.
+- Adds typed presentation intent and Agent-lifecycle projections that both the frontend fixture adapter and Host-backed adapter must implement.
+- Stores generated Workflow/Skill documents, configuration snapshots, intermediate assets and reports only through Host-authorized locations under the selected Project Workspace; identifiers, audit state and execution truth remain service-owned.
+- Keeps the change opt-in and experimental and does not add production authentication, remote device transport, unattended physical execution or arbitrary model-generated code execution.

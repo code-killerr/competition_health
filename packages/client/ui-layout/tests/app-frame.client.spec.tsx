@@ -151,7 +151,7 @@ describe('AppFrame', () => {
     expect(keys).toContain('conversation')
     expect(keys).toContain('details')
     expect(keys).not.toContain('conversation.empty')
-    expect(slotCalls.find(c => c.key === 'conversation')!.props).toEqual({})
+    expect(slotCalls.find(c => c.key === 'conversation')!.props).toEqual({ presentation: 'default' })
     expect(slotCalls.find(c => c.key === 'details')!.props).toEqual({})
   })
 
@@ -174,6 +174,40 @@ describe('AppFrame', () => {
     expect(getByTestId('app-view-content')).toBeTruthy()
     expect(conversation.isConnected).toBe(true)
     expect(conversation.parentElement?.hidden).toBe(true)
+  })
+
+  it('keeps the real Conversation visible below a split application view', () => {
+    const { instance, getByTestId } = mountFrame()
+    act(() => { instance.actions.setActiveAppView('lab-project', 'split') })
+
+    expect(getByTestId('center-content').parentElement?.hidden).toBe(false)
+    expect(getByTestId('app-view-content').parentElement?.hidden).toBe(false)
+  })
+
+  it('uses one mounted Conversation as the bottom Agent surface', () => {
+    const { instance, getByTestId, slotCalls } = mountFrame()
+    act(() => { instance.actions.setActiveAppView('lab-project', 'agent-dock') })
+
+    const agent = getByTestId('center-content').parentElement
+    expect(agent?.getAttribute('data-lab-agent-surface')).toBe('true')
+    expect(agent?.hidden).toBe(false)
+    expect(getByTestId('app-view-content').parentElement?.hidden).toBe(false)
+    expect(slotCalls.filter(call => call.key === 'conversation').at(-1)?.props).toEqual({ presentation: 'agent-dock' })
+  })
+
+  it('switches between the mounted workbench and Agent panes on narrow screens', () => {
+    frameWidth = 700
+    window.innerWidth = frameWidth
+    const { instance, getByTestId, getByRole } = mountFrame()
+    act(() => { instance.actions.setActiveAppView('lab-project', 'split') })
+
+    expect(getByRole('tab', { name: 'Workbench' }).getAttribute('aria-selected')).toBe('true')
+    expect(getByTestId('center-content').parentElement?.hidden).toBe(true)
+    expect(getByTestId('app-view-content').parentElement?.hidden).toBe(false)
+
+    act(() => { getByRole('tab', { name: 'Agent' }).click() })
+    expect(getByTestId('center-content').parentElement?.hidden).toBe(false)
+    expect(getByTestId('app-view-content').parentElement?.hidden).toBe(true)
   })
 
   it('renders both column occupants before baselines settle (no loading gate)', () => {

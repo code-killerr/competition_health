@@ -127,7 +127,7 @@ describe('root application-view contract', () => {
 
     service.openAppView('test-page')
     expect(service.activeAppView()).toBe('test-page')
-    expect(actions.setActiveAppView).toHaveBeenLastCalledWith('test-page')
+    expect(actions.setActiveAppView).toHaveBeenLastCalledWith('test-page', 'replace')
 
     service.closeAppView()
     expect(service.activeAppView()).toBeUndefined()
