@@ -36,7 +36,7 @@ export interface LabProjectRunSummary {
 export interface LabProjectsInjected {
   readonly ui: LabUiContext
   readonly listProjects: () => Promise<readonly LabProjectSummary[]>
-  readonly createProject: (workspaceId: string, name: string) => Promise<LabProjectSummary>
+  readonly createProject: (workspaceId: string) => Promise<LabProjectSummary>
   readonly openProjectView?: () => void
 }
 
@@ -47,7 +47,6 @@ export function LabProjectsView(props: Props): JSX.Element {
   const projects = useSyncExternalStore(props.ui.subscribe.bind(props.ui), () => props.ui.snapshot())
   const workspaces = props.useWorkspaces(state => state.items)
   const [items, setItems] = useState<readonly LabProjectSummary[]>([])
-  const [name, setName] = useState('')
   const [workspaceId, setWorkspaceId] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [error, setError] = useState<string | undefined>()
@@ -56,6 +55,7 @@ export function LabProjectsView(props: Props): JSX.Element {
   const selectProject = (project: LabProjectSummary): void => {
     props.ui.selectWorkspace(project.workspaceId)
     props.ui.selectProject(project.projectId)
+    props.openProjectView?.()
   }
 
   useEffect(() => {
@@ -66,17 +66,12 @@ export function LabProjectsView(props: Props): JSX.Element {
     props.ui.selectWorkspace(initialWorkspaceId)
   }, [props.ui, workspaceId, workspaces])
 
-  useEffect(() => {
-    if (projects.activeProjectId !== undefined) props.openProjectView?.()
-  }, [projects.activeProjectId, props.openProjectView])
-
   const refresh = async (): Promise<void> => {
     setStatus('loading')
     setError(undefined)
     try {
       const nextItems = await props.listProjects()
       setItems(nextItems)
-      if (props.ui.snapshot().activeProjectId === undefined && nextItems[0] !== undefined) selectProject(nextItems[0])
       setStatus('idle')
     } catch (reason) {
       setStatus('error')
@@ -87,14 +82,13 @@ export function LabProjectsView(props: Props): JSX.Element {
   useEffect(() => { void refresh() }, []) // 页面首次打开读取 Host 当前列表。
 
   const create = async (): Promise<void> => {
-    if (name.trim() === '' || workspaceId === '') return
+    if (workspaceId === '') return
     setStatus('loading')
     setError(undefined)
     try {
-      const created = await props.createProject(workspaceId, name.trim())
+      const created = await props.createProject(workspaceId)
       setItems(current => [created, ...current])
       selectProject(created)
-      setName('')
       setStatus('idle')
     } catch (reason) {
       setStatus('error')
@@ -125,10 +119,6 @@ export function LabProjectsView(props: Props): JSX.Element {
           <h2 id="lab-project-create-title">{props.t('labProjectsCreate')}</h2>
           <p>{props.t('labProjectsCreateHint')}</p>
           <label className={css.field}>
-            <span>{props.t('labProjectsName')}</span>
-            <input value={name} onChange={(event) => { setName(event.currentTarget.value) }} />
-          </label>
-          <label className={css.field}>
             <span>{props.t('labProjectsWorkspace')}</span>
             <select
               value={workspaceId}
@@ -143,7 +133,7 @@ export function LabProjectsView(props: Props): JSX.Element {
               })}
             </select>
           </label>
-          <button type="button" className={css.primary} disabled={status === 'loading' || name.trim() === '' || workspaceId === ''} onClick={() => { void create() }}>
+          <button type="button" className={css.primary} disabled={status === 'loading' || workspaceId === ''} onClick={() => { void create() }}>
             {props.t('labProjectsCreateAction')}
           </button>
         </section>

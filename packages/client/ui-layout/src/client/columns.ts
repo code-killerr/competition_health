@@ -2,7 +2,7 @@
  * Pure concession-chain column solver for the three-column AppFrame.
  * 让渡顺序由约定固定：先收缩 details 以保持 center 不低于请求的下限，
  * 再自动关闭 details（派生宽度为零，不改写用户偏好，因此窗口变宽后可以恢复）。
- * Project 工作台组合传入零下限，使右侧面板在主动拖拽时可以占用剩余宽度。
+ * Project 工作台组合传入较低的 center 下限，使窄屏仍保留右侧面板，同时避免中间内容被压缩到不可用。
  * The sidebar never concedes: its rendered width is always the drag
  * preference (or the collapsed rail), and center absorbs any remaining
  * deficit as the last resort. Inputs are the layout store's plain width
@@ -19,6 +19,8 @@ export interface Columns { sidebar: number; center: number; details: number }
 // Contract-frozen geometry: the three-column concession chain's fixed points.
 /** Center column floor; only the final fallback may go below it. */
 export const CENTER_MIN = 640
+/** Project 工作台在窄屏保留的中间对话区最低宽度。 */
+export const LAB_WORKSPACE_CENTER_MIN = 320
 /** Sidebar drag clamp floor. */
 export const SIDEBAR_MIN = 264
 /** Sidebar drag clamp ceiling. */
@@ -36,7 +38,7 @@ export const DETAILS_MIN = 300
 /** Details 拖拽上限；实际限制由可用视口和 center 下限共同提供。 */
 export const DETAILS_MAX = Number.POSITIVE_INFINITY
 /** Details width before any user drag. */
-export const DETAILS_DEFAULT = 420
+export const DETAILS_DEFAULT = 480
 
 /**
  * Clamp a panel width into its contract range.

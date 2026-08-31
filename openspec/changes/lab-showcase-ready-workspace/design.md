@@ -58,7 +58,7 @@ Before phase 8 visual closure and every phase 9 acceptance run, verification rec
 - Deliver one truthful, coherent showcase from ordinary Agent conversation or manual Project creation through cited planning, human approval, controlled execution and evidence-backed report.
 - Deliver the result as one runnable `examples/lab-web` prototype with one shell, one launch path and shared state across every page.
 - Reuse existing Workspace, Session, conversation state, layout, primitive, trajectory and attachment capabilities while allowing LABWEAVE to own their visible composition.
-- Keep directory Workspace, LabProject, Session, Experiment, Run and Artifact identities explicit and navigable.
+- Keep the directory Workspace as the user-facing laboratory project entry; retain internal LabProject, Session, Experiment, Run and Artifact identities for their separate records and lifecycles.
 - Make Experiment a durable Project-owned record and preserve which Sessions created, continued or reviewed it.
 - Support multiple immutable Runs per Experiment, including retry provenance, without binding Run lifetime to a Session tab.
 - Replace manual opaque identifiers and raw JSON as the primary user workflow with generated IDs, selectable records, structured tables and clear empty, loading, unavailable and failure states.
@@ -76,19 +76,21 @@ Before phase 8 visual closure and every phase 9 acceptance run, verification rec
 
 ## Decisions
 
-### 1. Keep Workspace and LabProject separate and link them explicitly
+### 1. Use Workspace as the user-facing laboratory project entry
 
-A directory Workspace continues to own a normalized path, Workspace presentation and cwd-based Session grouping. Every LabProject stores one opaque `workspaceId` and owns experimental scope, Sessions, Experiments and evidence. More than one LabProject may reference the same directory Workspace.
+A directory Workspace continues to own a normalized path, Workspace presentation and cwd-based Session grouping. The laboratory UI treats that Workspace as the experiment project's only selectable identity. Each registered Workspace maps to at most one internal LabProject, and the LabProject owns experimental scope, Sessions, Experiments and evidence without becoming a second navigation or creation layer.
 
-Creating a Project from the current Session defaults to that Session's Workspace. Creating a Project manually requires selecting a registered Workspace or creating one through the existing Workspace picker. Attaching a Session whose cwd does not match the Project Workspace fails with an actionable option to create a new Session in the target Workspace; the client never silently changes the Session cwd.
+Selecting a Workspace resolves its unique LabProject and opens the corresponding Project workspace. If no LabProject exists, the Host creates one using the Workspace directory basename; a repeated create request resolves the existing mapping instead of creating a duplicate. Creating a Project from the current Session defaults to that Session's Workspace. Attaching a Session whose cwd does not match the Project Workspace fails with an actionable option to create a new Session in the target Workspace; the client never silently changes the Session cwd.
 
-**Alternative considered: rename LabProject to Workspace.** Rejected because directory membership and laboratory ownership have different lifecycle and deletion rules.
+**Alternative considered: remove LabProject from the domain entirely.** Rejected because directory membership and laboratory ownership have different lifecycle, persistence and record-ownership rules even though they are one-to-one in the user-facing model.
+
+**Alternative considered: allow several LabProjects to reference one Workspace.** Rejected for the current product because the Workspace-backed file root and Session context would not identify a unique laboratory project; multiple projects would create ambiguous selection and file ownership.
 
 **Alternative considered: duplicate directory selection in the laboratory client.** Rejected because `ui-workspace` already owns directory registration and Session grouping.
 
 ### 2. Model Project-owned Experiments and Session provenance as separate records
 
-The Project domain gains durable Experiment records with generated branded identifiers, title, objective, status, `createdInSessionId`, optional `derivedFromExperimentId` and timestamps. An explicit link records whether a Session `created`, `continued` or `reviewed` an Experiment. A Session remains associated with at most one LabProject, while an Experiment can be discussed by many Sessions inside that Project.
+The internal Project domain gains durable Experiment records with generated branded identifiers, title, objective, status, `createdInSessionId`, optional `derivedFromExperimentId` and timestamps. An explicit link records whether a Session `created`, `continued` or `reviewed` an Experiment. A Session remains associated with at most one Workspace-backed LabProject, while an Experiment can be discussed by many Sessions inside that project.
 
 The existing Experiment request, plan and cache records reference the durable Experiment identity instead of acting as the Experiment aggregate. Existing evidence projections provide the migration source for records that already have Project, Session and Experiment identifiers.
 

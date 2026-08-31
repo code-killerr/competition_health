@@ -95,7 +95,7 @@ export interface LabWorkbenchQueries {
 
 /** Typed actions that may change Host-owned records or request human approval. */
 export interface LabWorkbenchActions {
-  createProject(input: { readonly workspaceId: string; readonly name: string; readonly description?: string }): Promise<LabProjectView>
+  createProject(input: { readonly workspaceId: string; readonly name?: string; readonly description?: string }): Promise<LabProjectView>
   archiveProject(projectId: string): Promise<LabProjectView>
   createExperiment(input: { readonly projectId: string; readonly title: string; readonly objective: string }): Promise<LabExperimentRecord>
   deriveExperiment(input: { readonly projectId: string; readonly sourceExperimentId: string; readonly title: string; readonly objective: string }): Promise<LabExperimentRecord>

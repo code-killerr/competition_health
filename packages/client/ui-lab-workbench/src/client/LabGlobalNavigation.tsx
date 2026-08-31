@@ -42,9 +42,10 @@ export function LabGlobalNavigation(props: Props): JSX.Element {
   }, [props.listProjects, selection.activeProjectId])
 
   useEffect(() => {
-    if (projectsState.state !== 'ready') return
+    if (projectsState.state !== 'ready' || selection.activeProjectId === undefined) return
+    if (projectsState.value.some(project => project.projectId === selection.activeProjectId)) return
     const firstProject = projectsState.value[0]
-    if (firstProject === undefined || projectsState.value.some(project => project.projectId === selection.activeProjectId)) return
+    if (firstProject === undefined) return
     props.ui.selectWorkspace(firstProject.workspaceId)
     props.ui.selectProject(firstProject.projectId)
   }, [projectsState, props.ui, selection.activeProjectId])

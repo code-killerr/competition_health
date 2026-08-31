@@ -91,6 +91,8 @@ export interface ConnectionHandle {
   readonly hostDescription: HostDescriptionSource
   /** Generic logical RPC channels over the same Connection transport. */
   readonly rpc: ClientConnectionRpc
+  /** 订阅已解码的 Host 流事件，不接管流循环的所有权。 */
+  readonly subscribeHostEvents: (listener: (envelope: import('./api.ts').RpcRequest<import('./api.ts').HostFrame>) => void) => () => void
   /**
    * Start the connect/pump/reconnect loop with the consumer's frame sinks.
    * One consumer owns the streams (the runtime object layer); a second call
@@ -114,6 +116,7 @@ export function apply(ctx: Context): void {
   const api: IApiClient = fixtureClient ?? transport?.createApiClient() ?? new WebApiClient()
   const rpc = fixtureClient?.rpc ?? createWebConnectionRpc(transport?.fetch)
   let started = false
+  const hostEventListeners = new Set<(envelope: import('./api.ts').RpcRequest<import('./api.ts').HostFrame>) => void>()
   let description: HostDescription | undefined
   const descriptionListeners = new Set<() => void>()
   const publishDescription = (next: HostDescription | undefined): void => {
@@ -138,11 +141,25 @@ export function apply(ctx: Context): void {
       },
     },
     rpc,
+    subscribeHostEvents: listener => {
+      hostEventListeners.add(listener)
+      return () => { hostEventListeners.delete(listener) }
+    },
     start(sinks, config) {
       if (started) throw new Error('connection: the stream loop is already owned by another consumer')
       started = true
       const controller = new ConnectionController(api, {
         ...sinks,
+        onHostEnvelope: envelope => {
+          sinks.onHostEnvelope?.(envelope)
+          for (const listener of [...hostEventListeners]) {
+            try {
+              listener(envelope)
+            } catch (error) {
+              console.error('[web-runtime] Host event listener threw:', error)
+            }
+          }
+        },
         onConnected: (next) => {
           publishDescription(next)
           // A description subscriber may synchronously stop the loop. In that

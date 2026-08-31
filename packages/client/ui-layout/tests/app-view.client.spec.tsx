@@ -25,7 +25,7 @@ function panels(): PanelActions {
 function registry(ids: string[]) {
   let listener: (() => void) | undefined
   return {
-    entriesOfSlot: () => ids.map(id => ({ options: { id } })),
+    entriesOfSlot: () => ids.map(id => ({ options: { id, ...(id === 'default-page' ? { default: true } : {}) } })),
     subscribe: vi.fn((_key: string, next: () => void) => {
       listener = next
       return () => { listener = undefined }
@@ -149,6 +149,22 @@ describe('root application-view contract', () => {
 
     expect(service.activeAppView()).toBeUndefined()
     expect(actions.setActiveAppView).toHaveBeenLastCalledWith(undefined)
+  })
+
+  it('selects a default page when it registers after the layout service', () => {
+    const service = new LayoutController()
+    const actions = panels()
+    const ids: string[] = []
+    const views = registry(ids)
+    service.attachPanels(actions)
+    service.attachAppViews(views)
+
+    expect(service.activeAppView()).toBeUndefined()
+    ids.push('default-page')
+    views.notify()
+
+    expect(service.activeAppView()).toBe('default-page')
+    expect(actions.setActiveAppView).toHaveBeenLastCalledWith('default-page', 'replace')
   })
 
   it('renders a registered page before and after Session creation without remounting Conversation', async () => {

@@ -37,6 +37,49 @@ type ArtifactComparisonMetadata = Pick<ArtifactManifest, 'artifactId' | 'display
 
 type ArtifactOpenValue = ArtifactManifest & { readonly preview: { readonly kind: 'unsupported' } }
 
+/** Fixed Host-owned Project file groups exposed by the Web Facade. */
+export type LabProjectFileGroup = 'configuration' | 'conversation-output' | 'run-artifacts'
+
+/** File metadata returned without filesystem paths or file bodies. */
+export interface LabProjectFileRecord {
+  readonly projectFileId: string
+  readonly projectId: string
+  readonly group: LabProjectFileGroup
+  readonly displayName: string
+  readonly relativePath: string
+  readonly mediaType: string
+  readonly size: number
+  readonly digest: string
+  readonly revision: number
+  readonly createdAt: number
+}
+
+/** Safe preview returned only after the Host authorizes one Project file. */
+export type LabProjectFilePreview =
+  | { readonly kind: 'text'; readonly content: string }
+  | { readonly kind: 'json'; readonly content: JsonValue }
+  | { readonly kind: 'image'; readonly src: string; readonly alt: string }
+  | { readonly kind: 'unsupported' }
+
+/** Opaque handle issued by the Host for a Project file download. */
+export interface LabProjectFileDownload {
+  readonly projectFileId: string
+  readonly displayName: string
+  readonly mediaType: string
+  readonly downloadToken: string
+}
+
+/** Metadata-only revision notification for one authorized Project file. */
+export interface LabProjectFileRevisionEvent {
+  readonly type: 'project-file-revision'
+  readonly projectId: string
+  readonly projectFileId: string
+  readonly group: LabProjectFileGroup
+  readonly revision: number
+}
+
+type JsonValue = string | number | boolean | null | readonly JsonValue[] | { readonly [key: string]: JsonValue }
+
 /** Project scope and capability status returned by a project query. */
 export interface LabProjectContextView {
   readonly project: LabProjectContext
@@ -50,9 +93,20 @@ export interface LabProjectPlanningContextView {
   readonly planningContext: PlanningContext
 }
 
+/** Read-only capability summary returned by the Host configuration query. */
+export interface LabConfigurationCapabilityRecord {
+  readonly kind: 'agent' | 'workflow' | 'devices' | 'people'
+  readonly name: string
+  readonly version?: string
+  readonly status: 'available' | 'read-only' | 'unavailable'
+  readonly allowedActions: readonly string[]
+  readonly recordCount?: number
+  readonly detail?: string
+}
+
 /** Project/conversation command parsed at the Web boundary. */
 export type LabProjectConversationCommand = { readonly sessionId?: SessionId } & (
-  | { readonly command: 'project-create'; readonly workspaceId?: WorkspaceId; readonly name: string; readonly description?: string }
+  | { readonly command: 'project-create'; readonly workspaceId?: WorkspaceId; readonly name?: string; readonly description?: string }
   | { readonly command: 'project-list' }
   | { readonly command: 'project-open'; readonly projectId: LabProjectId }
   | { readonly command: 'project-scope-update'; readonly projectId: LabProjectId; readonly sources: readonly LabProjectSourceSelection[]; readonly deviceIds: readonly DeviceId[] }
@@ -78,6 +132,10 @@ export type LabProjectConversationCommand = { readonly sessionId?: SessionId } &
   | { readonly command: 'run-report'; readonly runId: RunId }
   | { readonly command: 'artifact-list'; readonly runId: RunId }
   | { readonly command: 'artifact-open'; readonly runId: RunId; readonly artifactId: ArtifactId }
+  | { readonly command: 'project-file-list'; readonly projectId: LabProjectId }
+  | { readonly command: 'project-file-open'; readonly projectId: LabProjectId; readonly projectFileId: string }
+  | { readonly command: 'project-file-download'; readonly projectId: LabProjectId; readonly projectFileId: string }
+  | { readonly command: 'configuration-capabilities' }
 )
 
 /** Project/conversation Facade result envelope. */
@@ -96,6 +154,10 @@ export type LabProjectConversationResult =
   | { readonly kind: 'run-comparison'; readonly value: LabRunComparison }
   | { readonly kind: 'artifact-list'; readonly value: RunView['artifacts'] }
   | { readonly kind: 'artifact'; readonly value: ArtifactOpenValue }
+  | { readonly kind: 'project-file-list'; readonly value: readonly LabProjectFileRecord[] }
+  | { readonly kind: 'project-file-preview'; readonly value: LabProjectFilePreview }
+  | { readonly kind: 'project-file-download'; readonly value: LabProjectFileDownload }
+  | { readonly kind: 'configuration-capabilities'; readonly value: readonly LabConfigurationCapabilityRecord[] }
 
 /** Parse one unknown JSON value into a project/conversation command.
  * @param value - unknown JSON value at the Web boundary.
@@ -109,7 +171,7 @@ export function parseLabProjectConversationCommand(value: unknown): LabProjectCo
     'project-session-attach', 'project-session-detach', 'project-session-rename', 'project-archive', 'project-context',
     'project-planning-context', 'experiment-list', 'experiment-reviews', 'experiment-open', 'experiment-create', 'experiment-derive',
     'experiment-session-link', 'run-list', 'run-open', 'run-start', 'run-stop', 'run-retry', 'run-compare', 'run-report',
-    'artifact-list', 'artifact-open',
+    'artifact-list', 'artifact-open', 'project-file-list', 'project-file-open', 'project-file-download', 'configuration-capabilities',
   ] as const)
   const sessionId = object.sessionId === undefined ? undefined : brandId<'SessionId'>(nonBlankString(object.sessionId, 'command.sessionId'))
   const parsed = (() => {
@@ -119,7 +181,7 @@ export function parseLabProjectConversationCommand(value: unknown): LabProjectCo
         return {
           command,
           ...object.workspaceId === undefined ? {} : { workspaceId: workspaceId(object.workspaceId, 'command.workspaceId') },
-          name: nonBlankString(object.name, 'command.name'),
+          ...object.name === undefined ? {} : { name: nonBlankString(object.name, 'command.name') },
           ...object.description === undefined ? {} : { description: stringValue(object.description, 'command.description') },
         }
       case 'project-list':
@@ -217,6 +279,14 @@ export function parseLabProjectConversationCommand(value: unknown): LabProjectCo
         return { command, runId: runId(object.runId, 'command.runId') }
       case 'artifact-open':
         return { command, runId: runId(object.runId, 'command.runId'), artifactId: brandId<'ArtifactId'>(nonBlankString(object.artifactId, 'command.artifactId')) }
+      case 'project-file-list':
+        return { command, projectId: projectId(object.projectId, 'command.projectId') }
+      case 'project-file-open':
+        return { command, projectId: projectId(object.projectId, 'command.projectId'), projectFileId: nonBlankString(object.projectFileId, 'command.projectFileId') }
+      case 'project-file-download':
+        return { command, projectId: projectId(object.projectId, 'command.projectId'), projectFileId: nonBlankString(object.projectFileId, 'command.projectFileId') }
+      case 'configuration-capabilities':
+        return { command }
     }
   })()
   return sessionId === undefined ? parsed : { ...parsed, sessionId }

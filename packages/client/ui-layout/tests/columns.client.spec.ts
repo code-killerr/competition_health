@@ -37,7 +37,7 @@ describe('computeColumns', () => {
   it('allows a Project workspace to use the remaining width without a center floor', () => {
     expect(computeColumns(1280, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT), 0)).toEqual({
       sidebar: SIDEBAR_DEFAULT,
-      center: 580,
+      center: 520,
       details: DETAILS_DEFAULT,
     })
     expect(computeColumns(1280, open(SIDEBAR_DEFAULT), open(900), 0)).toEqual({

@@ -37,6 +37,9 @@ describe('LabProjectShellView', () => {
     const view = render(<LabProjectShellView {...props} />)
     await waitFor(() => { expect(view.getByRole('heading', { name: 'Calibration' })).toBeTruthy() })
     expect(view.getByText('currentPath')).toBeTruthy()
+    const projectNavigation = view.container.querySelector('[data-lab-project-navigation]')
+    expect(projectNavigation?.querySelectorAll('[data-lab-project-navigation-item]')).toHaveLength(8)
+    expect(projectNavigation?.querySelectorAll('svg')).toHaveLength(8)
 
     fireEvent.click(view.getByRole('button', { name: 'planning' }))
     expect(ui.snapshot().projectPage).toBe('planning')

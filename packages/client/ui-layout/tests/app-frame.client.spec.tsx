@@ -15,7 +15,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import { useSyncExternalStore } from 'react'
 import { AppFrame } from '@deepseek-ai/dsh-client-ui-layout/src/client/AppFrame.tsx'
 import type { AppFrameProps } from '@deepseek-ai/dsh-client-ui-layout/src/client/AppFrame.tsx'
-import { DETAILS_DEFAULT, SIDEBAR_COLLAPSED } from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
+import { DETAILS_DEFAULT, LAB_WORKSPACE_CENTER_MIN, SIDEBAR_COLLAPSED } from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
 import { createLayoutStore } from '@deepseek-ai/dsh-client-ui-layout/src/client/stores.ts'
 import type {
   SessionId, SessionListState, WorkspaceListState,
@@ -228,6 +228,15 @@ describe('AppFrame', () => {
     const handles = frame.querySelectorAll('[class*="handle"]')
     drag(handles[1]!, frameWidth - DETAILS_DEFAULT, frameWidth - 580)
     expect(tracks(frame)).toEqual([280, 580])
+  })
+
+  it('keeps a usable center when the Project workspace is open on a narrow viewport', () => {
+    frameWidth = 768
+    window.innerWidth = frameWidth
+    const { frame, instance } = mountFrame()
+    act(() => { instance.actions.setActiveAppView('lab-project', 'lab-workspace') })
+
+    expect(tracks(frame)).toEqual([SIDEBAR_COLLAPSED, 768 - SIDEBAR_COLLAPSED - LAB_WORKSPACE_CENTER_MIN])
   })
 
   it('switches between the mounted workbench and Agent panes on narrow screens', () => {

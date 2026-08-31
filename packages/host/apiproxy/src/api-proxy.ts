@@ -125,6 +125,17 @@ export const DEFAULT_COLD_BLANK_PROBE_MAX_BYTES = 1024
 /** Conversation message event types (the pagination counting unit). */
 const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
 
+type LabProjectFileEvent = {
+  readonly projectId: string
+  readonly projectFileId: string
+  readonly group: 'configuration' | 'conversation-output' | 'run-artifacts'
+  readonly revision: number
+}
+
+interface LabProjectFileEventSource {
+  subscribeProjectFileEvents?(listener: (event: LabProjectFileEvent) => void): () => void
+}
+
 /** Validate one prompt as a batch before publishing any durable image object. */
 async function durablePromptContent(ctx: Context, content: readonly PromptContentPart[]): Promise<ContentBlock[]> {
   if (content.every(part => part.type === 'text')) {
@@ -3431,6 +3442,10 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
 
       host(_request, signal) {
         const queue = new FrameQueue<RpcRequest<HostFrame>>()
+        const labMvpWeb = ctx.get('labMvpWeb') as LabProjectFileEventSource | undefined
+        const projectFileEventDisposer = labMvpWeb?.subscribeProjectFileEvents?.(event => {
+          queue.push(frame({ ...event, type: 'host/project-file-revision' }))
+        })
         const committedWorkspaces = ctx.workspaceRegistry.list()
         const committedWorkspaceIds = new Set(
           committedWorkspaces.map(workspace => String(workspace.id)),
@@ -3441,6 +3456,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         // reconnecting clients, so only later changes need frames.
         let archivedSessionIds = ctx.workspaceRegistry.archivedSessionIds
         const disposers = [
+          ...projectFileEventDisposer === undefined ? [] : [projectFileEventDisposer],
           ctx.on('session/created', (session: Session) => {
             queue.push(frame({
               type: 'host/session-added',

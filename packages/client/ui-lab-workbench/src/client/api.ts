@@ -459,7 +459,7 @@ export interface LabProjectView {
 /** Project-scoped command DTO sent to the dedicated project protocol. */
 export type LabProjectCommand = { readonly sessionId?: string } & (
   | { readonly command: 'project-list' }
-  | { readonly command: 'project-create'; readonly workspaceId?: string; readonly name: string; readonly description?: string }
+  | { readonly command: 'project-create'; readonly workspaceId?: string; readonly name?: string; readonly description?: string }
   | { readonly command: 'project-open'; readonly projectId: string }
   | { readonly command: 'project-scope-update'; readonly projectId: string; readonly sources: readonly { readonly documentId: string; readonly versionId: string }[]; readonly deviceIds: readonly string[] }
   | { readonly command: 'project-session-create'; readonly projectId: string; readonly title?: string }
@@ -484,6 +484,10 @@ export type LabProjectCommand = { readonly sessionId?: string } & (
   | { readonly command: 'run-report'; readonly runId: string }
   | { readonly command: 'artifact-list'; readonly runId: string }
   | { readonly command: 'artifact-open'; readonly runId: string; readonly artifactId: string }
+  | { readonly command: 'project-file-list'; readonly projectId: string }
+  | { readonly command: 'project-file-open'; readonly projectId: string; readonly projectFileId: string }
+  | { readonly command: 'project-file-download'; readonly projectId: string; readonly projectFileId: string }
+  | { readonly command: 'configuration-capabilities' }
 )
 /** A command sent to the general laboratory Web Facade. */
 export type LabCommand = { readonly sessionId?: string } & (
@@ -544,6 +548,10 @@ export type LabProjectCommandResult =
   | { readonly kind: 'run-comparison'; readonly value: LabRunComparisonView }
   | { readonly kind: 'artifact-list'; readonly value: readonly LabArtifactRecord[] }
   | { readonly kind: 'artifact'; readonly value: LabArtifactRecord }
+  | { readonly kind: 'project-file-list'; readonly value: readonly LabProjectFileRecord[] }
+  | { readonly kind: 'project-file-preview'; readonly value: LabProjectFilePreview }
+  | { readonly kind: 'project-file-download'; readonly value: LabProjectFileDownload }
+  | { readonly kind: 'configuration-capabilities'; readonly value: readonly LabConfigurationCapability[] }
 
 /** Project scope records returned by a Host query. */
 export interface LabProjectContextView {
@@ -762,6 +770,10 @@ export function parseLabProjectCommandResult(value: unknown): LabProjectCommandR
     case 'run-comparison': return { kind: 'run-comparison', value: decodeObject<LabRunComparisonView>(object.value, 'result.value') }
     case 'artifact-list': return { kind: 'artifact-list', value: array(object.value).map(item => decodeObject<LabArtifactRecord>(item, 'result.value')) }
     case 'artifact': return { kind: 'artifact', value: decodeObject<LabArtifactRecord>(object.value, 'result.value') }
+    case 'project-file-list': return { kind: 'project-file-list', value: array(object.value).map(item => decodeObject<LabProjectFileRecord>(item, 'result.value')) }
+    case 'project-file-preview': return { kind: 'project-file-preview', value: decodeObject<LabProjectFilePreview>(object.value, 'result.value') }
+    case 'project-file-download': return { kind: 'project-file-download', value: decodeObject<LabProjectFileDownload>(object.value, 'result.value') }
+    case 'configuration-capabilities': return { kind: 'configuration-capabilities', value: array(object.value).map(item => decodeObject<LabConfigurationCapability>(item, 'result.value')) }
     default: throw new LabApiError('INVALID_RESPONSE', '项目 API 返回未知结果类型')
   }
 }

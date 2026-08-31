@@ -27,6 +27,8 @@ describe('project conversation protocol', () => {
     expect(parseLabProjectConversationCommand({ command: 'run-list', experimentId: 'experiment-1' })).toMatchObject({ command: 'run-list', experimentId: 'experiment-1' })
     expect(parseLabProjectConversationCommand({ command: 'run-compare', leftRunId: 'run-1', rightRunId: 'run-2' })).toMatchObject({ command: 'run-compare', leftRunId: 'run-1', rightRunId: 'run-2' })
     expect(parseLabProjectConversationCommand({ command: 'artifact-open', runId: 'run-1', artifactId: 'artifact-1' })).toMatchObject({ command: 'artifact-open', runId: 'run-1', artifactId: 'artifact-1' })
+    expect(parseLabProjectConversationCommand({ command: 'configuration-capabilities' })).toEqual({ command: 'configuration-capabilities' })
+    expect(parseLabProjectConversationCommand({ command: 'project-create', workspaceId: 'workspace-1' })).toEqual({ command: 'project-create', workspaceId: 'workspace-1' })
   })
 
   it('routes project commands through the Web Facade and scopes planning retrieval', async () => {
@@ -44,6 +46,7 @@ describe('project conversation protocol', () => {
       listConflicts: vi.fn().mockResolvedValue([]),
     })
     ctx.provide('labDevices', { listDevices: () => [{ id: 'device-1', name: 'Bench', healthy: true, reserved: false, capabilities: [] }] })
+    ctx.provide('labPlanning', { listProposals: () => [] })
     ctx.provide('workspaceRegistry', {
       get: vi.fn((id: string) => id === projectWorkspace.id ? projectWorkspace : undefined),
       list: vi.fn(() => [projectWorkspace]),
@@ -54,8 +57,18 @@ describe('project conversation protocol', () => {
     })
     const web = new LabMvpWebService(ctx)
 
-    const created = await web.dispatchProject(parseLabProjectConversationCommand({ command: 'project-create', workspaceId: 'workspace-1', name: 'Project', sessionId: actor }))
+    await expect(web.dispatchProject(parseLabProjectConversationCommand({ command: 'configuration-capabilities' }))).resolves.toMatchObject({
+      kind: 'configuration-capabilities',
+      value: expect.arrayContaining([
+        expect.objectContaining({ kind: 'workflow', status: 'available', recordCount: 0 }),
+        expect.objectContaining({ kind: 'devices', status: 'available', recordCount: 1 }),
+        expect.objectContaining({ kind: 'agent', status: 'unavailable' }),
+      ]) as unknown,
+    })
+
+    const created = await web.dispatchProject(parseLabProjectConversationCommand({ command: 'project-create', workspaceId: 'workspace-1', sessionId: actor }))
     expect(created).toMatchObject({ kind: 'project' })
+    expect(created).toMatchObject({ value: { project: { name: 'project' } } })
     const projectId = (created.value as { project: { projectId: string } }).project.projectId
     await expect(web.dispatchProject(parseLabProjectConversationCommand({
       command: 'project-scope-update',

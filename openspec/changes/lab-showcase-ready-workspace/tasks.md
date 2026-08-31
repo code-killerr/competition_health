@@ -63,6 +63,7 @@
 - [x] 2.6 创建 Project Session 时通过现有 Workspace/Session Host 服务在 Project Workspace 下创建真实 Session；基线实现通过 `ui-layout.closeAppView()` 返回现有 Conversation。5.4 保留 Session 创建与打开语义，并在实验 composition 中用持续工作台取代关闭页面的产品行为。
 - [x] 2.7 更新 `project-create`、`project-session-attach`、`project-session-detach`、`project-archive` 协议和 Facade；解析器拒绝浏览器提交的 Project ID。
 - [x] 2.8 为创建、Workspace 缺失、cwd 冲突、attach、detach、归档但保留 Session 日志增加领域、协议和组合测试；同步 Session events 和两个 SDK 投影。
+- [ ] 2.9 将 Workspace 确定为用户可见的实验项目入口，并在 Host 侧强制每个 Workspace 至多对应一个内部 LabProject；已有映射时复用并打开，未映射时按 Workspace 目录名创建，Workspace 切换时自动定位对应 Project。
 
 ### 2 阶段检查点
 
@@ -225,7 +226,7 @@
 **文件：** `examples/lab-web/`、浏览器 e2e、用户文档、截图/GIF 资产；不把独立 HTML 加入产品导航。
 
 - [ ] 11.1 增加仓库级 `demo:lab-web` 启动脚本，复用 8.3 的客户端产物新鲜度检查并处理构建前置和 profile patch；文档命令必须从仓库根目录在 Node 24 下成功，且不得在源码更新后继续提供旧 client bundle。
-- [ ] 11.2 增加真实浏览器 e2e：首次打开默认进入 Project Overview；无 Session 时选择 Workspace、创建 Project/Session；在中间唯一的原生 Harness Agent input 提交目标；Agent 补问；从配置中心导入/检索 Knowledge；选择或生成 Skill；创建/批准 Workflow/Plan；运行；触发一次异常重规划；确认 Result/Evidence 并打开报告。断言页面不存在默认 Conversation 大输入框或第二个 text area。
+- [ ] 11.2 增加真实浏览器 e2e：首次打开默认进入全局 Execution monitor；无 Session 时选择 Workspace、按当前 Workspace 目录名称创建 Project/Session；在中间唯一的原生 Harness Agent input 提交目标；Agent 补问；从配置中心导入/检索 Knowledge；选择或生成 Skill；创建/批准 Workflow/Plan；运行；触发一次异常重规划；确认 Result/Evidence 并打开报告。断言页面不存在默认 Conversation 大输入框或第二个 text area。
 - [ ] 11.3 e2e 在全局 monitor、Project tree、Knowledge、Agent timeline、Workflow、approval、Experiment、Run、Evidence 和 Result destinations 断言同一组 Host ID；验证 Agent presentation intent 驱动工作区，并在用户覆盖导航、刷新和 Session 切换后再次断言。
 - [ ] 11.4 增加模型不可用、Knowledge 失败、Workspace unavailable、Run 失败和 capability unload 恢复场景；不得以静态截图代替行为断言。
 - [ ] 11.5 在桌面、窄桌面/平板和纯键盘路径运行可访问性验证；修复 sidebar tree、Agent dock/timeline overlay、pane switch、主滚动容器、焦点、语义名称、返回路径和主操作裁剪问题。

@@ -7,12 +7,20 @@ The system SHALL let a user create a laboratory Project from the current Harness
 - **WHEN** a user confirms the create-Project action from an ordinary Session with a registered Workspace
 - **THEN** the system creates the Project, associates the current Session and opens the Project conversation without replacing the existing message history
 
-#### Scenario: Create a Project manually
-- **WHEN** a user creates a Project from global navigation and selects a registered Workspace
-- **THEN** the system creates the Project and offers a new Session rooted in that Workspace
+#### Scenario: Create the Workspace-backed laboratory Project
+- **WHEN** a user starts Project creation from global navigation for a registered Workspace
+- **THEN** the Host creates or resolves the single LabProject for that Workspace, derives its display name from the Workspace directory basename, and offers a Session rooted in that Workspace without requiring a manual Project name
 
 ### Requirement: Project and directory Workspace identities remain explicit
-Each LabProject SHALL reference exactly one registered directory Workspace without adopting its identity or persistence semantics. The Project view SHALL display the selected Workspace title and directory, while the Workspace service SHALL remain authoritative for its path and cwd-based Session membership.
+Each LabProject SHALL reference exactly one registered directory Workspace, and each registered Workspace SHALL reference at most one LabProject. Workspace SHALL be the user-facing laboratory project entry; LabProject SHALL remain an internal record owner for experimental scope, Sessions, Experiments and evidence without becoming a second selectable navigation layer. The Project view SHALL display the selected Workspace title and directory, while the Workspace service SHALL remain authoritative for its path and cwd-based Session membership.
+
+#### Scenario: Switch Workspace
+- **WHEN** a user selects a different registered Workspace
+- **THEN** the Host resolves that Workspace's unique LabProject and the right Project workspace follows it; if no LabProject exists, the UI offers creation from the Workspace directory name
+
+#### Scenario: Prevent duplicate Project mappings
+- **WHEN** a create-Project action targets a Workspace that already has a LabProject
+- **THEN** the Host returns the existing Workspace-backed LabProject instead of creating a second Project mapping
 
 #### Scenario: Open a Project with a linked Workspace
 - **WHEN** a user opens a Project linked to a registered Workspace

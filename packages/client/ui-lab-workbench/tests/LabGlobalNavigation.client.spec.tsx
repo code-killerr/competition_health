@@ -62,6 +62,7 @@ describe('LabGlobalNavigation', () => {
     const view = render(<LabGlobalNavigation {...props} />)
 
     await waitFor(() => { expect(view.getByRole('button', { name: 'Calibration' })).toBeTruthy() })
+    expect(ui.snapshot().activeProjectId).toBeUndefined()
     expect(view.getByText('lifecycleStatusActive')).toBeTruthy()
     expect(view.getByLabelText('pendingApproval')).toBeTruthy()
     expect(view.container.textContent).toContain('runCurrentStep')

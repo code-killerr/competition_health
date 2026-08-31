@@ -33,7 +33,6 @@ import type { LabPresentationTarget } from './LabPresentationConsumer.ts'
 import { LabOperationsView } from './LabOperationsView.tsx'
 import type { LabOperationsInjected } from './LabOperationsView.tsx'
 import { createLabHostAdapter } from './host-adapter.ts'
-import type { LabWorkbenchAdapter } from './adapter.ts'
 
 export { LabWorkbenchError } from './adapter.ts'
 export type { LabAdapterErrorCode, LabProjectFileAdapter, LabProjectFileEventListener, LabQueryState, LabWorkbenchAdapter, LabWorkbenchActions, LabWorkbenchQueries, LabKnowledgeScopeView } from './adapter.ts'
@@ -108,14 +107,17 @@ export interface LabPresentationController {
 }
 
 /** 工作台所需的客户端 Service。 */
-export const inject = ['slots', 'locale', 'sessions', 'layout', 'workspaces']
+export const inject = ['slots', 'locale', 'sessions', 'layout', 'workspaces', 'connection']
 
 /** 注册 LABWEAVE 页面，并让真实 Harness Conversation 作为三栏中间唯一输入面。 */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-lab-workbench: dictionaries')
 
   const ui = new LabUiContext()
-  const adapter: LabWorkbenchAdapter = createLabHostAdapter()
+  const connection = ctx.get('connection') as { readonly subscribeHostEvents?: LabHostEventSubscription } | undefined
+  const adapter = createLabHostAdapter({
+    ...connection?.subscribeHostEvents === undefined ? {} : { subscribeHostEvents: connection.subscribeHostEvents as LabHostEventSubscription },
+  })
   ctx.effect(() => ctx.reflect.provide('labUi', ui), 'ui-lab-workbench: presentation selection')
   ctx.effect(() => ctx.reflect.provide('labAdapter', adapter), 'ui-lab-workbench: Host adapter')
   const projectActions: LabProjectActions = { toggleSource: toggleProjectSource }
@@ -135,14 +137,13 @@ export function apply(ctx: ClientContext): void {
   const registerProjects = (): (() => void) => ctx.slots.register({
     name: 'app.view',
     id: 'lab-projects',
-    default: true,
     conversationMode: 'lab-workspace',
     order: 10,
     locale: NS,
     inject: (): LabProjectsInjected => ({
       ui,
       listProjects: listProjectSummaries,
-      createProject: async (workspaceId, name) => projectSummary(await adapter.createProject({ workspaceId, name })),
+      createProject: async workspaceId => projectSummary(await adapter.createProject({ workspaceId })),
       openProjectView: () => { ctx.layout.openAppView('lab-project') },
     }),
   }, LabProjectsView)
@@ -167,6 +168,10 @@ export function apply(ctx: ClientContext): void {
       retryRun: async runId => adapter.retryRun({ runId, actor: currentActor(ctx) }),
       confirmStep: input => adapter.confirmStep({ runId: input.runId, evidence: [], confirmedBy: currentActor(ctx), ...input.stepId === undefined ? {} : { stepId: input.stepId } }),
       stopRun: runId => adapter.stopRun({ runId, requestedBy: currentActor(ctx) }),
+      listProjectFiles: adapter.listProjectFiles,
+      openProjectFile: adapter.openProjectFile,
+      downloadProjectFile: adapter.downloadProjectFile,
+      subscribeProjectFileEvents: adapter.subscribeProjectFileEvents,
       openCitation: citation => { presentation.openCitation(citation) },
       openSession: (sessionId) => { ctx.sessions.open(sessionId as SessionId) },
     }),
@@ -174,14 +179,14 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('app.view', registerProjectShell)
 
   const registerMonitor = (): (() => void) => ctx.slots.register({
-    name: 'app.view', id: 'lab-monitor', order: 8, conversationMode: 'lab-workspace', locale: NS,
+    name: 'app.view', id: 'lab-monitor', order: 8, default: true, conversationMode: 'lab-workspace', locale: NS,
     inject: (): LabOperationsInjected => ({ kind: 'monitor', ui, listProjects: listProjectSummaries, openAppView: viewId => { ctx.layout.openAppView(viewId) } }),
   }, LabOperationsView)
   ctx.slots.inject('app.view', registerMonitor)
 
   const registerConfiguration = (): (() => void) => ctx.slots.register({
     name: 'app.view', id: 'lab-config', order: 9, conversationMode: 'replace', locale: NS,
-    inject: (): LabOperationsInjected => ({ kind: 'configuration', ui, listProjects: listProjectSummaries, openAppView: viewId => { ctx.layout.openAppView(viewId) } }),
+    inject: (): LabOperationsInjected => ({ kind: 'configuration', ui, listProjects: listProjectSummaries, ...adapter.listConfigurationCapabilities === undefined ? {} : { listConfigurationCapabilities: adapter.listConfigurationCapabilities }, openAppView: viewId => { ctx.layout.openAppView(viewId) } }),
   }, LabOperationsView)
   ctx.slots.inject('app.view', registerConfiguration)
 
@@ -244,6 +249,8 @@ export function apply(ctx: ClientContext): void {
   }, LabLifecycleNodeView))
 
 }
+
+type LabHostEventSubscription = (listener: (envelope: { readonly payload: unknown }) => void) => () => void
 
 function openLifecycleDetail(event: import('./lifecycle.ts').LabAgentLifecycleProjection, ui: LabUiContext, ctx: ClientContext): void {
   if (event.kind === 'execution') {

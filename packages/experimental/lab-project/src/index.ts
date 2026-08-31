@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { defineDomain } from '@deepseek-ai/dsh-storage-domain'
 import type { Domain } from '@deepseek-ai/dsh-storage-domain'
 import { randomUUID } from 'node:crypto'
+import { basename } from 'node:path'
 import { brandId, type CitationId, type DeviceId, type ExperimentId, type KnowledgeDocumentId, type KnowledgeDocumentVersionId, type WorkspaceId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type {
   LabProject,
@@ -163,7 +164,7 @@ export interface LabProjectStore {
 /** Project creation input. */
 export interface CreateLabProjectRequest {
   readonly workspaceId?: WorkspaceId
-  readonly name: string
+  readonly name?: string
   readonly description?: string
   readonly createdBy: SessionId
 }
@@ -293,8 +294,10 @@ export class LabProjectService extends Service {
    */
   async create(request: CreateLabProjectRequest): Promise<LabProjectView> {
     await this.ready
-    const name = nonBlank(request.name, 'project name')
     const workspace = this.resolveWorkspace(request.workspaceId, request.createdBy)
+    const name = request.name === undefined
+      ? nonBlank(basename(workspace.path), 'project name derived from Workspace')
+      : nonBlank(request.name, 'project name')
     const projectId = this.idGenerator()
     if (this.state.projects.some(project => project.projectId === projectId)) throw new Error(`project "${projectId}" already exists`)
     const now = this.clock()

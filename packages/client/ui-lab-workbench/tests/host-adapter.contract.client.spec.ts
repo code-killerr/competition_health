@@ -19,6 +19,7 @@ describe('Host-backed LabWorkbenchAdapter', () => {
       if (command.command === 'project-open') return { kind: 'project', value: project }
       if (command.command === 'run-list') return { kind: 'run-list', value: [run] }
       if (command.command === 'run-report') return { kind: 'run-report', value: report }
+      if (command.command === 'configuration-capabilities') return { kind: 'configuration-capabilities', value: [{ kind: 'workflow', name: 'Workflow registry', status: 'available', allowedActions: ['validate'], recordCount: 0 }] }
       throw new Error(`unexpected project command ${command.command}`)
     })
     const adapter = createLabHostAdapter({ sendProjectCommand })
@@ -27,6 +28,7 @@ describe('Host-backed LabWorkbenchAdapter', () => {
     await expect(adapter.openProject('project-1')).resolves.toEqual({ state: 'ready', value: project })
     await expect(adapter.listRuns('experiment-1')).resolves.toEqual({ state: 'ready', value: [run] })
     await expect(adapter.getResultAssessment('run-1')).resolves.toEqual({ state: 'unavailable', code: 'CAPABILITY_UNAVAILABLE', message: '该 Run 尚无 Host 结果判定', retryable: false })
+    await expect(adapter.listConfigurationCapabilities!()).resolves.toEqual({ state: 'ready', value: [{ kind: 'workflow', name: 'Workflow registry', status: 'available', allowedActions: ['validate'], recordCount: 0 }] })
   })
 
   it('routes stop, confirm and retry through typed Host commands', async () => {
@@ -47,5 +49,32 @@ describe('Host-backed LabWorkbenchAdapter', () => {
     expect(sendProjectCommand).toHaveBeenCalledWith({ command: 'run-retry', runId: 'run-1' })
     expect(sendCommand).toHaveBeenNthCalledWith(1, { command: 'run-stop', runId: 'run-1', requestedBy: 'session-1' })
     expect(sendCommand).toHaveBeenNthCalledWith(2, { command: 'run-confirm', runId: 'run-1', evidence: ['artifact-1'], confirmedBy: 'session-1', stepId: 'step-1', operationId: 'operation-1' })
+  })
+
+  it('routes Project file actions and Host revision frames through the adapter', async () => {
+    const file = {
+      projectFileId: 'file-1', projectId: 'project-1', group: 'configuration' as const,
+      displayName: 'workflow.json', relativePath: 'configuration/workflow.json', mediaType: 'application/json',
+      size: 12, digest: 'sha256:file', revision: 2, createdAt: 100,
+    }
+    const sendProjectCommand = vi.fn(async (command: LabProjectCommand): Promise<LabProjectCommandResult> => {
+      if (command.command === 'project-file-list') return { kind: 'project-file-list', value: [file] }
+      if (command.command === 'project-file-open') return { kind: 'project-file-preview', value: { kind: 'json', content: { revision: 2 } } }
+      if (command.command === 'project-file-download') return { kind: 'project-file-download', value: { projectFileId: 'file-1', displayName: 'workflow.json', mediaType: 'application/json', downloadToken: 'token-1' } }
+      throw new Error(`unexpected project command ${command.command}`)
+    })
+    let hostListener: ((envelope: { readonly payload: unknown }) => void) | undefined
+    const adapter = createLabHostAdapter({ sendProjectCommand, subscribeHostEvents: listener => { hostListener = listener; return () => { hostListener = undefined } } })
+
+    await expect(adapter.listProjectFiles('project-1')).resolves.toEqual({ state: 'ready', value: [file] })
+    await expect(adapter.openProjectFile('project-1', 'file-1')).resolves.toMatchObject({ state: 'ready', value: { kind: 'json' } })
+    await expect(adapter.downloadProjectFile('project-1', 'file-1')).resolves.toMatchObject({ state: 'ready', value: { downloadToken: 'token-1' } })
+    const events: unknown[] = []
+    const dispose = adapter.subscribeProjectFileEvents(event => { events.push(event) })
+    hostListener?.({ payload: { type: 'host/project-file-revision', projectId: 'project-1', projectFileId: 'file-1', group: 'configuration', revision: 3 } })
+    hostListener?.({ payload: { type: 'host/project-file-revision', projectId: 'other', projectFileId: 'file-1', group: 'configuration', revision: 4 } })
+    hostListener?.({ payload: { type: 'host/agent-error', projectId: 'project-1' } })
+    dispose()
+    expect(events).toEqual([{ type: 'project-file-revision', projectId: 'project-1', projectFileId: 'file-1', group: 'configuration', revision: 3 }, { type: 'project-file-revision', projectId: 'other', projectFileId: 'file-1', group: 'configuration', revision: 4 }])
   })
 })

@@ -6,7 +6,8 @@ import type { DeviceView } from '@deepseek-ai/dsh-experimental-lab-device'
 import type { LabExperimentCacheService } from '@deepseek-ai/dsh-experimental-lab-cache'
 import type { ImportStatusResult } from '@deepseek-ai/dsh-experimental-lab-knowledge'
 import { createLabKnowledgeConsumer, type KnowledgeCapabilityStatus, type LabKnowledgeConsumer, type LabProjectWorkspaceRegistry } from '@deepseek-ai/dsh-experimental-lab-project'
-import type { LabProjectContextView, LabProjectConversationCommand, LabProjectConversationResult, LabProjectPlanningContextView, LabRunComparison } from './project-protocol.ts'
+import type { LabConfigurationCapabilityRecord, LabProjectContextView, LabProjectConversationCommand, LabProjectConversationResult, LabProjectPlanningContextView, LabProjectFileDownload, LabProjectFilePreview, LabProjectFileRecord, LabProjectFileRevisionEvent, LabRunComparison } from './project-protocol.ts'
+import { LabProjectFileCatalog } from './project-files.ts'
 import type { PlanProposalResult, PlanningContext } from '@deepseek-ai/dsh-experimental-lab-planning'
 import type { ExecutionStepSpec, LabRunReport, RunView } from '@deepseek-ai/dsh-experimental-lab-runtime'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
@@ -32,8 +33,22 @@ export interface LabMvpWebSnapshot {
 
 /** Web Consumer Facade 服务。 */
 export class LabMvpWebService extends Service {
+  private readonly projectFileCatalog: LabProjectFileCatalog
+  private readonly projectFileListeners = new Set<(event: LabProjectFileRevisionEvent) => void>()
+
   constructor(ctx: Context) {
     super(ctx, 'labMvpWeb')
+    this.projectFileCatalog = new LabProjectFileCatalog(
+      event => { for (const listener of [...this.projectFileListeners]) listener(event) },
+      () => this.projectFileListeners.size > 0,
+    )
+    ctx.effect(() => () => { this.projectFileCatalog.dispose() }, 'lab-mvp-web: project file catalog')
+  }
+
+  /** 订阅 Host 授权的 Project 文件 revision 通知。 */
+  subscribeProjectFileEvents(listener: (event: LabProjectFileRevisionEvent) => void): () => void {
+    this.projectFileListeners.add(listener)
+    return () => { this.projectFileListeners.delete(listener) }
   }
 
   /** 返回供 Web 层序列化的当前实验状态。
@@ -152,7 +167,7 @@ export class LabMvpWebService extends Service {
       case 'project-create': {
         const value = await this.ctx.labProjects.create({
           ...command.workspaceId === undefined ? {} : { workspaceId: command.workspaceId },
-          name: command.name,
+          ...command.name === undefined ? {} : { name: command.name },
           ...command.description === undefined ? {} : { description: command.description },
           createdBy: actor,
         })
@@ -160,7 +175,7 @@ export class LabMvpWebService extends Service {
           version: 1,
           projectId: value.project.projectId,
           workspaceId: value.project.workspaceId,
-          name: command.name,
+          name: value.project.name,
           sessionId: actor,
         })
         return { kind: 'project', value }
@@ -376,7 +391,56 @@ export class LabMvpWebService extends Service {
         if (artifact === undefined) throw new Error(`artifact "${command.artifactId}" is not available for run "${command.runId}"`)
         return { kind: 'artifact', value: { ...artifact, preview: { kind: 'unsupported' as const } } }
       }
+      case 'project-file-list':
+        return { kind: 'project-file-list', value: await this.listProjectFiles(command.projectId) }
+      case 'project-file-open':
+        return { kind: 'project-file-preview', value: await this.openProjectFile(command.projectId, command.projectFileId) }
+      case 'project-file-download':
+        return { kind: 'project-file-download', value: await this.downloadProjectFile(command.projectId, command.projectFileId) }
+      case 'configuration-capabilities':
+        return { kind: 'configuration-capabilities', value: await this.configurationCapabilities() }
     }
+  }
+
+  private async projectFileWorkspace(projectId: LabProjectId): Promise<string> {
+    const project = await this.ctx.labProjects.open(projectId)
+    if (project.project === undefined) throw new Error(`project "${projectId}" is unavailable`)
+    const workspace = this.workspaceRegistry().get(project.project.workspaceId)
+    if (workspace === undefined) throw new Error(`workspace "${project.project.workspaceId}" is unavailable`)
+    return workspace.path
+  }
+
+  private async listProjectFiles(projectId: LabProjectId): Promise<readonly LabProjectFileRecord[]> {
+    return this.projectFileCatalog.list(String(projectId), await this.projectFileWorkspace(projectId))
+  }
+
+  private async openProjectFile(projectId: LabProjectId, projectFileId: string): Promise<LabProjectFilePreview> {
+    return this.projectFileCatalog.open(String(projectId), await this.projectFileWorkspace(projectId), projectFileId)
+  }
+
+  private async downloadProjectFile(projectId: LabProjectId, projectFileId: string): Promise<LabProjectFileDownload> {
+    return this.projectFileCatalog.download(String(projectId), await this.projectFileWorkspace(projectId), projectFileId)
+  }
+
+  /** Return only capabilities and record counts that the mounted Host providers expose. */
+  private async configurationCapabilities(): Promise<readonly LabConfigurationCapabilityRecord[]> {
+    const capabilities: LabConfigurationCapabilityRecord[] = [
+      { kind: 'agent', name: 'Harness Agent', status: 'unavailable', allowedActions: [] },
+      { kind: 'people', name: 'People and permissions', status: 'unavailable', allowedActions: [] },
+    ]
+    try {
+      const proposals = this.ctx.labPlanning.listProposals()
+      capabilities.splice(1, 0, { kind: 'workflow', name: 'Workflow registry', status: 'available', allowedActions: ['validate'], recordCount: proposals.length })
+    } catch {
+      capabilities.splice(1, 0, { kind: 'workflow', name: 'Workflow registry', status: 'unavailable', allowedActions: [] })
+    }
+    try {
+      const devices = this.ctx.labDevices.listDevices()
+      capabilities.splice(2, 0, { kind: 'devices', name: 'Device registry', status: 'available', allowedActions: ['inspect'], recordCount: devices.length })
+    } catch {
+      capabilities.splice(2, 0, { kind: 'devices', name: 'Device registry', status: 'unavailable', allowedActions: [] })
+    }
+    return capabilities
   }
 
   private knowledgeConsumer(): LabKnowledgeConsumer {

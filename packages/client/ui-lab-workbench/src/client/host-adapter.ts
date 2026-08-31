@@ -11,20 +11,24 @@ import {
   type LabRun,
   type LabWorkflowRecord,
 } from './api.ts'
-import { LabWorkbenchError, type LabQueryState, type LabWorkbenchAdapter } from './adapter.ts'
+import { LabWorkbenchError, type LabProjectFileAdapter, type LabQueryState, type LabWorkbenchAdapter } from './adapter.ts'
+
+type HostEventEnvelope = { readonly payload: unknown }
 
 /** Injectable transport functions used by the production Host adapter and its contract tests. */
 export interface LabHostAdapterDependencies {
   readonly sendCommand?: (command: LabCommand) => ReturnType<typeof sendLabCommand>
   readonly sendProjectCommand?: (command: LabProjectCommand) => ReturnType<typeof sendLabProjectCommand>
+  readonly subscribeHostEvents?: (listener: (envelope: HostEventEnvelope) => void) => () => void
 }
 
 /** Build the Host-backed adapter used by the LABWEAVE production composition. */
-export function createLabHostAdapter(dependencies: LabHostAdapterDependencies = {}): LabWorkbenchAdapter {
+export function createLabHostAdapter(dependencies: LabHostAdapterDependencies = {}): LabWorkbenchAdapter & LabProjectFileAdapter {
   const sendCommand = dependencies.sendCommand ?? sendLabCommand
   const sendProjectCommand = dependencies.sendProjectCommand ?? sendLabProjectCommand
+  const subscribeHostEvents = dependencies.subscribeHostEvents ?? (() => () => {})
 
-  const adapter: LabWorkbenchAdapter = {
+  const adapter: LabWorkbenchAdapter & LabProjectFileAdapter = {
     listProjects: () => query(async () => {
       const result = await sendProjectCommand({ command: 'project-list' })
       if (result.kind !== 'project-list') throw invalid('项目列表响应格式无效')
@@ -94,7 +98,7 @@ export function createLabHostAdapter(dependencies: LabHostAdapterDependencies = 
       if (result.kind !== 'skill-revision') throw invalid('Skill 校验响应格式无效')
       return unavailable(`Host 已返回 Skill revision ${result.value.revisionId ?? revisionId}，但 Facade 尚未暴露结构化校验结果`)
     }),
-    createProject: async input => projectResult(await sendProjectCommand({ command: 'project-create', workspaceId: input.workspaceId, name: input.name, ...input.description === undefined ? {} : { description: input.description } }), 'project'),
+    createProject: async input => projectResult(await sendProjectCommand({ command: 'project-create', workspaceId: input.workspaceId, ...input.name === undefined ? {} : { name: input.name }, ...input.description === undefined ? {} : { description: input.description } }), 'project'),
     archiveProject: async projectId => projectResult(await sendProjectCommand({ command: 'project-archive', projectId }), 'project'),
     createExperiment: async input => experimentFromProjectAction(await sendProjectCommand({ command: 'experiment-create', projectId: input.projectId, title: input.title, objective: input.objective }), input.title, input.objective),
     deriveExperiment: async input => experimentFromProjectAction(await sendProjectCommand({ command: 'experiment-derive', projectId: input.projectId, sourceExperimentId: input.sourceExperimentId, title: input.title, objective: input.objective }), input.title, input.objective),
@@ -106,8 +110,55 @@ export function createLabHostAdapter(dependencies: LabHostAdapterDependencies = 
     stopRun: async input => agentRun(sendCommand, { command: 'run-stop', runId: input.runId, requestedBy: input.requestedBy }),
     retryRun: async input => projectResult(await sendProjectCommand({ command: 'run-retry', runId: input.runId }), 'run'),
     confirmStep: async input => agentRun(sendCommand, { command: 'run-confirm', runId: input.runId, evidence: input.evidence, confirmedBy: input.confirmedBy, ...input.stepId === undefined ? {} : { stepId: input.stepId }, ...input.operationId === undefined ? {} : { operationId: input.operationId } }),
+    listProjectFiles: projectId => query(async () => {
+      const result = await sendProjectCommand({ command: 'project-file-list', projectId })
+      if (result.kind !== 'project-file-list') throw invalid('Project 文件列表响应格式无效')
+      return result.value
+    }),
+    openProjectFile: (projectId, projectFileId) => query(async () => {
+      const result = await sendProjectCommand({ command: 'project-file-open', projectId, projectFileId })
+      if (result.kind !== 'project-file-preview') throw invalid('Project 文件预览响应格式无效')
+      return result.value
+    }),
+    downloadProjectFile: (projectId, projectFileId) => query(async () => {
+      const result = await sendProjectCommand({ command: 'project-file-download', projectId, projectFileId })
+      if (result.kind !== 'project-file-download') throw invalid('Project 文件下载响应格式无效')
+      return result.value
+    }),
+    listConfigurationCapabilities: () => query(async () => {
+      const result = await sendProjectCommand({ command: 'configuration-capabilities' })
+      if (result.kind !== 'configuration-capabilities') throw invalid('配置 capability 响应格式无效')
+      return result.value
+    }),
+    subscribeProjectFileEvents: listener => subscribeHostEvents(envelope => {
+      const frame = envelope.payload
+      if (!isProjectFileRevisionFrame(frame)) return
+      listener({
+          type: 'project-file-revision',
+          projectId: frame.projectId,
+          projectFileId: frame.projectFileId,
+          group: frame.group,
+          revision: frame.revision,
+        })
+      }),
   }
   return adapter
+}
+
+function isProjectFileRevisionFrame(value: unknown): value is {
+  readonly type: 'host/project-file-revision'
+  readonly projectId: string
+  readonly projectFileId: string
+  readonly group: 'configuration' | 'conversation-output' | 'run-artifacts'
+  readonly revision: number
+} {
+  if (typeof value !== 'object' || value === null) return false
+  const frame = value as Record<string, unknown>
+  return frame.type === 'host/project-file-revision'
+    && typeof frame.projectId === 'string'
+    && typeof frame.projectFileId === 'string'
+    && (frame.group === 'configuration' || frame.group === 'conversation-output' || frame.group === 'run-artifacts')
+    && typeof frame.revision === 'number'
 }
 
 async function listReviews(sendProjectCommand: NonNullable<LabHostAdapterDependencies['sendProjectCommand']>, experimentId: string): Promise<readonly LabPlanReview[]> {

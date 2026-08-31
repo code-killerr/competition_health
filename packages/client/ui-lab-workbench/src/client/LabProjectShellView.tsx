@@ -17,6 +17,16 @@ import { LabArtifactPreview } from './LabArtifactPreview.tsx'
 import type { LabArtifactPreviewLabels } from './LabArtifactPreview.tsx'
 import { LabProjectFileView, type LabProjectFileLabels } from './LabProjectFileView.tsx'
 import { LabResultReportView, type LabResultReportLabels } from './LabResultReportView.tsx'
+import {
+  IconArchiveOutline20,
+  IconBrowseOutline16,
+  IconCheckOutline16,
+  IconChecklistOutline14,
+  IconFolderOpenOutline16,
+  IconGoalOutline16,
+  IconListPenOutline16,
+  IconPlayOutline16,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './LabProjectShellView.module.css'
 
 /** Host queries and the real Session opener supplied to the Project app view. */
@@ -44,6 +54,16 @@ type Props = PropsRuntime<'app.view'> & PropsLocale<'labWorkbench'> & InjectFace
 
 const PAGES = ['overview', 'planning', 'approval', 'execution', 'steps', 'evidence', 'files', 'archive'] as const
 type Page = typeof PAGES[number]
+const PROJECT_NAVIGATION = [
+  { page: 'overview', Icon: IconGoalOutline16 },
+  { page: 'planning', Icon: IconListPenOutline16 },
+  { page: 'approval', Icon: IconCheckOutline16 },
+  { page: 'execution', Icon: IconPlayOutline16 },
+  { page: 'steps', Icon: IconChecklistOutline14 },
+  { page: 'evidence', Icon: IconBrowseOutline16 },
+  { page: 'files', Icon: IconFolderOpenOutline16 },
+  { page: 'archive', Icon: IconArchiveOutline20 },
+] as const satisfies readonly { readonly page: Page; readonly Icon: (props: { readonly size?: number; readonly className?: string }) => JSX.Element }[]
 type LoadingState = { readonly state: 'loading' }
 type ProjectState = LoadingState | LabQueryState<LabProjectView>
 type RunsState = LoadingState | LabQueryState<readonly LabRun[]>
@@ -173,11 +193,12 @@ export function LabProjectShellView(props: Props): JSX.Element {
       <div className={css.workspaceLayout}>
         <nav className={css.projectNavigation} aria-label={props.t('projectNavigation')} data-lab-project-navigation>
           <span className={css.navigationKicker}>{props.t('projectNavigation')}</span>
-          {PAGES.map((item) => (
-            <button key={item} type='button' className={page === item ? css.tabActive : css.tab} aria-current={page === item ? 'page' : undefined} onClick={() => { props.ui.openProjectPage(item) }}>
-              {props.t(destinationLabel(item))}
+          {PROJECT_NAVIGATION.map(({ page: item, Icon }) => {
+            const label = props.t(destinationLabel(item))
+            return <button key={item} type='button' className={page === item ? css.tabActive : css.tab} aria-label={label} aria-current={page === item ? 'page' : undefined} title={label} data-lab-project-navigation-item={item} onClick={() => { props.ui.openProjectPage(item) }}>
+              <span className={css.navigationIcon} aria-hidden='true'><Icon size={16} /></span>
             </button>
-          ))}
+          })}
         </nav>
         <div className={css.workspaceContent}>
           {page === 'overview' && <Overview props={props} project={project} runs={runs} artifacts={artifacts} onNavigate={destination => { props.ui.openProjectPage(destination) }} />}
@@ -185,7 +206,7 @@ export function LabProjectShellView(props: Props): JSX.Element {
           {page === 'approval' && <Experiments props={props} project={project} runs={runs} report={report} reviews={experimentReviews} />}
           {(page === 'execution' || page === 'steps') && <><StateNoticeWhenVisible state={runsState} t={props.t} emptyMessage={props.t('stateNoExperiment')} /><Runs props={props} runs={runs} artifacts={artifacts} report={report} comparison={comparison} /></>}
           {page === 'evidence' && <><StateNoticeWhenVisible state={artifactsState} t={props.t} emptyMessage={props.t('stateNoRun')} /><Evidence props={props} artifacts={artifacts} report={report} {...selection.activeArtifactId === undefined ? {} : { selectedArtifactId: selection.activeArtifactId }} /></>}
-          {page === 'files' && <ProjectFiles props={props} projectId={selection.activeProjectId} files={projectFiles} filesState={projectFilesState} artifacts={artifacts} state={artifactsState} onRefresh={() => { setFileRefresh(value => value + 1); setProjectFileRefresh(value => value + 1) }} />}
+          {page === 'files' && <ProjectFiles props={props} projectId={selection.activeProjectId} files={projectFiles} filesState={projectFilesState} artifacts={artifacts} state={artifactsState} refreshKey={projectFileRefresh} onRefresh={() => { setFileRefresh(value => value + 1); setProjectFileRefresh(value => value + 1) }} />}
           {page === 'archive' && <Archive props={props} report={report} />}
         </div>
       </div>
@@ -310,7 +331,7 @@ function Archive({ props, report }: { readonly props: Props; readonly report: Re
 }
 
 /** 展示 Host 授权的 Project 文件元数据，并把正文读取与下载交给 adapter。 */
-function ProjectFiles({ props, projectId, files, filesState, artifacts, state, onRefresh }: { readonly props: Props; readonly projectId: string | undefined; readonly files: readonly LabProjectFileRecord[]; readonly filesState: ProjectFilesState; readonly artifacts: readonly LabArtifactRecord[]; readonly state: ArtifactsState; readonly onRefresh: () => void }): JSX.Element {
+function ProjectFiles({ props, projectId, files, filesState, artifacts, state, refreshKey, onRefresh }: { readonly props: Props; readonly projectId: string | undefined; readonly files: readonly LabProjectFileRecord[]; readonly filesState: ProjectFilesState; readonly artifacts: readonly LabArtifactRecord[]; readonly state: ArtifactsState; readonly refreshKey: number; readonly onRefresh: () => void }): JSX.Element {
   const artifactLabels: LabArtifactPreviewLabels = { open: props.t('openArtifact'), loading: props.t('stateLoading'), unavailable: props.t('artifactPreviewUnavailable'), text: props.t('artifactTextPreview'), json: props.t('artifactJsonPreview'), image: props.t('artifactImagePreview'), unsupported: props.t('artifactUnsupported'), metadata: props.t('evidence') }
   const fileLabels: LabProjectFileLabels = { preview: props.t('projectFilePreview'), download: props.t('projectFileDownload'), loading: props.t('stateLoading'), unavailable: props.t('artifactPreviewUnavailable'), metadata: props.t('evidence'), path: props.t('projectFilePath'), revision: props.t('projectFileRevision'), downloadReady: props.t('projectFileDownloadReady'), previewUnavailable: props.t('artifactUnsupported') }
   const nativeFiles = props.listProjectFiles !== undefined && projectId !== undefined
@@ -321,7 +342,7 @@ function ProjectFiles({ props, projectId, files, filesState, artifacts, state, o
     setPreviews({})
     setPreviewStates({})
     setDownloadStates({})
-  }, [files])
+  }, [files, refreshKey])
   const previewFile = (file: LabProjectFileRecord): void => {
     if (projectId === undefined || props.openProjectFile === undefined) return
     setPreviewStates(current => ({ ...current, [file.projectFileId]: 'loading' }))

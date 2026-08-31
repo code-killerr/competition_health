@@ -41,13 +41,21 @@ describe('LabProjectsView', () => {
     const view = render(<LabProjectsView {...setup.value} />)
 
     await waitFor(() => { expect(view.getByText('Calibration')).toBeTruthy() })
-    fireEvent.change(view.getByLabelText('labProjectsName'), { target: { value: 'New project' } })
     fireEvent.click(view.getByRole('button', { name: 'labProjectsCreateAction' }))
 
-    await waitFor(() => { expect(setup.createProject).toHaveBeenCalledWith('workspace-1', 'New project') })
+    await waitFor(() => { expect(setup.createProject).toHaveBeenCalledWith('workspace-1') })
     expect(setup.ui.snapshot().activeProjectId).toBe('project-2')
     expect(setup.listProjects).toHaveBeenCalledTimes(1)
-    expect(setup.openProjectView).toHaveBeenCalledTimes(2)
+    expect(setup.openProjectView).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not select or open the first Project while loading the list', async () => {
+    const setup = props()
+    render(<LabProjectsView {...setup.value} />)
+
+    await waitFor(() => { expect(setup.listProjects).toHaveBeenCalledTimes(1) })
+    expect(setup.ui.snapshot().activeProjectId).toBeUndefined()
+    expect(setup.openProjectView).not.toHaveBeenCalled()
   })
 
   it('keeps creation unavailable when Host exposes no Workspace', () => {

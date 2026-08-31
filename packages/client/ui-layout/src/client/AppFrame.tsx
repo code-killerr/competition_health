@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import { CENTER_MIN, computeColumns, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT } from './columns.ts'
+import { CENTER_MIN, computeColumns, LAB_WORKSPACE_CENTER_MIN, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT } from './columns.ts'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
 
@@ -149,7 +149,7 @@ export function AppFrame({
     viewport,
     sidebarPreference,
     replaceConversation || (detailsSession === undefined && !labWorkspaceConversation) ? 0 : panels.details,
-    labWorkspaceConversation ? 0 : CENTER_MIN,
+    labWorkspaceConversation ? LAB_WORKSPACE_CENTER_MIN : CENTER_MIN,
   )
   const colsRef = useRef(cols)
   colsRef.current = cols

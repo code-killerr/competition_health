@@ -108,18 +108,19 @@ export class LayoutController implements ILayout {
   attachAppViews(registry: AppViewRegistry): () => void {
     this.#disposeAppViewSubscription?.()
     this.#appViews = registry
-    if (this.#activeAppViewId === undefined) {
-      const entry = registry.entriesOfSlot('app.view').find(candidate => candidate.options.default === true && candidate.options.id !== undefined)
-      if (entry?.options.id !== undefined) {
-        this.#activeAppViewId = entry.options.id
-        this.#panels?.setActiveAppView(entry.options.id, entry.options.conversationMode ?? 'replace')
+    const syncAppViewSelection = (): void => {
+      if (this.#activeAppViewId === undefined) {
+        const entry = registry.entriesOfSlot('app.view').find(candidate => candidate.options.default === true && candidate.options.id !== undefined)
+        if (entry?.options.id !== undefined) {
+          this.#activeAppViewId = entry.options.id
+          this.#panels?.setActiveAppView(entry.options.id, entry.options.conversationMode ?? 'replace')
+        }
+        return
       }
+      if (!this.#hasAppView(this.#activeAppViewId)) this.closeAppView()
     }
-    const dispose = registry.subscribe('app.view', () => {
-      if (this.#activeAppViewId !== undefined && !this.#hasAppView(this.#activeAppViewId)) {
-        this.closeAppView()
-      }
-    })
+    syncAppViewSelection()
+    const dispose = registry.subscribe('app.view', syncAppViewSelection)
     this.#disposeAppViewSubscription = dispose
     return () => {
       if (this.#appViews !== registry) return
