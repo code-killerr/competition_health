@@ -1,6 +1,6 @@
 /** Dedicated JSON protocol for laboratory projects and project conversations. */
 
-import { brandId, type ArtifactId, type DeviceId, type ExperimentId, type ExperimentRequest, type LabExperimentRecord, type LabExperimentSessionRole, type LabProjectContext, type LabProjectId, type LabProjectView, type PlanId, type RunId, type WorkspaceId } from '@deepseek-ai/dsh-experimental-lab-domain'
+import { brandId, type ArtifactId, type ArtifactManifest, type DeviceId, type ExperimentId, type ExperimentRequest, type LabExperimentRecord, type LabExperimentSessionRole, type LabProjectContext, type LabProjectId, type LabProjectView, type PlanId, type PlanParameter, type RunId, type WorkspaceId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { KnowledgeCapabilityStatus, LabProjectSourceSelection } from '@deepseek-ai/dsh-experimental-lab-project'
 import type { PlanProposalResult, PlanningContext } from '@deepseek-ai/dsh-experimental-lab-planning'
 import type { LabRunReport, RunView } from '@deepseek-ai/dsh-experimental-lab-runtime'
@@ -11,13 +11,31 @@ export interface LabRunComparison {
   readonly leftRunId: RunId
   readonly rightRunId: RunId
   readonly status: { readonly left: RunView['runStatus']; readonly right: RunView['runStatus'] }
+  readonly durationMs: { readonly left: number; readonly right: number }
+  readonly parameters: {
+    readonly left: readonly { readonly stepId: string; readonly values: Readonly<Record<string, PlanParameter>> }[]
+    readonly right: readonly { readonly stepId: string; readonly values: Readonly<Record<string, PlanParameter>> }[]
+  }
   readonly stepStatuses: readonly {
     readonly stepId: string
     readonly left: string | undefined
     readonly right: string | undefined
   }[]
+  readonly observations: readonly {
+    readonly stepId: string
+    readonly left?: { readonly operationId: string; readonly status: string; readonly valid: boolean; readonly artifactIds: readonly string[] }
+    readonly right?: { readonly operationId: string; readonly status: string; readonly valid: boolean; readonly artifactIds: readonly string[] }
+  }[]
   readonly artifactCounts: { readonly left: number; readonly right: number }
+  readonly artifactMetadata: {
+    readonly left: readonly ArtifactComparisonMetadata[]
+    readonly right: readonly ArtifactComparisonMetadata[]
+  }
 }
+
+type ArtifactComparisonMetadata = Pick<ArtifactManifest, 'artifactId' | 'displayName' | 'kind' | 'mediaType' | 'size' | 'digest' | 'createdAt'>
+
+type ArtifactOpenValue = ArtifactManifest & { readonly preview: { readonly kind: 'unsupported' } }
 
 /** Project scope and capability status returned by a project query. */
 export interface LabProjectContextView {
@@ -77,7 +95,7 @@ export type LabProjectConversationResult =
   | { readonly kind: 'run-report'; readonly value: LabRunReport }
   | { readonly kind: 'run-comparison'; readonly value: LabRunComparison }
   | { readonly kind: 'artifact-list'; readonly value: RunView['artifacts'] }
-  | { readonly kind: 'artifact'; readonly value: RunView['artifacts'][number] }
+  | { readonly kind: 'artifact'; readonly value: ArtifactOpenValue }
 
 /** Parse one unknown JSON value into a project/conversation command.
  * @param value - unknown JSON value at the Web boundary.

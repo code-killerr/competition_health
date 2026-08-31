@@ -1,7 +1,7 @@
 /** 实验自动化平台 Web Facade；浏览器只能通过本服务访问实验能力。 */
 
 import { Context, Service } from '@deepseek-ai/cordis'
-import { brandId, type DeviceId, type ExperimentId, type ExperimentPlan, type ExperimentRequest, type KnowledgeConflict, type KnowledgeSearchRequest, type KnowledgeSearchResult, type LabExperimentRecord, type LabProjectEvidenceProjection, type LabProjectId } from '@deepseek-ai/dsh-experimental-lab-domain'
+import { brandId, type ArtifactManifest, type DeviceId, type ExperimentId, type ExperimentPlan, type ExperimentRequest, type KnowledgeConflict, type KnowledgeSearchRequest, type KnowledgeSearchResult, type LabExperimentRecord, type LabProjectEvidenceProjection, type LabProjectId, type PlanParameter } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { DeviceView } from '@deepseek-ai/dsh-experimental-lab-device'
 import type { LabExperimentCacheService } from '@deepseek-ai/dsh-experimental-lab-cache'
 import type { ImportStatusResult } from '@deepseek-ai/dsh-experimental-lab-knowledge'
@@ -355,6 +355,7 @@ export class LabMvpWebService extends Service {
         const right = this.ctx.labRuntime.getRun(command.rightRunId)
         if (left === undefined || right === undefined) throw new Error('both Runs must be available for comparison')
         if (left.experimentId !== right.experimentId) throw new Error('Runs from different Experiments cannot be compared')
+        if (!isTerminalRun(left) || !isTerminalRun(right)) throw new Error('only terminal Runs can be compared')
         return { kind: 'run-comparison', value: compareRuns(left, right) }
       }
       case 'run-report': {
@@ -373,7 +374,7 @@ export class LabMvpWebService extends Service {
         if (run === undefined) throw new Error(`run "${command.runId}" is not available`)
         const artifact = run.artifacts.find(item => item.artifactId === command.artifactId)
         if (artifact === undefined) throw new Error(`artifact "${command.artifactId}" is not available for run "${command.runId}"`)
-        return { kind: 'artifact', value: artifact }
+        return { kind: 'artifact', value: { ...artifact, preview: { kind: 'unsupported' as const } } }
       }
     }
   }
@@ -712,18 +713,49 @@ function compareRuns(left: RunView, right: RunView): LabRunComparison {
   const stepIds = new Set([
     ...left.executionGraph.steps.map(step => String(step.stepId)),
     ...right.executionGraph.steps.map(step => String(step.stepId)),
+    ...left.observations.map(observation => String(observation.stepId)),
+    ...right.observations.map(observation => String(observation.stepId)),
   ])
   return {
     leftRunId: left.runId,
     rightRunId: right.runId,
     status: { left: left.runStatus, right: right.runStatus },
+    durationMs: { left: Math.max(0, left.updatedAt - left.createdAt), right: Math.max(0, right.updatedAt - right.createdAt) },
+    parameters: { left: comparisonParameters(left), right: comparisonParameters(right) },
     stepStatuses: [...stepIds].map(stepId => ({
       stepId,
       left: left.observations.findLast(observation => String(observation.stepId) === stepId)?.status,
       right: right.observations.findLast(observation => String(observation.stepId) === stepId)?.status,
     })),
+    observations: [...stepIds].map(stepId => {
+      const leftObservation = comparisonObservation(left, stepId)
+      const rightObservation = comparisonObservation(right, stepId)
+      return {
+        stepId,
+        ...leftObservation === undefined ? {} : { left: leftObservation },
+        ...rightObservation === undefined ? {} : { right: rightObservation },
+      }
+    }),
     artifactCounts: { left: left.artifacts.length, right: right.artifacts.length },
+    artifactMetadata: { left: left.artifacts.map(comparisonArtifact), right: right.artifacts.map(comparisonArtifact) },
   }
+}
+
+function isTerminalRun(run: RunView): boolean {
+  return run.runStatus === 'FAILED' || run.runStatus === 'COMPLETED' || run.runStatus === 'STOPPED'
+}
+
+function comparisonParameters(run: RunView): readonly { readonly stepId: string; readonly values: Readonly<Record<string, PlanParameter>> }[] {
+  return run.executionGraph.steps.map(step => ({ stepId: String(step.stepId), values: step.parameters }))
+}
+
+function comparisonObservation(run: RunView, stepId: string): { readonly operationId: string; readonly status: string; readonly valid: boolean; readonly artifactIds: readonly string[] } | undefined {
+  const observation = run.observations.findLast(item => String(item.stepId) === stepId)
+  return observation === undefined ? undefined : { operationId: observation.operationId, status: observation.status, valid: observation.valid, artifactIds: observation.artifactIds }
+}
+
+function comparisonArtifact(artifact: ArtifactManifest): Pick<ArtifactManifest, 'artifactId' | 'displayName' | 'kind' | 'mediaType' | 'size' | 'digest' | 'createdAt'> {
+  return { artifactId: artifact.artifactId, displayName: artifact.displayName, kind: artifact.kind, mediaType: artifact.mediaType, size: artifact.size, digest: artifact.digest, createdAt: artifact.createdAt }
 }
 
 function toRuntimeRequest(request: ExperimentRequest): import('@deepseek-ai/dsh-experimental-lab-runtime').ExperimentRequest {

@@ -11,6 +11,7 @@ import type {
   LabValidation,
   LabProjectRecord,
   LabProjectView,
+  LabConfigurationCapability,
   LabReportView,
   LabResultAssessmentRecord,
   LabRunComparisonView,
@@ -54,6 +55,11 @@ export interface LabKnowledgeScopeView {
   readonly capability: LabKnowledgeCapability
   readonly sources: readonly LabKnowledgeItem[]
   readonly evidence: readonly LabEvidenceRecord[]
+}
+
+/** Read-only configuration capability records supplied by a Host adapter. */
+export interface LabConfigurationQueries {
+  listConfigurationCapabilities(): Promise<LabQueryState<readonly LabConfigurationCapability[]>>
 }
 
 /** Project 文件 revision 到达时调用的监听器。 */
@@ -107,4 +113,4 @@ export interface LabWorkbenchActions {
  * The only data seam used by the laboratory pages and Agent presentation cards.
  * Queries are read-only and actions retain Host ownership of durable records.
  */
-export interface LabWorkbenchAdapter extends LabWorkbenchQueries, LabWorkbenchActions, Partial<LabProjectFileAdapter> {}
+export interface LabWorkbenchAdapter extends LabWorkbenchQueries, LabWorkbenchActions, Partial<LabProjectFileAdapter & LabConfigurationQueries> {}

@@ -1,5 +1,5 @@
 import type { JSX, ReactNode } from 'react'
-import type { LabArtifactRecord, LabParameterValue, LabReportView, LabResultAssessmentRecord, LabRun, LabRunComparisonView } from './api.ts'
+import type { LabArtifactRecord, LabObservationRecord, LabParameterValue, LabReportView, LabResultAssessmentRecord, LabRun, LabRunComparisonView } from './api.ts'
 import { LabRunResultView, type LabRunResultLabels } from './LabRunResultView.tsx'
 import { LabRunComparisonView as LabRunComparisonPanel, type LabRunComparisonLabels } from './LabRunComparisonView.tsx'
 import { LabResultReportView } from './LabResultReportView.tsx'
@@ -28,6 +28,8 @@ export interface LabRunDetailLabels {
   readonly noLogs: string
   readonly retry: string
   readonly retryOfRun: string
+  readonly confirmStep: string
+  readonly stopRun: string
   readonly comparisonLabels: LabRunComparisonLabels
   readonly reportLabels: LabResultReportLabels
   readonly resultLabels: LabRunResultLabels
@@ -41,6 +43,8 @@ export interface LabRunDetailViewProps {
   readonly assessment?: LabResultAssessmentRecord | undefined
   readonly comparison?: LabRunComparisonView | undefined
   readonly onRetry?: ((runId: string) => void | Promise<unknown>) | undefined
+  readonly onConfirmStep?: ((input: { readonly runId: string; readonly stepId?: string; readonly operationId?: string }) => void | Promise<unknown>) | undefined
+  readonly onStop?: ((runId: string) => void | Promise<unknown>) | undefined
   readonly labels: LabRunDetailLabels
 }
 
@@ -50,9 +54,12 @@ export function LabRunDetailView(props: LabRunDetailViewProps): JSX.Element {
   const steps = run.executionGraph?.steps ?? []
   const observations = run.observations ?? []
   const parameters = steps.flatMap(step => Object.entries(step.parameters ?? {}).map(([name, value]) => ({ name, value })))
+  const currentObservation = observations.find(observation => observation.stepId === run.currentStepId)
+  const canConfirmStep = run.runStatus === 'WAITING_CONFIRMATION' && run.runId !== undefined && props.onConfirmStep !== undefined
+  const canStop = (run.runStatus === 'WAITING_CONFIRMATION' || run.runStatus === 'RUNNING' || run.runStatus === 'BLOCKED') && run.runId !== undefined && props.onStop !== undefined
   return (
     <section className={css.root} aria-label={labels.title} data-lab-run-detail>
-      <header className={css.header}><div><h2>{run.runId ?? labels.noValue}</h2><p>{run.planId ?? labels.noValue}</p></div><span>{run.runStatus ?? labels.noValue}</span>{run.runStatus === 'FAILED' && run.runId !== undefined && props.onRetry !== undefined && <button type='button' onClick={() => { void props.onRetry?.(run.runId!) }}>{labels.retry}</button>}</header>
+      <header className={css.header}><div><h2>{run.runId ?? labels.noValue}</h2><p>{run.planId ?? labels.noValue}</p></div><span>{run.runStatus ?? labels.noValue}</span><div className={css.actions}>{(run.runStatus === 'WAITING_CONFIRMATION' || run.runStatus === 'RUNNING' || run.runStatus === 'BLOCKED') && <button type='button' disabled={!canStop} onClick={() => { if (run.runId !== undefined) void props.onStop?.(run.runId) }}>{labels.stopRun}</button>}{run.runStatus === 'WAITING_CONFIRMATION' && <button type='button' disabled={!canConfirmStep} onClick={() => { const input = buildConfirmInput(run, currentObservation); if (input !== undefined) void props.onConfirmStep?.(input) }}>{labels.confirmStep}</button>}{run.runStatus === 'FAILED' && run.runId !== undefined && props.onRetry !== undefined && <button type='button' onClick={() => { void props.onRetry?.(run.runId!) }}>{labels.retry}</button>}</div></header>
       {run.retryOfRunId !== undefined && <p className={css.notice}>{labels.retryOfRun}: {run.retryOfRunId}</p>}
       <DetailBlock title={labels.overview}><div className={css.grid}><Card label={labels.plan} value={run.planId ?? labels.noValue} /><Card label={labels.currentStep} value={run.currentStepId ?? labels.noValue} /><Card label={labels.steps} value={String(steps.length)} /></div></DetailBlock>
       <DetailBlock title={labels.parameters}>{parameters.length === 0 ? <p>{labels.noValue}</p> : parameters.map(parameter => <div className={css.row} key={parameter.name}><span>{parameter.name}</span><strong>{formatParameter(parameter.value)}</strong></div>)}</DetailBlock>
@@ -80,4 +87,9 @@ function formatParameter(value: LabParameterValue): string {
 
 function Card({ label, value }: { readonly label: string; readonly value: string }): JSX.Element {
   return <div className={css.card}><span>{label}</span><strong>{value}</strong></div>
+}
+
+function buildConfirmInput(run: LabRun, observation: LabObservationRecord | undefined): { readonly runId: string; readonly stepId?: string; readonly operationId?: string } | undefined {
+  if (run.runId === undefined) return undefined
+  return { runId: run.runId, ...run.currentStepId === undefined ? {} : { stepId: run.currentStepId }, ...observation === undefined ? {} : { operationId: observation.operationId } }
 }

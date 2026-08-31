@@ -101,7 +101,14 @@ export interface LabEvidenceRecord {
   readonly updatedAt?: number
 }
 
-/** A Host-authorized Artifact manifest. */
+/** Safe content returned by a Host-authorized Artifact preview action. */
+export type LabArtifactPreview =
+  | { readonly kind: 'text'; readonly content: string }
+  | { readonly kind: 'json'; readonly content: LabJsonValue }
+  | { readonly kind: 'image'; readonly src: string; readonly alt: string }
+  | { readonly kind: 'unsupported' }
+
+/** A Host-authorized Artifact manifest, optionally enriched after an open action. */
 export interface LabArtifactRecord {
   readonly artifactId: string
   readonly runId: string
@@ -112,6 +119,7 @@ export interface LabArtifactRecord {
   readonly size: number
   readonly digest: string
   readonly createdAt: number
+  readonly preview?: LabArtifactPreview
 }
 
 /** Project 文件在授权 Workspace 中的元数据记录。 */
@@ -242,6 +250,17 @@ export interface LabDevice {
     readonly name?: string
     readonly parameters?: Readonly<Record<string, LabJsonValue>>
   }[]
+}
+
+/** A registered configuration capability projected by the owning adapter. */
+export interface LabConfigurationCapability {
+  readonly kind: 'agent' | 'workflow' | 'devices' | 'people'
+  readonly name: string
+  readonly version?: string
+  readonly status: 'available' | 'read-only' | 'unavailable'
+  readonly allowedActions: readonly string[]
+  readonly recordCount?: number
+  readonly detail?: string
 }
 
 /** A plan step projected into the Harness workbench. */
@@ -390,6 +409,14 @@ export interface LabReportView {
   readonly replanRequest?: LabReplanRequest
   readonly assessment?: LabResultAssessmentRecord
   readonly criteria?: readonly string[]
+  readonly skillRevisionIds?: readonly string[]
+  readonly citations?: readonly {
+    readonly projectId: string
+    readonly documentId: string
+    readonly versionId: string
+    readonly location?: string
+    readonly sourceName?: string
+  }[]
 }
 
 /** Public availability state for the Knowledge capability. */
@@ -541,8 +568,22 @@ export interface LabRunComparisonView {
   readonly leftRunId: string
   readonly rightRunId: string
   readonly status: { readonly left: LabRun['runStatus']; readonly right: LabRun['runStatus'] }
+  readonly durationMs: { readonly left: number; readonly right: number }
+  readonly parameters: {
+    readonly left: readonly { readonly stepId: string; readonly values: Readonly<Record<string, LabParameterValue>> }[]
+    readonly right: readonly { readonly stepId: string; readonly values: Readonly<Record<string, LabParameterValue>> }[]
+  }
   readonly stepStatuses: readonly { readonly stepId: string; readonly left?: string; readonly right?: string }[]
+  readonly observations: readonly {
+    readonly stepId: string
+    readonly left?: { readonly operationId: string; readonly status: string; readonly valid: boolean; readonly artifactIds: readonly string[] }
+    readonly right?: { readonly operationId: string; readonly status: string; readonly valid: boolean; readonly artifactIds: readonly string[] }
+  }[]
   readonly artifactCounts: { readonly left: number; readonly right: number }
+  readonly artifactMetadata: {
+    readonly left: readonly { readonly artifactId: string; readonly displayName: string; readonly kind: string; readonly mediaType: string; readonly size: number; readonly digest: string; readonly createdAt: number }[]
+    readonly right: readonly { readonly artifactId: string; readonly displayName: string; readonly kind: string; readonly mediaType: string; readonly size: number; readonly digest: string; readonly createdAt: number }[]
+  }
 }
 
 interface LabSuccessEnvelope {

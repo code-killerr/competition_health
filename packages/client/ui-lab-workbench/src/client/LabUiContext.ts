@@ -26,10 +26,18 @@ export interface LabUiState {
   readonly projectPage: LabPage
 }
 
+interface SavedProjectSelection {
+  readonly projectPage: LabPage
+  readonly activeExperimentId?: string
+  readonly activeRunId?: string
+  readonly activeArtifactId?: string
+}
+
 /** 页面选择的可观察服务，不保存任何业务记录副本。 */
 export class LabUiContext {
   #state: LabUiState = { projectPage: 'overview' }
   #listeners = new Set<() => void>()
+  #projectSelections = new Map<string, SavedProjectSelection>()
 
   /** 返回当前展示选择。
    * @returns - 当前展示选择。
@@ -57,12 +65,21 @@ export class LabUiContext {
    * @param projectId - 要选中的 Project 标识。
    */
   selectProject(projectId: string): void {
-    const { activeExperimentId: previousExperimentId, activeRunId: previousRunId, activeCitation: previousCitation, activeArtifactId: previousArtifactId, ...rest } = this.#state
+    this.#rememberCurrentProject()
+    const saved = this.#projectSelections.get(projectId)
+    const { activeExperimentId: previousExperimentId, activeRunId: previousRunId, activeArtifactId: previousArtifactId, activeCitation: previousCitation, ...rest } = this.#state
     void previousExperimentId
     void previousRunId
-    void previousCitation
     void previousArtifactId
-    this.#state = { ...rest, activeProjectId: projectId }
+    void previousCitation
+    this.#state = {
+      ...rest,
+      activeProjectId: projectId,
+      projectPage: saved?.projectPage ?? 'overview',
+      ...(saved?.activeExperimentId === undefined ? {} : { activeExperimentId: saved.activeExperimentId }),
+      ...(saved?.activeRunId === undefined ? {} : { activeRunId: saved.activeRunId }),
+      ...(saved?.activeArtifactId === undefined ? {} : { activeArtifactId: saved.activeArtifactId }),
+    }
     this.#emit()
   }
 
@@ -70,10 +87,12 @@ export class LabUiContext {
    * @param experimentId - 要选中的 Experiment 标识。
    */
   selectExperiment(experimentId: string): void {
+    this.#rememberCurrentProject()
     const { activeRunId: previousRunId, activeArtifactId: previousArtifactId, ...rest } = this.#state
     void previousRunId
     void previousArtifactId
     this.#state = { ...rest, activeExperimentId: experimentId }
+    this.#rememberCurrentProject()
     this.#emit()
   }
 
@@ -84,6 +103,7 @@ export class LabUiContext {
     const { activeArtifactId: previousArtifactId, ...rest } = this.#state
     void previousArtifactId
     this.#state = { ...rest, activeRunId: runId }
+    this.#rememberCurrentProject()
     this.#emit()
   }
 
@@ -92,6 +112,7 @@ export class LabUiContext {
    */
   selectArtifact(artifactId: string): void {
     this.#state = { ...this.#state, activeArtifactId: artifactId }
+    this.#rememberCurrentProject()
     this.#emit()
   }
 
@@ -99,9 +120,26 @@ export class LabUiContext {
    * @param citation - Host-authorized citation target.
    */
   openCitation(citation: LabCitationSelection): void {
+    this.#rememberCurrentProject()
+    if (this.#state.activeProjectId !== citation.projectId) {
+      const saved = this.#projectSelections.get(citation.projectId)
+      const { activeExperimentId: previousExperimentId, activeRunId: previousRunId, activeArtifactId: previousArtifactId, activeCitation: previousCitation, ...rest } = this.#state
+      void previousExperimentId
+      void previousRunId
+      void previousArtifactId
+      void previousCitation
+      this.#state = {
+        ...rest,
+        activeProjectId: citation.projectId,
+        projectPage: saved?.projectPage ?? 'overview',
+        ...(saved?.activeExperimentId === undefined ? {} : { activeExperimentId: saved.activeExperimentId }),
+        ...(saved?.activeRunId === undefined ? {} : { activeRunId: saved.activeRunId }),
+        ...(saved?.activeArtifactId === undefined ? {} : { activeArtifactId: saved.activeArtifactId }),
+      }
+    }
     const { activeArtifactId: previousArtifactId, ...rest } = this.#state
     void previousArtifactId
-    this.#state = { ...rest, activeProjectId: citation.projectId, activeCitation: citation }
+    this.#state = { ...rest, activeCitation: citation }
     this.#emit()
   }
 
@@ -110,13 +148,27 @@ export class LabUiContext {
    */
   openProjectPage(page: LabPage): void {
     this.#state = { ...this.#state, projectPage: page }
+    this.#rememberCurrentProject()
     this.#emit()
   }
 
   /** 清理展示选择。 */
   clearProject(): void {
+    this.#projectSelections.clear()
     this.#state = { projectPage: 'overview' }
     this.#emit()
+  }
+
+  #rememberCurrentProject(): void {
+    const projectId = this.#state.activeProjectId
+    if (projectId === undefined) return
+    const { projectPage, activeExperimentId, activeRunId, activeArtifactId } = this.#state
+    this.#projectSelections.set(projectId, {
+      projectPage,
+      ...(activeExperimentId === undefined ? {} : { activeExperimentId }),
+      ...(activeRunId === undefined ? {} : { activeRunId }),
+      ...(activeArtifactId === undefined ? {} : { activeArtifactId }),
+    })
   }
 
   #emit(): void {

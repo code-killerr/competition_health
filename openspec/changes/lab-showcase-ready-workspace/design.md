@@ -19,15 +19,14 @@ AppFrame
 ├── SidebarRoot
 │   ├── global execution monitor current activity / failures / approvals
 │   ├── Projects                 dynamic Project tree
-│   │   └── active Project       Overview / Planning / Approval / Execution
-│   │                            Steps / Results / Archive
+│   │   └── active Project       selection and status summary
 │   ├── Configuration            Knowledge / Agent / Workflow and Lab Skill
 │   │                            Devices / People and permissions
 │   ├── sidebar.workspaces       ordinary directory Workspaces and Sessions
 │   └── Settings
 ├── LABWEAVE Agent conversation  complete Session timeline and one Harness-backed input
 └── Project workspace
-    ├── Project / Experiment / Run lifecycle destinations
+    ├── Project / Experiment / Run lifecycle navigation rail
     └── Project files            configuration / conversation output / run artifacts
 
 Reusable Harness conversation capabilities
@@ -119,7 +118,7 @@ The first client supports metadata, safe text/JSON/image previews supplied by ex
 
 `ui-layout` gains an additive root-scoped `app.view` list and an `ILayout` application-view selection API. `ui-sidebar` gains an additive `sidebar.navigation` seat that can render the global execution monitor, dynamic Project tree and configuration center. Navigation must work with no current Session and must not use `window` events, hash fragments or browser-only route copies. The ordinary Workspace and Session browser remains available as Harness infrastructure and does not become a second laboratory navigation system.
 
-Opening a Project selects its durable record, opens the Project application view and expands lifecycle destinations for `Overview`, `Planning and Workflow`, `Plan approval`, `Execution monitoring`, `Step orchestration`, `Results and evidence` and `Archive`. Conversations are supporting provenance reached from the active Project or Agent timeline, not the primary Project taxonomy. Returning to a Project restores its last valid destination from presentation state and reloads authoritative records from the Host.
+Opening a Project selects its durable record, opens the Project application view and shows a lifecycle navigation rail inside the right Project workspace for `Overview`, `Planning and Workflow`, `Plan approval`, `Execution monitoring`, `Step orchestration`, `Results and evidence`, `Files` and `Archive`. The left Projects tree remains a global Project selector and status summary; it does not duplicate lifecycle destinations. Conversations are supporting provenance reached from the active Project or Agent timeline, not the primary Project taxonomy. Returning to a Project restores its last valid destination from presentation state and reloads authoritative records from the Host.
 
 The Agent remains the primary orchestration path, but LABWEAVE owns its visible surface. `ui-conversation` exposes a reusable presentation contract backed by the same Session, input state machine, draft, queue, slash and reference handling, attachments, access and model controls, ask-user and approval takeovers, timeline, command and node renderers. The Project profile renders the full native shared Conversation in the center column and the active Project workspace in the collapsible details column; the global configuration view replaces the Conversation for a full-page settings surface. The composition SHALL NOT keep a second Conversation page beside or above the workspace, create a second text area, call a lower-level send method that bypasses the input state machine, or hide the original composer with CSS while mounting another input.
 

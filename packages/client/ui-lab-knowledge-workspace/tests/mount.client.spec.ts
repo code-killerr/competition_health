@@ -20,7 +20,7 @@ describe('independent Knowledge workspace mount', () => {
     )
     await runtime.mount({ inject: [...inject], apply })
 
-    expect(runtime.slots.entries('app.view')).toMatchObject([{ options: { id: 'lab-knowledge' } }])
+    expect(runtime.slots.entries('app.view')).toMatchObject([{ options: { id: 'lab-knowledge', conversationMode: 'replace' } }])
     expect(runtime.slots.entries('conversation.view')).not.toContainEqual(expect.objectContaining({ options: { id: 'lab-workbench' } }))
 
     await runtime.dispose()

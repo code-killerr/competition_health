@@ -35,6 +35,7 @@ const runLabels: LabRunResultLabels = {
 
 const previewLabels = {
   open: 'Open artifact',
+  loading: 'Loading',
   unavailable: 'Preview unavailable',
   text: 'Text preview',
   json: 'JSON preview',
@@ -118,8 +119,8 @@ describe('LabWorkbench browser journey', () => {
         <LabRunResultView run={replanRun} labels={runLabels} />
         <LabCommandCard {...({ node: { kind: 'command', seq: 1, time: 1, commandId: 'command-1' as never, name: 'run-start', args: null, outcome: { kind: 'error', text: 'Concurrent revision conflict' } }, openWorkbench: () => {}, t: (key: string) => String(zh[key as keyof typeof zh] ?? key), sessionId: 'session-1' as never } as unknown as Parameters<typeof LabCommandCard>[0])} />
         <LabArtifactPreview artifact={artifact} preview={{ kind: 'unsupported' }} labels={previewLabels} />
-        <LabRunComparisonView comparison={{ leftRunId: 'run-1', rightRunId: 'run-2', status: { left: 'FAILED', right: 'COMPLETED' }, stepStatuses: [{ stepId: 'step-1', left: 'FAILED', right: 'COMPLETED' }], artifactCounts: { left: 1, right: 2 } }} labels={{ title: 'Run comparison', left: 'Left', right: 'Right', status: 'Status', steps: 'Steps', artifacts: 'Artifacts', noValue: '—' }} />
-        <LabResultReportView report={report} labels={{ title: 'Report', criteria: 'Criteria', method: 'Method', verdict: 'Verdict', plan: 'Plan', run: 'Run', evidence: 'Evidence', actor: 'Actor', assessedAt: 'Assessed at', observations: 'Observations', artifacts: 'Artifacts', humanQc: 'Human QC required', noValue: '—', noCriteria: 'No criteria' }} />
+        <LabRunComparisonView comparison={{ leftRunId: 'run-1', rightRunId: 'run-2', status: { left: 'FAILED', right: 'COMPLETED' }, durationMs: { left: 100, right: 200 }, parameters: { left: [], right: [] }, stepStatuses: [{ stepId: 'step-1', left: 'FAILED', right: 'COMPLETED' }], observations: [], artifactCounts: { left: 1, right: 2 }, artifactMetadata: { left: [], right: [] } }} labels={{ title: 'Run comparison', left: 'Left', right: 'Right', status: 'Status', duration: 'Duration', parameters: 'Parameters', steps: 'Steps', observations: 'Observations', artifacts: 'Artifacts', artifactMetadata: 'Artifact metadata', valid: 'Valid', operation: 'Operation', artifactIds: 'Artifact references', noValue: '—' }} />
+        <LabResultReportView report={report} labels={{ title: 'Report', experiment: 'Experiment', criteria: 'Criteria', method: 'Method', verdict: 'Verdict', plan: 'Plan', run: 'Run', evidence: 'Evidence', actor: 'Actor', assessedAt: 'Assessed at', observations: 'Observations', artifacts: 'Artifacts', skillRevisions: 'Skill revisions', citations: 'Citations', observationIds: 'Observation records', artifactIds: 'Artifact records', openCitation: 'Open citation', citationUnavailable: 'Knowledge unavailable', humanQc: 'Human QC required', humanQcAction: 'Review', humanQcUnavailable: 'Review unavailable', noValue: '—', noCriteria: 'No criteria' }} />
         <LabCitationLink citation={{ projectId: 'project-1', documentId: 'document-1', versionId: 'version-1', location: 'page:2' }} origin='report' available onOpen={onCitation} label='Open report citation' unavailableLabel='Knowledge unavailable' />
       </>,
     )

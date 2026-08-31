@@ -2,6 +2,8 @@
 .header, .row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; min-width: 0; }
 .header { border-bottom: 1px solid var(--dsw-alias-border-l1); padding-bottom: .75rem; }
 .header { flex-wrap: wrap; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
+.actions button { min-height: 2rem; padding: .35rem .65rem; }
 .header h2, .header p, .block h3 { margin: 0; }
 .header p, .row span:not(:first-child), .block > p { color: var(--dsw-alias-text-secondary); }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .75rem; }

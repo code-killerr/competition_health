@@ -6,4 +6,12 @@
 .field span, .criteria p { color: var(--dsw-alias-text-secondary); }
 .criteria { display: grid; gap: .45rem; }
 .criteria > div { border-top: 1px solid var(--dsw-alias-border-l1); padding-top: .4rem; }
-.gate { color: var(--dsw-alias-text-warning, #a16207); }
+.provenance { display: grid; gap: .45rem; }
+.provenance h3 { margin: .35rem 0 0; }
+.provenance ul { display: grid; gap: .35rem; margin: 0; padding-left: 1.25rem; }
+.provenance li { display: flex; flex-wrap: wrap; gap: .5rem; }
+.provenance li span { color: var(--dsw-alias-text-secondary); }
+.provenance button { width: fit-content; padding: 0; border: 0; color: var(--dsw-alias-state-business-primary); background: transparent; cursor: pointer; font: inherit; text-align: left; }
+.gate { display: grid; gap: .5rem; color: var(--dsw-alias-text-warning, #a16207); }
+.gate p { font-weight: 700; }
+.gate button { width: fit-content; min-height: 32px; padding: 0 10px; border: 1px solid currentColor; border-radius: 8px; color: inherit; background: transparent; cursor: pointer; font: inherit; }

@@ -18,9 +18,9 @@ The Harness client SHALL provide a root-scoped application-view registry and an 
 - **WHEN** no Harness Session is current and a user selects execution monitoring, Projects or a configuration destination
 - **THEN** the selected root application view opens in the center workbench and the Harness sidebar remains available
 
-#### Scenario: Expand a Project
+#### Scenario: Open a Project workspace
 - **WHEN** a user selects a Project in the sidebar
-- **THEN** that Project expands to show Overview, Planning and Workflow, Plan approval, Execution monitoring, Step orchestration, Results and Evidence, and Archive; the workbench, active Experiment selection and Agent context use the same Project identity
+- **THEN** the left Project tree keeps the Project selected with its status summary, while the right Project workspace exposes Overview, Planning and Workflow, Plan approval, Execution monitoring, Step orchestration, Results and Evidence, Files, and Archive; the workbench, active Experiment selection and Agent context use the same Project identity
 
 #### Scenario: Return to a Project
 - **WHEN** a user reopens a previously visited Project

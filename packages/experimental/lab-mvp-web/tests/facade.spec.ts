@@ -82,6 +82,32 @@ describe('LabMvpWebService', () => {
     expect(runtime.listRuns).toHaveBeenCalledWith('experiment-1')
   })
 
+  it('compares only terminal Runs from one Experiment with structured fields', async () => {
+    const ctx = new Context()
+    const run = (runId: string, experimentId: string, runStatus: 'RUNNING' | 'FAILED' | 'COMPLETED', updatedAt: number) => ({
+      runId: brandId<'RunId'>(runId), experimentId: brandId<'ExperimentId'>(experimentId), planId: brandId<'PlanId'>('plan-1'),
+      createdAt: 100, updatedAt, planStatus: 'LOCKED' as const, runStatus,
+      executionGraph: { version: 1 as const, planId: brandId<'PlanId'>('plan-1'), skillSnapshots: [], steps: [{ stepId: brandId<'PlanStepId'>('step-1'), skillRevisionId: brandId<'SkillRevisionId'>('skill-1'), operationKind: 'human' as const, operationResource: 'manual', parameters: { temperature: 25 }, requiresApproval: false, expectedEvidence: [], failurePolicy: 'STOP' as const }] },
+      observations: [{ stepId: brandId<'PlanStepId'>('step-1'), operationId: brandId<'OperationId'>('operation-1'), valid: runStatus === 'COMPLETED', evidence: [], artifactIds: [brandId<'ArtifactId'>('artifact-1')], status: runStatus === 'RUNNING' ? 'WAITING' as const : runStatus === 'FAILED' ? 'FAILED' as const : 'COMPLETED' as const }],
+      artifacts: [{ artifactId: brandId<'ArtifactId'>('artifact-1'), runId: brandId<'RunId'>(runId), kind: 'json' as const, displayName: 'result.json', uri: 'lab-artifact://result.json', mediaType: 'application/json', size: 12, digest: 'sha256:test', createdAt: 100 }],
+      cache: {}, feedback: { status: runStatus, valid: runStatus === 'COMPLETED', summary: 'fixture', issues: [], replanRequested: false },
+    })
+    const runs = new Map([
+      ['run-1', run('run-1', 'experiment-1', 'FAILED', 250)],
+      ['run-2', run('run-2', 'experiment-1', 'COMPLETED', 300)],
+      ['run-running', run('run-running', 'experiment-1', 'RUNNING', 300)],
+      ['run-other', run('run-other', 'experiment-2', 'COMPLETED', 300)],
+    ])
+    ctx.provide('labRuntime', { getRun: (runId: string) => runs.get(runId) })
+    const service = new LabMvpWebService(ctx)
+
+    await expect(service.dispatchProject(parseLabProjectConversationCommand({ command: 'run-compare', leftRunId: 'run-1', rightRunId: 'run-2' }))).resolves.toMatchObject({
+      kind: 'run-comparison', value: { durationMs: { left: 150, right: 200 }, parameters: { left: [{ stepId: 'step-1' }] }, observations: [{ stepId: 'step-1' }], artifactMetadata: { left: [{ displayName: 'result.json', digest: 'sha256:test' }] } },
+    })
+    await expect(service.dispatchProject(parseLabProjectConversationCommand({ command: 'run-compare', leftRunId: 'run-running', rightRunId: 'run-2' }))).rejects.toThrow(/only terminal Runs/)
+    await expect(service.dispatchProject(parseLabProjectConversationCommand({ command: 'run-compare', leftRunId: 'run-1', rightRunId: 'run-other' }))).rejects.toThrow(/different Experiments/)
+  })
+
   it('projects a project Run action into the Session log and cache', async () => {
     const ctx = new Context()
     const appended: unknown[][] = []

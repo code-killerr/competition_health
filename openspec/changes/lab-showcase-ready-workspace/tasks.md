@@ -175,7 +175,7 @@
 - [x] 8.4 在 `examples/lab-web` assembled composition 中验证实际提供的 `ui-lab-workbench/client.js` 包含当前 LABWEAVE shell 和本阶段布局；浏览器必须显示对应内容，新进程、根 HTML 或 HTTP 200 不能单独完成验证。
 - [x] 8.5 为 `ui-conversation` 定义可复用 presentation contract，使默认 Harness composition 与 LABWEAVE composition 共享 Session、input state machine、draft、queue、slash/reference/attachment、access/model、ask-user/approval takeover、timeline 和 node renderers。增加默认 profile 不变、LABWEAVE 只有一个 input DOM、draft 跨页面保留和 takeover 可操作的组合测试；禁止复制输入状态机、CSS 隐藏旧 composer 或绕过正式 submit 路径。
 - [x] 8.6 将侧栏重构为三个 LABWEAVE 分组：顶部全局执行监控；动态 Projects tree；配置中心。Projects tree 必须从 adapter records 渲染并反映 active Project、Run、failure 和 pending approval 状态；无 Project、loading、unavailable 和 rail 模式均可操作。
-- [x] 8.7 将每个 Project 展开为生命周期目的地：Overview、Planning/Workflow、Plan approval、Execution monitoring、Step orchestration、Results/Evidence 和 Archive。扩展 `LabUiContext` 的 destination union 并建立 record-to-destination 映射；Conversations 只作为 Session provenance 入口，不得继续作为一级项目标签。
+- [x] 8.7 将每个 Project 的生命周期目的地移动到右侧 Project workspace 内的垂直导航：Overview、Planning/Workflow、Plan approval、Execution monitoring、Step orchestration、Results/Evidence、Files 和 Archive。左侧 Projects tree 只负责 Project 选择与状态摘要，不得重复渲染生命周期导航；扩展 `LabUiContext` 的 destination union 并建立 record-to-destination 映射；Conversations 只作为 Session provenance 入口，不得继续作为一级项目标签。
 - [x] 8.8 建立可复用的 LABWEAVE Agent presentation：复用完整 Agent timeline、命令卡片、node 卡片、ask-user 和 approval takeover，并将 Project 模式接回原生 Harness Conversation chrome 与 composer；移除重复输入、独立 context strip 和底部 dock。该实现作为三栏中央对话区的迁移基础。
 - [x] 8.9 实现全局执行监控页和侧栏摘要，聚合各 Project 的 active Run、当前步骤、失败和 pending approval，并可跳转到授权 Project destination。该能力只做状态投影和导航，不实现跨 Project 调度、资源分配或批量执行。聚合复用 Host 已提供的 `project-list` 与 `run-list` 查询，未提供的细节保持明确 unavailable。
 - [x] 8.10 实现配置中心目的地：Knowledge、Agent、Workflow/Lab Skill、Devices、People/permissions。Knowledge 保持独立 Provider 和 app view 所有权；其他目的地只消费真实注册能力。People/permissions 在无对应能力时显示明确 unavailable 或 read-only，不得创建样例用户、角色或授权结论。
@@ -195,12 +195,12 @@
 
 **文件：** `packages/client/ui-lab-workbench/src/client/{experiments,runs,evidence}/*`、`ui-primitives`/`ui-attachment` 复用点和 tests。
 
-- [ ] 9.1 在 Project 的 Planning/Workflow 和 Plan approval destinations 中补全 Experiment list/detail，保留现有 `LabExperimentDetailView` 基础并展示目标、状态、创建/关联 Sessions、派生来源、Runs、Result assessment 和 Evidence；嵌入 Workflow、Plan 与 Lab Skill revision 详情，并通过 list/detail component tests 验证摘要不能替代详情。
-- [ ] 9.2 在 Execution monitoring 和 Step orchestration destinations 中补全 Run list/detail 的 Overview、resolved Parameters、Steps/ExecutionGraph、Evidence、Logs、Timeline 和 Result，保留现有 `LabRunDetailView` 基础；显示当前步骤、依赖和等待原因，严格按 Run 与审批状态启用 typed actions，并通过状态矩阵测试。
-- [ ] 9.3 补全失败 Run retry 和 Run comparison，保留现有 comparison 组件并显示 `retryOfRunId`；只允许同一 Experiment 的两个终态 Run，比较参数、状态、耗时、Observation 和 Artifact metadata，并通过跨 Experiment、非终态和字段差异测试。
-- [ ] 9.4 在 Results/Evidence destination 和右侧 Project files 中补全 Evidence/Artifact 分组和安全文本、JSON、图片预览；页面保存并渲染 `artifact-open` 或 `project-file-open` 返回的授权预览，打开和下载只通过 adapter 动作，unsupported/unavailable 状态保留 metadata 和可执行动作，并通过预览状态测试。
-- [ ] 9.5 在 Results/Evidence 和 Archive destinations 中补全结构化 Result assessment、报告和不可变溯源，在报告内部保留 criteria、method、verdict、Plan/Skill revision、Run、Observation、Artifact、actor、timestamp 和 citation 链接；模糊或高风险结果显示 human-QC 操作，并通过追溯链接和审批状态测试。
-- [ ] 9.6 补全配置中心的 Agent、Workflow/Lab Skill 和 Devices 详情，只展示 adapter 提供的注册能力、版本、状态与允许动作；无写能力时保持 read-only，People/permissions 继续遵守第 8 阶段的真实性限制。
+- [x] 9.1 在 Project 的 Planning/Workflow 和 Plan approval destinations 中补全 Experiment list/detail，保留现有 `LabExperimentDetailView` 基础并展示目标、状态、创建/关联 Sessions、派生来源、Runs、Result assessment 和 Evidence；嵌入 Workflow、Plan 与 Lab Skill revision 详情，并通过 list/detail component tests 验证摘要不能替代详情。
+- [x] 9.2 在 Execution monitoring 和 Step orchestration destinations 中补全 Run list/detail 的 Overview、resolved Parameters、Steps/ExecutionGraph、Evidence、Logs、Timeline 和 Result，保留现有 `LabRunDetailView` 基础；显示当前步骤、依赖和等待原因，严格按 Run 与审批状态启用 typed actions，并通过状态矩阵测试。
+- [x] 9.3 补全失败 Run retry 和 Run comparison，保留现有 comparison 组件并显示 `retryOfRunId`；只允许同一 Experiment 的两个终态 Run，比较参数、状态、耗时、Observation 和 Artifact metadata，并通过跨 Experiment、非终态和字段差异测试。
+- [x] 9.4 在 Results/Evidence destination 和右侧 Project files 中补全 Evidence/Artifact 分组和安全文本、JSON、图片预览；页面保存并渲染 `artifact-open` 或 `project-file-open` 返回的授权预览，打开和下载只通过 adapter 动作，unsupported/unavailable 状态保留 metadata 和可执行动作，并通过预览状态测试。
+- [x] 9.5 在 Results/Evidence 和 Archive destinations 中补全结构化 Result assessment、报告和不可变溯源，在报告内部保留 criteria、method、verdict、Plan/Skill revision、Run、Observation、Artifact、actor、timestamp 和 citation 链接；模糊或高风险结果显示 human-QC 操作，并通过追溯链接和审批状态测试。
+- [x] 9.6 补全配置中心的 Agent、Workflow/Lab Skill 和 Devices 详情，只展示 adapter 提供的注册能力、版本、状态与允许动作；无写能力时保持 read-only，People/permissions 继续遵守第 8 阶段的真实性限制。
 - [ ] 9.7 增加 assembled browser tests，覆盖 Project lifecycle destinations、空态、失败态、等待态、重规划差异、并发冲突、Artifact 不支持预览、Run 比较、结果判定、报告引用跳转和配置能力 unavailable；独立 jsdom 组件测试只保留为组件覆盖，不能完成本任务。
 
 **阶段验收：** 前端 fixture journey 可从一句目标连续展示 Workflow/Skill 提案、步骤执行、异常重规划、两个 Run 比较、结果判定和报告；每条关键结果可返回 Run/Artifact 来源，Agent 在第 8 阶段冻结的布局中始终可交互。
@@ -208,7 +208,7 @@
 
 **文件：** `packages/experimental/lab-mvp-web/`、Agent tool Consumers、Session event/node projections、`packages/experimental/lab-mvp/`、deterministic Provider packages、`examples/lab-web/cordis.patch.yml`、snapshots。
 
-- [ ] 10.1 实现 `LabWorkbenchAdapter` 的 Host 版本，将第 5–9 阶段组件接到 typed Facade；删除生产 composition 中的 fixture adapter，运行同一套 adapter contract tests。LABWEAVE Agent surface 必须绑定真实 Harness Session 和输入状态机，不得增加专用消息传输。
+- [x] 10.1 实现 `LabWorkbenchAdapter` 的 Host 版本，将第 5–9 阶段组件接到 typed Facade；删除生产 composition 中的 fixture adapter，运行同一套 adapter contract tests。LABWEAVE Agent surface 必须绑定真实 Harness Session 和输入状态机，不得增加专用消息传输。
 - [ ] 10.2 完成 Project、Experiment、Workflow/Plan、Lab Skill、Run、Evidence、Result assessment、report、Project file catalog/open/download、全局 monitor summary 和配置 capability summary 的窄查询与动作命令；刷新后从 Host records 重建侧栏、工作台、Project files 和 Agent context。
 - [ ] 10.3 将 Agent 工具改为先提出 Experiment、Plan 和 Lab Skill draft，再由人类确认创建、批准或激活；模型可见 Project scope、capability results 和 validation findings 全部写入 Session events。
 - [ ] 10.4 接入 Runtime step、device receipt、approval、observation、Artifact、Project file revision 和 verdict 事件；事件同时更新 Agent 时间线、工作台与当前 Project files，Agent 不能直接推进步骤、提交设备命令或写入 verdict。

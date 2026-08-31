@@ -22,7 +22,7 @@ function adapterFor(runs: readonly LabRun[]): LabWorkbenchAdapter {
     listExperiments: async () => ready([]),
     openExperiment: async () => ready({ experimentId: 'experiment-1', projectId: 'project-1', title: 'Demo', objective: 'Test', status: 'ACTIVE', createdInSessionId: 'session-1', createdAt: 1, updatedAt: 1 }),
     listRuns: async (experimentId) => ready(runs.filter(item => item.runId?.startsWith(experimentId === 'experiment-1' ? 'run-' : 'never'))),
-    compareRuns: async (leftRunId, rightRunId) => ready({ leftRunId, rightRunId, status: { left: 'COMPLETED', right: 'COMPLETED' }, stepStatuses: [], artifactCounts: { left: 0, right: 0 } } satisfies LabRunComparisonView),
+    compareRuns: async (leftRunId, rightRunId) => ready({ leftRunId, rightRunId, status: { left: 'COMPLETED', right: 'COMPLETED' }, durationMs: { left: 0, right: 0 }, parameters: { left: [], right: [] }, stepStatuses: [], observations: [], artifactCounts: { left: 0, right: 0 }, artifactMetadata: { left: [], right: [] } } satisfies LabRunComparisonView),
     openRun: async (runId) => ready(runs.find(item => item.runId === runId) ?? run(runId)),
     listArtifacts: async (runId) => ready((runs.find(item => item.runId === runId) ?? run(runId)).artifacts ?? []),
     openArtifact: async (runId, artifactId) => ready({ artifactId, runId, kind: 'text', displayName: 'log', uri: 'host://artifact', mediaType: 'text/plain', size: 0, digest: 'sha256:test', createdAt: 1 }),

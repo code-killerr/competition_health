@@ -37,6 +37,8 @@ export function LabProjectFileView(props: {
     </dl>
     {props.previewState === 'loading' && <p role='status'>{labels.loading}</p>}
     {props.previewState === 'unavailable' && <p role='status'>{labels.unavailable}</p>}
+    {props.downloadState === 'loading' && <p role='status'>{labels.loading}</p>}
+    {props.downloadState === 'unavailable' && <p role='status'>{labels.unavailable}</p>}
     {props.preview !== undefined && <Preview preview={props.preview} labels={labels} />}
     <div className={css.actions}>
       {props.onPreview !== undefined && <button type='button' onClick={props.onPreview}>{labels.preview}</button>}

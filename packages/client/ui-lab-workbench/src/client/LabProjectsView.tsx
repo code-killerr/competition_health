@@ -4,6 +4,7 @@ import { useEffect, useRef, useSyncExternalStore, useState } from 'react'
 import type { JSX } from 'react'
 import type { PropsLocale, PropsRuntime, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { LabUiContext } from './LabUiContext.ts'
+import type { LabRun } from './api.ts'
 import css from './LabProjectsView.module.css'
 
 /** 页面使用的最小 Project 展示记录。 */
@@ -19,6 +20,16 @@ export interface LabProjectSummary {
   readonly failedRunCount?: number
   readonly pendingApprovalCount?: number
   readonly currentStepId?: string
+  readonly runs?: readonly LabProjectRunSummary[]
+}
+
+/** Run identity used by the global monitoring projection. */
+export interface LabProjectRunSummary {
+  readonly experimentId: string
+  readonly runId: string
+  readonly status: NonNullable<LabRun['runStatus']>
+  readonly currentStepId?: string
+  readonly updatedAt?: number
 }
 
 /** Project 页面宿主动作。 */

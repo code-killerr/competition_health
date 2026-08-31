@@ -1,7 +1,11 @@
 .root { display: grid; gap: .6rem; border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px; padding: 12px; }
-.root h3 { margin: 0; }
+.root h3, .root h4 { margin: 0; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .5rem; }
 .grid span, .steps > div { color: var(--dsw-alias-text-secondary); }
+.columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.column { display: grid; gap: .45rem; min-width: 0; padding: .65rem; border: 1px solid var(--dsw-alias-border-l1); border-radius: 9px; }
+.column section { min-width: 0; }
+.column p { margin: .25rem 0 0; color: var(--dsw-alias-text-secondary); overflow-wrap: anywhere; }
 .steps { display: grid; gap: .45rem; }
 .steps > div { display: grid; grid-template-columns: minmax(8rem, 1fr) repeat(2, minmax(7rem, 1fr)); gap: .5rem; border-top: 1px solid var(--dsw-alias-border-l1); padding-top: .45rem; }
-
+@media (max-width: 620px) { .columns { grid-template-columns: 1fr; } .steps > div { grid-template-columns: 1fr; } }

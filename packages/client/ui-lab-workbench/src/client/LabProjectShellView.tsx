@@ -1,8 +1,8 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { JSX } from 'react'
 import type { PropsLocale, PropsRuntime, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
-import type { LabArtifactRecord, LabPlanReview, LabProjectFilePreview, LabProjectFileRecord, LabProjectView, LabReportView, LabRun, LabRunComparisonView, LabSkillRevision, LabWorkflowRecord } from './api.ts'
-import type { LabUiContext } from './LabUiContext.ts'
+import type { LabArtifactPreview as LabArtifactPreviewRecord, LabArtifactRecord, LabPlanReview, LabProjectFilePreview, LabProjectFileRecord, LabProjectView, LabReportView, LabRun, LabRunComparisonView, LabSkillRevision, LabWorkflowRecord } from './api.ts'
+import type { LabCitationSelection, LabUiContext } from './LabUiContext.ts'
 import type { LabProjectFileAdapter, LabProjectFileEventListener, LabQueryState } from './adapter.ts'
 import { LabExperimentDetailView, type LabExperimentDetailLabels } from './LabExperimentDetailView.tsx'
 import { LabRunDetailView, type LabRunDetailLabels } from './LabRunDetailView.tsx'
@@ -16,7 +16,7 @@ import type { LabSkillLabels, LabSkillReviewState } from './LabSkillView.tsx'
 import { LabArtifactPreview } from './LabArtifactPreview.tsx'
 import type { LabArtifactPreviewLabels } from './LabArtifactPreview.tsx'
 import { LabProjectFileView, type LabProjectFileLabels } from './LabProjectFileView.tsx'
-import type { LabResultReportLabels } from './LabResultReportView.tsx'
+import { LabResultReportView, type LabResultReportLabels } from './LabResultReportView.tsx'
 import css from './LabProjectShellView.module.css'
 
 /** Host queries and the real Session opener supplied to the Project app view. */
@@ -30,6 +30,9 @@ export interface LabProjectShellInjected {
   readonly loadExperimentReviews: (experimentId: string) => Promise<LabQueryState<readonly LabPlanReview[]>>
   readonly compareRuns: (leftRunId: string, rightRunId: string) => Promise<LabQueryState<LabRunComparisonView>>
   readonly retryRun: (runId: string) => Promise<LabRun>
+  readonly openCitation?: (citation: LabCitationSelection) => void
+  readonly confirmStep?: (input: { readonly runId: string; readonly stepId?: string; readonly operationId?: string }) => void | Promise<unknown>
+  readonly stopRun?: (runId: string) => void | Promise<unknown>
   readonly openSession: (sessionId: string) => void
   readonly listProjectFiles?: LabProjectFileAdapter['listProjectFiles']
   readonly openProjectFile?: LabProjectFileAdapter['openProjectFile']
@@ -167,20 +170,25 @@ export function LabProjectShellView(props: Props): JSX.Element {
         </div>
       </header>
       {projectState.state !== 'ready' && <StateNotice state={projectState} t={props.t} emptyMessage={props.t('stateNoProject')} />}
-      <nav className={css.tabs} aria-label={props.t('projectNavigation')}>
-        {PAGES.map((item) => (
-          <button key={item} type='button' className={page === item ? css.tabActive : css.tab} onClick={() => { props.ui.openProjectPage(item) }}>
-            {props.t(destinationLabel(item))}
-          </button>
-        ))}
-      </nav>
-      {page === 'overview' && <Overview props={props} project={project} runs={runs} artifacts={artifacts} onNavigate={destination => { props.ui.openProjectPage(destination) }} />}
-      {page === 'planning' && <Experiments props={props} project={project} runs={runs} reviews={experimentReviews} />}
-      {page === 'approval' && <Experiments props={props} project={project} runs={runs} reviews={experimentReviews} />}
-      {(page === 'execution' || page === 'steps') && <><StateNoticeWhenVisible state={runsState} t={props.t} emptyMessage={props.t('stateNoExperiment')} /><Runs props={props} runs={runs} artifacts={artifacts} report={report} comparison={comparison} /></>}
-      {page === 'evidence' && <><StateNoticeWhenVisible state={artifactsState} t={props.t} emptyMessage={props.t('stateNoRun')} /><Evidence props={props} artifacts={artifacts} {...selection.activeArtifactId === undefined ? {} : { selectedArtifactId: selection.activeArtifactId }} /></>}
-      {page === 'files' && <ProjectFiles props={props} projectId={selection.activeProjectId} files={projectFiles} filesState={projectFilesState} artifacts={artifacts} state={artifactsState} onRefresh={() => { setFileRefresh(value => value + 1); setProjectFileRefresh(value => value + 1) }} />}
-      {page === 'archive' && <div className={css.notice}>{props.t('archiveNotice')}</div>}
+      <div className={css.workspaceLayout}>
+        <nav className={css.projectNavigation} aria-label={props.t('projectNavigation')} data-lab-project-navigation>
+          <span className={css.navigationKicker}>{props.t('projectNavigation')}</span>
+          {PAGES.map((item) => (
+            <button key={item} type='button' className={page === item ? css.tabActive : css.tab} aria-current={page === item ? 'page' : undefined} onClick={() => { props.ui.openProjectPage(item) }}>
+              {props.t(destinationLabel(item))}
+            </button>
+          ))}
+        </nav>
+        <div className={css.workspaceContent}>
+          {page === 'overview' && <Overview props={props} project={project} runs={runs} artifacts={artifacts} onNavigate={destination => { props.ui.openProjectPage(destination) }} />}
+          {page === 'planning' && <Experiments props={props} project={project} runs={runs} report={report} reviews={experimentReviews} />}
+          {page === 'approval' && <Experiments props={props} project={project} runs={runs} report={report} reviews={experimentReviews} />}
+          {(page === 'execution' || page === 'steps') && <><StateNoticeWhenVisible state={runsState} t={props.t} emptyMessage={props.t('stateNoExperiment')} /><Runs props={props} runs={runs} artifacts={artifacts} report={report} comparison={comparison} /></>}
+          {page === 'evidence' && <><StateNoticeWhenVisible state={artifactsState} t={props.t} emptyMessage={props.t('stateNoRun')} /><Evidence props={props} artifacts={artifacts} report={report} {...selection.activeArtifactId === undefined ? {} : { selectedArtifactId: selection.activeArtifactId }} /></>}
+          {page === 'files' && <ProjectFiles props={props} projectId={selection.activeProjectId} files={projectFiles} filesState={projectFilesState} artifacts={artifacts} state={artifactsState} onRefresh={() => { setFileRefresh(value => value + 1); setProjectFileRefresh(value => value + 1) }} />}
+          {page === 'archive' && <Archive props={props} report={report} />}
+        </div>
+      </div>
     </section>
   )
 }
@@ -212,7 +220,7 @@ function Overview({ props, project, runs, artifacts, onNavigate }: { readonly pr
   </div>
 }
 
-function Experiments({ props, project, runs, reviews }: { readonly props: Props; readonly project: LabProjectView | undefined; readonly runs: readonly LabRun[]; readonly reviews: ReviewsState }): JSX.Element {
+function Experiments({ props, project, runs, report, reviews }: { readonly props: Props; readonly project: LabProjectView | undefined; readonly runs: readonly LabRun[]; readonly report: ReportState; readonly reviews: ReviewsState }): JSX.Element {
   const experiments = project?.experiments ?? []
   const selectedId = props.ui.snapshot().activeExperimentId ?? experiments[0]?.experimentId
   const selected = experiments.find(experiment => experiment.experimentId === selectedId)
@@ -223,7 +231,7 @@ function Experiments({ props, project, runs, reviews }: { readonly props: Props;
       <strong>{experiment.title}</strong><span>{experiment.status}</span>
     </button>
   ))}</div>{selected === undefined ? <div className={css.notice}>{props.t('stateNoExperiment')}</div> : reviews.state !== 'ready' || review === undefined ? <StateNotice state={reviews} t={props.t} emptyMessage={props.t('stateNoExperiment')} /> : <div className={css.detailStack}>
-    <LabExperimentDetailView experiment={selected} sessions={(project?.experimentSessions ?? []).filter(session => session.experimentId === selected.experimentId)} review={review} runs={runs} evidence={(project?.evidence ?? []).filter(item => item.experimentId === selected.experimentId)} labels={experimentLabels(props.t)} onOpenSession={props.openSession} />
+    <LabExperimentDetailView experiment={selected} sessions={(project?.experimentSessions ?? []).filter(session => session.experimentId === selected.experimentId)} review={review} runs={runs} {...report.state === 'ready' ? { report: report.value } : {}} evidence={(project?.evidence ?? []).filter(item => item.experimentId === selected.experimentId)} labels={experimentLabels(props.t)} onOpenSession={props.openSession} />
     {workflow !== undefined && <LabWorkflowView workflow={workflow} validation={review.validation} labels={workflowLabels(props.t)} />}
     {(review.skillRevisions ?? []).map(skill => {
       const state = skillState(skill.status)
@@ -260,14 +268,17 @@ function skillLabels(t: Props['t']): LabSkillLabels {
 function Runs({ props, runs, artifacts, report, comparison }: { readonly props: Props; readonly runs: readonly LabRun[]; readonly artifacts: readonly LabArtifactRecord[]; readonly report: ReportState; readonly comparison: LabQueryState<LabRunComparisonView> | undefined }): JSX.Element {
   const selectedId = props.ui.snapshot().activeRunId ?? runs[0]?.runId
   const selected = runs.find(run => run.runId === selectedId)
-  return <div className={css.experimentLayout}><div className={css.list}>{runs.map(run => <button key={run.runId} type='button' className={run.runId === selectedId ? css.rowActive : css.row} onClick={() => { if (run.runId !== undefined) props.ui.selectRun(run.runId); props.ui.openProjectPage('execution') }}><strong>{run.runId ?? props.t('runs')}</strong><span>{run.runStatus ?? props.t('notAvailable')}</span></button>)}</div>{selected === undefined ? <div className={css.notice}>{props.t('stateNoRun')}</div> : <LabRunDetailView run={selected} artifacts={artifacts} {...report.state === 'ready' ? { report: report.value, assessment: report.value.assessment } : {}} {...comparison?.state === 'ready' ? { comparison: comparison.value } : {}} onRetry={props.retryRun} labels={runLabels(props.t)} />}</div>
+  return <div className={css.experimentLayout}><div className={css.list}>{runs.map(run => <button key={run.runId} type='button' className={run.runId === selectedId ? css.rowActive : css.row} onClick={() => { if (run.runId !== undefined) props.ui.selectRun(run.runId); props.ui.openProjectPage('execution') }}><strong>{run.runId ?? props.t('runs')}</strong><span>{run.runStatus ?? props.t('notAvailable')}</span></button>)}</div>{selected === undefined ? <div className={css.notice}>{props.t('stateNoRun')}</div> : <LabRunDetailView run={selected} artifacts={artifacts} {...report.state === 'ready' ? { report: report.value, assessment: report.value.assessment } : {}} {...comparison?.state === 'ready' ? { comparison: comparison.value } : {}} onRetry={props.retryRun} {...props.confirmStep === undefined ? {} : { onConfirmStep: props.confirmStep }} {...props.stopRun === undefined ? {} : { onStop: props.stopRun }} labels={runLabels(props.t)} />}</div>
+}
+
+function reportLabels(t: Props['t']): LabResultReportLabels {
+  return { title: t('report'), experiment: t('experiment'), criteria: t('reportCriteria'), method: t('reportMethod'), verdict: t('lifecycleVerdict'), plan: t('plan'), run: t('runs'), evidence: t('evidence'), actor: t('reportActor'), assessedAt: t('reportAssessedAt'), observations: t('reportObservations'), artifacts: t('runArtifacts'), skillRevisions: t('experimentSkills'), citations: t('citations'), observationIds: t('reportObservationIds'), artifactIds: t('reportArtifactIds'), openCitation: t('lifecycleOpenCitation'), citationUnavailable: t('lifecycleCitationUnavailable'), humanQc: t('runHumanQcGate'), humanQcAction: t('reportHumanQcAction'), humanQcUnavailable: t('reportHumanQcUnavailable'), noValue: t('notAvailable'), noCriteria: t('reportNoCriteria') }
 }
 
 function runLabels(t: Props['t']): LabRunDetailLabels {
   const resultLabels: LabRunResultLabels = { runTitle: t('runDetail'), resultTitle: t('result'), runStatus: t('status'), resultStatus: t('status'), currentStep: t('runCurrentStep'), feedback: t('runFeedback'), replanReason: t('runReplanReason'), verdict: t('lifecycleVerdict'), evidence: t('evidence'), assessedBy: t('runAssessedBy'), assessedAt: t('runAssessedAt'), humanQcGate: t('runHumanQcGate'), noValue: t('notAvailable'), statusLabel: value => t(runStatusKey(value)) }
-  const comparisonLabels: LabRunComparisonLabels = { title: t('runComparison'), left: t('runLeft'), right: t('runRight'), status: t('status'), steps: t('steps'), artifacts: t('runArtifacts'), noValue: t('notAvailable') }
-  const reportLabels: LabResultReportLabels = { title: t('report'), criteria: t('reportCriteria'), method: t('reportMethod'), verdict: t('lifecycleVerdict'), plan: t('plan'), run: t('runs'), evidence: t('evidence'), actor: t('reportActor'), assessedAt: t('reportAssessedAt'), observations: t('reportObservations'), artifacts: t('runArtifacts'), humanQc: t('runHumanQcGate'), noValue: t('notAvailable'), noCriteria: t('reportNoCriteria') }
-  return { title: t('runDetail'), overview: t('runOverview'), parameters: t('runParameters'), steps: t('steps'), executionGraph: t('runExecutionGraph'), evidence: t('evidence'), logs: t('runLogs'), timeline: t('runTimeline'), plan: t('plan'), currentStep: t('runCurrentStep'), dependencies: t('runDependencies'), operation: t('runOperation'), createdAt: t('runCreatedAt'), updatedAt: t('runUpdatedAt'), noValue: t('notAvailable'), noSteps: t('runNoSteps'), noEvidence: t('experimentNoEvidence'), noLogs: t('runNoLogs'), retry: t('runRetry'), retryOfRun: t('runRetryOf'), comparisonLabels, reportLabels, resultLabels }
+  const comparisonLabels: LabRunComparisonLabels = { title: t('runComparison'), left: t('runLeft'), right: t('runRight'), status: t('status'), duration: t('runDuration'), parameters: t('runParameters'), steps: t('steps'), observations: t('runObservations'), artifacts: t('runArtifacts'), artifactMetadata: t('runArtifactMetadata'), valid: t('runValidity'), operation: t('runOperation'), artifactIds: t('runArtifactIds'), noValue: t('notAvailable') }
+  return { title: t('runDetail'), overview: t('runOverview'), parameters: t('runParameters'), steps: t('steps'), executionGraph: t('runExecutionGraph'), evidence: t('evidence'), logs: t('runLogs'), timeline: t('runTimeline'), plan: t('plan'), currentStep: t('runCurrentStep'), dependencies: t('runDependencies'), operation: t('runOperation'), createdAt: t('runCreatedAt'), updatedAt: t('runUpdatedAt'), noValue: t('notAvailable'), noSteps: t('runNoSteps'), noEvidence: t('experimentNoEvidence'), noLogs: t('runNoLogs'), retry: t('runRetry'), retryOfRun: t('runRetryOf'), confirmStep: t('confirmStep'), stopRun: t('stopRun'), comparisonLabels, reportLabels: reportLabels(t), resultLabels }
 }
 
 function runStatusKey(value: LabRunDisplayState | LabResultDisplayState): LabWorkbenchKey {
@@ -275,14 +286,32 @@ function runStatusKey(value: LabRunDisplayState | LabResultDisplayState): LabWor
   return keys[value]
 }
 
-function Evidence({ props, artifacts, selectedArtifactId }: { readonly props: Props; readonly artifacts: readonly LabArtifactRecord[]; readonly selectedArtifactId?: string }): JSX.Element {
-  const labels: LabArtifactPreviewLabels = { open: props.t('openArtifact'), unavailable: props.t('artifactPreviewUnavailable'), text: props.t('artifactTextPreview'), json: props.t('artifactJsonPreview'), image: props.t('artifactImagePreview'), unsupported: props.t('artifactUnsupported'), metadata: props.t('evidence') }
-  return <div className={css.list}>{artifacts.map(artifact => <LabArtifactPreview key={artifact.artifactId} artifact={artifact} selected={artifact.artifactId === selectedArtifactId} labels={labels} onOpen={item => { void props.openArtifact(item.runId, item.artifactId) }} />)}</div>
+function Evidence({ props, artifacts, report, selectedArtifactId }: { readonly props: Props; readonly artifacts: readonly LabArtifactRecord[]; readonly report: ReportState; readonly selectedArtifactId?: string }): JSX.Element {
+  const labels: LabArtifactPreviewLabels = { open: props.t('openArtifact'), loading: props.t('stateLoading'), unavailable: props.t('artifactPreviewUnavailable'), text: props.t('artifactTextPreview'), json: props.t('artifactJsonPreview'), image: props.t('artifactImagePreview'), unsupported: props.t('artifactUnsupported'), metadata: props.t('evidence') }
+  const [previews, setPreviews] = useState<Record<string, LabArtifactPreviewRecord>>({})
+  const [previewStates, setPreviewStates] = useState<Record<string, 'loading' | 'unavailable'>>({})
+  useEffect(() => { setPreviews({}); setPreviewStates({}) }, [artifacts])
+  const openArtifact = (artifact: LabArtifactRecord): void => {
+    setPreviewStates(current => ({ ...current, [artifact.artifactId]: 'loading' }))
+    void props.openArtifact(artifact.runId, artifact.artifactId).then(result => {
+      if (result.preview === undefined) {
+        setPreviewStates(current => ({ ...current, [artifact.artifactId]: 'unavailable' }))
+        return
+      }
+      setPreviews(current => ({ ...current, [artifact.artifactId]: result.preview as LabArtifactPreviewRecord }))
+      setPreviewStates(current => { const next = { ...current }; delete next[artifact.artifactId]; return next })
+    }).catch(() => { setPreviewStates(current => ({ ...current, [artifact.artifactId]: 'unavailable' })) })
+  }
+  return <div className={css.detailStack}><div className={css.list}>{artifacts.map(artifact => <LabArtifactPreview key={artifact.artifactId} artifact={artifact} preview={previews[artifact.artifactId]} {...previewStates[artifact.artifactId] === undefined ? {} : { previewState: previewStates[artifact.artifactId] }} selected={artifact.artifactId === selectedArtifactId} labels={labels} onOpen={openArtifact} />)}</div>{report.state === 'ready' && <LabResultReportView report={report.value} labels={reportLabels(props.t)} knowledgeAvailable={props.openCitation !== undefined} {...props.openCitation === undefined ? {} : { onOpenCitation: props.openCitation }} />}</div>
+}
+
+function Archive({ props, report }: { readonly props: Props; readonly report: ReportState }): JSX.Element {
+  return <div className={css.detailStack}><div className={css.notice}>{props.t('archiveNotice')}</div>{report.state === 'ready' && <LabResultReportView report={report.value} labels={reportLabels(props.t)} knowledgeAvailable={props.openCitation !== undefined} {...props.openCitation === undefined ? {} : { onOpenCitation: props.openCitation }} />}</div>
 }
 
 /** 展示 Host 授权的 Project 文件元数据，并把正文读取与下载交给 adapter。 */
 function ProjectFiles({ props, projectId, files, filesState, artifacts, state, onRefresh }: { readonly props: Props; readonly projectId: string | undefined; readonly files: readonly LabProjectFileRecord[]; readonly filesState: ProjectFilesState; readonly artifacts: readonly LabArtifactRecord[]; readonly state: ArtifactsState; readonly onRefresh: () => void }): JSX.Element {
-  const artifactLabels: LabArtifactPreviewLabels = { open: props.t('openArtifact'), unavailable: props.t('artifactPreviewUnavailable'), text: props.t('artifactTextPreview'), json: props.t('artifactJsonPreview'), image: props.t('artifactImagePreview'), unsupported: props.t('artifactUnsupported'), metadata: props.t('evidence') }
+  const artifactLabels: LabArtifactPreviewLabels = { open: props.t('openArtifact'), loading: props.t('stateLoading'), unavailable: props.t('artifactPreviewUnavailable'), text: props.t('artifactTextPreview'), json: props.t('artifactJsonPreview'), image: props.t('artifactImagePreview'), unsupported: props.t('artifactUnsupported'), metadata: props.t('evidence') }
   const fileLabels: LabProjectFileLabels = { preview: props.t('projectFilePreview'), download: props.t('projectFileDownload'), loading: props.t('stateLoading'), unavailable: props.t('artifactPreviewUnavailable'), metadata: props.t('evidence'), path: props.t('projectFilePath'), revision: props.t('projectFileRevision'), downloadReady: props.t('projectFileDownloadReady'), previewUnavailable: props.t('artifactUnsupported') }
   const nativeFiles = props.listProjectFiles !== undefined && projectId !== undefined
   const [previews, setPreviews] = useState<Record<string, LabProjectFilePreview>>({})

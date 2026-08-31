@@ -26,16 +26,6 @@ type ProjectListState =
   | { readonly state: 'ready'; readonly value: readonly LabProjectSummary[] }
   | { readonly state: 'unavailable' }
 
-const PROJECT_PAGES: readonly { readonly page: LabPage; readonly label: 'overview' | 'planning' | 'approval' | 'execution' | 'stepOrchestration' | 'evidencePage' | 'archive' }[] = [
-  { page: 'overview', label: 'overview' },
-  { page: 'planning', label: 'planning' },
-  { page: 'approval', label: 'approval' },
-  { page: 'execution', label: 'execution' },
-  { page: 'steps', label: 'stepOrchestration' },
-  { page: 'evidence', label: 'evidencePage' },
-  { page: 'archive', label: 'archive' },
-]
-
 /** Render the root application navigation. */
 export function LabGlobalNavigation(props: Props): JSX.Element {
   const selection = useSyncExternalStore(props.ui.subscribe.bind(props.ui), () => props.ui.snapshot())
@@ -57,14 +47,13 @@ export function LabGlobalNavigation(props: Props): JSX.Element {
     if (firstProject === undefined || projectsState.value.some(project => project.projectId === selection.activeProjectId)) return
     props.ui.selectWorkspace(firstProject.workspaceId)
     props.ui.selectProject(firstProject.projectId)
-    props.ui.openProjectPage('overview')
   }, [projectsState, props.ui, selection.activeProjectId])
 
   const open = (viewId: string): void => { props.openAppView(viewId); props.expandSidebar() }
-  const openProject = (project: LabProjectSummary, page: LabPage = 'overview'): void => {
+  const openProject = (project: LabProjectSummary, page?: LabPage): void => {
     props.ui.selectWorkspace(project.workspaceId)
     props.ui.selectProject(project.projectId)
-    props.ui.openProjectPage(page)
+    if (page !== undefined) props.ui.openProjectPage(page)
     open('lab-project')
   }
   const projects = projectsState.state === 'ready' ? projectsState.value : []
@@ -102,19 +91,6 @@ export function LabGlobalNavigation(props: Props): JSX.Element {
             </button>
             <span className={css.projectStatus}>{projectStatus(project)}</span>
             {project.currentStepId !== undefined && <span className={css.projectStep}>{props.t('runCurrentStep')}: {project.currentStepId}</span>}
-            <div className={css.projectDestinations} aria-label={`${project.name} ${props.t('projectNavigation')}`}>
-              {PROJECT_PAGES.map(destination => (
-                <button
-                  key={destination.page}
-                  type="button"
-                  className={selection.activeProjectId === project.projectId && selection.projectPage === destination.page ? css.destinationActive : css.destination}
-                  aria-label={`${project.name} ${props.t(destination.label)}`}
-                  onClick={() => { openProject(project, destination.page) }}
-                >
-                  {props.t(destination.label)}
-                </button>
-              ))}
-            </div>
           </div>
         ))}
         {!props.wide && projects.map(project => (

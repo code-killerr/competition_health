@@ -27,7 +27,7 @@ describe('LabProjectShellView', () => {
       listRuns: async () => ({ state: 'ready', value: [{ runId: 'run-1', planId: 'plan-1', runStatus: 'COMPLETED' }] }),
       loadRunReport: async () => ({ state: 'ready', value: { runId: 'run-1', experimentId: 'experiment-1', planId: 'plan-1', status: 'COMPLETED', observations: [], artifacts: [], feedback: { status: 'COMPLETED', valid: true, summary: 'Done', issues: [], replanRequested: false }, assessment: { status: 'PASSED', verdict: 'PASS', evidenceIds: [], humanQcRequired: false } } }),
       listArtifacts: async () => ({ state: 'ready', value: [{ artifactId: 'artifact-1', runId: 'run-1', kind: 'json', displayName: 'result.json', uri: 'lab-artifact://result.json', mediaType: 'application/json', size: 1, digest: 'sha256:test', createdAt: 1 }] }),
-      openArtifact: async () => ({ artifactId: 'artifact-1', runId: 'run-1', kind: 'json', displayName: 'result.json', uri: 'lab-artifact://result.json', mediaType: 'application/json', size: 1, digest: 'sha256:test', createdAt: 1 }),
+      openArtifact: async () => ({ artifactId: 'artifact-1', runId: 'run-1', kind: 'json', displayName: 'result.json', uri: 'lab-artifact://result.json', mediaType: 'application/json', size: 1, digest: 'sha256:test', createdAt: 1, preview: { kind: 'json' as const, content: { result: 'ok' } } }),
       loadExperimentReviews: async () => ({ state: 'ready', value: [{ plan: { planId: 'plan-1', experimentId: 'experiment-1', revision: 1, status: 'LOCKED', objective: 'Test', steps: [], unresolved: [] }, skillRevisions: [{ skillId: 'skill-1', revisionId: 'skill-rev-1', name: 'Calibration skill', status: 'ACTIVE', purpose: 'Calibrate the device', revision: 1 }] }] }),
       compareRuns: async () => ({ state: 'empty', code: 'NO_RECORDS', message: 'No comparison' }),
       retryRun: async () => ({ runId: 'run-1' }),
@@ -42,6 +42,10 @@ describe('LabProjectShellView', () => {
     expect(ui.snapshot().projectPage).toBe('planning')
     await waitFor(() => { expect(view.getByRole('heading', { name: 'Experiment' })).toBeTruthy() })
     expect(view.getAllByText('Test')).toHaveLength(2)
+    expect(view.getByRole('heading', { name: 'experimentDetail' })).toBeTruthy()
+    expect(view.getByText('Calibration skill')).toBeTruthy()
+    expect(view.getAllByText('ACTIVE').length).toBeGreaterThan(0)
+    expect(view.getByText('PASS')).toBeTruthy()
     fireEvent.click(view.getByRole('button', { name: 'execution' }))
     await waitFor(() => { expect(view.getByRole('heading', { name: 'run-1' })).toBeTruthy() })
     expect(view.getByRole('heading', { name: 'runOverview' })).toBeTruthy()
@@ -49,6 +53,8 @@ describe('LabProjectShellView', () => {
     expect(view.getByRole('heading', { name: 'runTimeline' })).toBeTruthy()
     fireEvent.click(view.getByRole('button', { name: 'evidencePage' }))
     expect(ui.snapshot().projectPage).toBe('evidence')
+    fireEvent.click(view.getByRole('button', { name: 'openArtifact' }))
+    await waitFor(() => { expect(view.getByLabelText('artifactJsonPreview')).toBeTruthy() })
     fireEvent.click(view.getByRole('button', { name: 'projectFiles' }))
     expect(ui.snapshot().projectPage).toBe('files')
     expect(view.container.querySelector('[data-lab-project-files]')).toBeTruthy()

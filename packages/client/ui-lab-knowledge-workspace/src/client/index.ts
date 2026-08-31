@@ -34,7 +34,10 @@ export function apply(ctx: ClientContext): void {
     name: 'app.view',
     id: 'lab-knowledge',
     order: 12,
-    conversationMode: 'agent-dock',
+    // Knowledge is a global configuration destination. The Project profile
+    // keeps the native Conversation in the center, but configuration replaces
+    // it and must not expose a second or residual input surface.
+    conversationMode: 'replace',
     locale: NS,
   }, createKnowledgeWorkspaceView({
     ui,

@@ -33,7 +33,7 @@ describe('LabGlobalNavigation', () => {
     expect(expandSidebar).toHaveBeenCalledTimes(3)
   })
 
-  it('renders a status-backed Project tree with lifecycle destinations', async () => {
+  it('renders a status-backed Project tree without duplicating workspace destinations', async () => {
     const openAppView = vi.fn()
     const ui = new LabUiContext()
     const project = {
@@ -61,17 +61,15 @@ describe('LabGlobalNavigation', () => {
     } as unknown as NavigationProps
     const view = render(<LabGlobalNavigation {...props} />)
 
-    await waitFor(() => { expect(view.getByRole('button', { name: 'Calibration overview' })).toBeTruthy() })
+    await waitFor(() => { expect(view.getByRole('button', { name: 'Calibration' })).toBeTruthy() })
     expect(view.getByText('lifecycleStatusActive')).toBeTruthy()
     expect(view.getByLabelText('pendingApproval')).toBeTruthy()
     expect(view.container.textContent).toContain('runCurrentStep')
+    expect(view.queryByRole('button', { name: 'Calibration overview' })).toBeNull()
 
-    fireEvent.click(view.getByRole('button', { name: 'Calibration overview' }))
-    expect(ui.snapshot()).toMatchObject({ activeProjectId: 'project-1', projectPage: 'overview' })
+    fireEvent.click(view.getByRole('button', { name: 'Calibration' }))
+    expect(ui.snapshot()).toMatchObject({ activeProjectId: 'project-1' })
     expect(openAppView).toHaveBeenCalledWith('lab-project')
-
-    fireEvent.click(view.getByRole('button', { name: 'Calibration evidencePage' }))
-    expect(ui.snapshot().projectPage).toBe('evidence')
   })
 
   it('keeps Project loading and unavailable states visible', async () => {

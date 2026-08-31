@@ -9,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { LabGlobalNavigation } from './LabGlobalNavigation.tsx'
 import type { LabGlobalNavigationInjected } from './LabGlobalNavigation.tsx'
 import { LabProjectsView } from './LabProjectsView.tsx'
-import type { LabProjectSummary, LabProjectsInjected } from './LabProjectsView.tsx'
+import type { LabProjectRunSummary, LabProjectSummary, LabProjectsInjected } from './LabProjectsView.tsx'
 import { LabProjectShellView } from './LabProjectShellView.tsx'
 import type { LabProjectShellInjected } from './LabProjectShellView.tsx'
 import { LabDevicesView } from './LabDevicesView.tsx'
@@ -17,7 +17,7 @@ import type { LabDevicesInjected } from './LabDevicesView.tsx'
 import { LabUiContext } from './LabUiContext.ts'
 import type { LabCitationSelection } from './LabUiContext.ts'
 import { LabApiError, sendLabCommand, sendLabProjectCommand } from './api.ts'
-import type { LabDevice, LabPlanReview, LabProjectView, LabReportView, LabRun, LabArtifactRecord, LabRunComparisonView } from './api.ts'
+import type { LabDevice, LabPlanReview, LabRun } from './api.ts'
 import { en, zh, type LabWorkbenchKey } from './locales.ts'
 import type { LabQueryState } from './adapter.ts'
 import { LabConversationHeaderAction } from './LabConversationHeaderAction.tsx'
@@ -32,10 +32,15 @@ import { consumeLabPresentationIntent } from './LabPresentationConsumer.ts'
 import type { LabPresentationTarget } from './LabPresentationConsumer.ts'
 import { LabOperationsView } from './LabOperationsView.tsx'
 import type { LabOperationsInjected } from './LabOperationsView.tsx'
+import { createLabHostAdapter } from './host-adapter.ts'
+import type { LabWorkbenchAdapter } from './adapter.ts'
 
 export { LabWorkbenchError } from './adapter.ts'
 export type { LabAdapterErrorCode, LabProjectFileAdapter, LabProjectFileEventListener, LabQueryState, LabWorkbenchAdapter, LabWorkbenchActions, LabWorkbenchQueries, LabKnowledgeScopeView } from './adapter.ts'
+export { createLabHostAdapter } from './host-adapter.ts'
+export type { LabHostAdapterDependencies } from './host-adapter.ts'
 export type { LabProjectFileDownload, LabProjectFileGroup, LabProjectFilePreview, LabProjectFileRecord, LabProjectFileRevisionEvent } from './api.ts'
+export type { LabConfigurationCapability } from './api.ts'
 export { createLabFixtureAdapter, LAB_FIXTURE_IDS, parseLabFixtureEvents, serializeLabFixtureEvents } from './fixtures/adapter.ts'
 export type { LabFixtureAdapter, LabFixtureScenario } from './fixtures/adapter.ts'
 export { validateLabPresentationIntent } from './lifecycle.ts'
@@ -110,7 +115,9 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-lab-workbench: dictionaries')
 
   const ui = new LabUiContext()
+  const adapter: LabWorkbenchAdapter = createLabHostAdapter()
   ctx.effect(() => ctx.reflect.provide('labUi', ui), 'ui-lab-workbench: presentation selection')
+  ctx.effect(() => ctx.reflect.provide('labAdapter', adapter), 'ui-lab-workbench: Host adapter')
   const projectActions: LabProjectActions = { toggleSource: toggleProjectSource }
   ctx.effect(() => ctx.reflect.provide('labProjectActions', projectActions), 'ui-lab-workbench: project scope actions')
   const presentation: LabPresentationController = {
@@ -135,7 +142,7 @@ export function apply(ctx: ClientContext): void {
     inject: (): LabProjectsInjected => ({
       ui,
       listProjects: listProjectSummaries,
-      createProject: createProjectSummary,
+      createProject: async (workspaceId, name) => projectSummary(await adapter.createProject({ workspaceId, name })),
       openProjectView: () => { ctx.layout.openAppView('lab-project') },
     }),
   }, LabProjectsView)
@@ -150,14 +157,17 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     inject: (): LabProjectShellInjected => ({
       ui,
-      loadProject: loadProjectView,
-      listRuns: listExperimentRuns,
-      listArtifacts: listRunArtifacts,
-      loadRunReport,
-      openArtifact,
+      loadProject: adapter.openProject,
+      listRuns: adapter.listRuns,
+      listArtifacts: adapter.listArtifacts,
+      loadRunReport: adapter.buildReport,
+      openArtifact: async (runId, artifactId) => requireReady(await adapter.openArtifact(runId, artifactId)),
       loadExperimentReviews,
-      compareRuns,
-      retryRun,
+      compareRuns: adapter.compareRuns,
+      retryRun: async runId => adapter.retryRun({ runId, actor: currentActor(ctx) }),
+      confirmStep: input => adapter.confirmStep({ runId: input.runId, evidence: [], confirmedBy: currentActor(ctx), ...input.stepId === undefined ? {} : { stepId: input.stepId } }),
+      stopRun: runId => adapter.stopRun({ runId, requestedBy: currentActor(ctx) }),
+      openCitation: citation => { presentation.openCitation(citation) },
       openSession: (sessionId) => { ctx.sessions.open(sessionId as SessionId) },
     }),
   }, LabProjectShellView)
@@ -263,6 +273,16 @@ async function listDevices(experimentId: string): Promise<LabQueryState<readonly
   }
 }
 
+function currentActor(ctx: ClientContext): string {
+  const current = ctx.sessions.list.getSnapshot().current
+  return current === undefined ? 'lab-web:anonymous' : String(current)
+}
+
+async function requireReady<T>(state: LabQueryState<T>): Promise<T> {
+  if (state.state === 'ready') return state.value
+  throw new LabApiError(state.code, state.message)
+}
+
 async function listProjectSummaries(): Promise<readonly LabProjectSummary[]> {
   const result = await sendLabProjectCommand({ command: 'project-list' })
   if (result.kind !== 'project-list' || !Array.isArray(result.value)) throw new LabApiError('INVALID_RESPONSE', '项目列表响应格式无效')
@@ -272,16 +292,25 @@ async function listProjectSummaries(): Promise<readonly LabProjectSummary[]> {
       const record = asRecord(item)
       return typeof record.experimentId === 'string' ? [record.experimentId] : []
     })
-    const states = await Promise.all(experiments.map(experimentId => listExperimentRuns(experimentId)))
-    const runs = states.flatMap(state => state.state === 'ready' ? [...state.value] : [])
-    const active = runs.filter(run => run.runStatus === 'CREATED' || run.runStatus === 'WAITING_CONFIRMATION' || run.runStatus === 'RUNNING' || run.runStatus === 'BLOCKED')
+    const states = await Promise.all(experiments.map(async experimentId => ({ experimentId, state: await listExperimentRuns(experimentId) })))
+    if (states.some(({ state }) => state.state !== 'ready')) return summary
+    const runs = states.flatMap(({ experimentId, state }) => state.state === 'ready'
+      ? state.value.flatMap(run => run.runId === undefined || run.runStatus === undefined ? [] : [{
+        experimentId,
+        runId: run.runId,
+        status: run.runStatus,
+        ...(run.currentStepId === undefined ? {} : { currentStepId: run.currentStepId }),
+        ...(run.updatedAt === undefined ? {} : { updatedAt: run.updatedAt }),
+      } satisfies LabProjectRunSummary])
+      : [])
+    const active = runs.filter(run => run.status === 'CREATED' || run.status === 'WAITING_CONFIRMATION' || run.status === 'RUNNING' || run.status === 'BLOCKED')
     const activeRunCount = active.length
-    const failedRunCount = runs.filter(run => run.runStatus === 'FAILED').length
-    const pendingApprovalCount = runs.filter(run => run.runStatus === 'WAITING_CONFIRMATION').length
+    const failedRunCount = runs.filter(run => run.status === 'FAILED').length
+    const pendingApprovalCount = runs.filter(run => run.status === 'WAITING_CONFIRMATION').length
     const currentStepId = active.find(run => run.currentStepId !== undefined)?.currentStepId
     return currentStepId === undefined
-      ? { ...summary, activeRunCount, failedRunCount, pendingApprovalCount }
-      : { ...summary, activeRunCount, failedRunCount, pendingApprovalCount, currentStepId }
+      ? { ...summary, activeRunCount, failedRunCount, pendingApprovalCount, runs }
+      : { ...summary, activeRunCount, failedRunCount, pendingApprovalCount, currentStepId, runs }
   }))
 }
 
@@ -301,22 +330,6 @@ async function toggleProjectSource(projectId: string, source: { readonly documen
   })
   const updated = await sendLabProjectCommand({ command: 'project-scope-update', projectId, sources: nextSources, deviceIds })
   if (updated.kind !== 'project') throw new LabApiError('INVALID_RESPONSE', '项目范围更新响应格式无效')
-}
-
-async function createProjectSummary(workspaceId: string, name: string): Promise<LabProjectSummary> {
-  const result = await sendLabProjectCommand({ command: 'project-create', workspaceId, name })
-  if (result.kind !== 'project') throw new LabApiError('INVALID_RESPONSE', '项目创建响应格式无效')
-  return projectSummary(result.value)
-}
-
-async function loadProjectView(projectId: string): Promise<LabQueryState<LabProjectView>> {
-  try {
-    const result = await sendLabProjectCommand({ command: 'project-open', projectId })
-    if (result.kind !== 'project') return hostQueryFailure('项目详情响应格式无效')
-    return { state: 'ready', value: result.value }
-  } catch (error) {
-    return hostQueryFailure(error)
-  }
 }
 
 async function listExperimentRuns(experimentId: string): Promise<LabQueryState<readonly LabRun[]>> {
@@ -339,26 +352,6 @@ async function loadRunContext(experimentId: string, runId: string): Promise<{ re
   }
 }
 
-async function loadRunReport(runId: string): Promise<LabQueryState<LabReportView>> {
-  try {
-    const result = await sendLabProjectCommand({ command: 'run-report', runId })
-    if (result.kind !== 'run-report') return hostQueryFailure('Run 报告响应格式无效')
-    return { state: 'ready', value: result.value }
-  } catch (error) {
-    return hostQueryFailure(error)
-  }
-}
-
-async function listRunArtifacts(runId: string): Promise<LabQueryState<readonly LabArtifactRecord[]>> {
-  try {
-    const result = await sendLabProjectCommand({ command: 'artifact-list', runId })
-    if (result.kind !== 'artifact-list') return hostQueryFailure('Artifact 列表响应格式无效')
-    return { state: 'ready', value: result.value }
-  } catch (error) {
-    return hostQueryFailure(error)
-  }
-}
-
 async function loadExperimentReviews(experimentId: string): Promise<LabQueryState<readonly LabPlanReview[]>> {
   try {
     const result = await sendLabProjectCommand({ command: 'experiment-reviews', experimentId })
@@ -367,28 +360,6 @@ async function loadExperimentReviews(experimentId: string): Promise<LabQueryStat
   } catch (error) {
     return hostQueryFailure(error)
   }
-}
-
-async function compareRuns(leftRunId: string, rightRunId: string): Promise<LabQueryState<LabRunComparisonView>> {
-  try {
-    const result = await sendLabProjectCommand({ command: 'run-compare', leftRunId, rightRunId })
-    if (result.kind !== 'run-comparison') return hostQueryFailure('Run 比较响应格式无效')
-    return { state: 'ready', value: result.value }
-  } catch (error) {
-    return hostQueryFailure(error)
-  }
-}
-
-async function openArtifact(runId: string, artifactId: string): Promise<LabArtifactRecord> {
-  const result = await sendLabProjectCommand({ command: 'artifact-open', runId, artifactId })
-  if (result.kind !== 'artifact') throw new LabApiError('INVALID_RESPONSE', 'Artifact 打开响应格式无效')
-  return result.value
-}
-
-async function retryRun(runId: string): Promise<LabRun> {
-  const result = await sendLabProjectCommand({ command: 'run-retry', runId })
-  if (result.kind !== 'run') throw new LabApiError('INVALID_RESPONSE', 'Run 重试响应格式无效')
-  return result.value
 }
 
 function hostQueryFailure<T>(error: unknown): LabQueryState<T> {

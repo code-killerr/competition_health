@@ -5,7 +5,7 @@ import { LabArtifactPreview, type LabArtifactPreviewLabels } from '../src/client
 
 afterEach(cleanup)
 
-const labels: LabArtifactPreviewLabels = { open: 'Open through Host', unavailable: 'Preview unavailable', text: 'Text preview', json: 'JSON preview', image: 'Image preview', unsupported: 'Unsupported', metadata: 'Metadata' }
+const labels: LabArtifactPreviewLabels = { open: 'Open through Host', loading: 'Loading', unavailable: 'Preview unavailable', text: 'Text preview', json: 'JSON preview', image: 'Image preview', unsupported: 'Unsupported', metadata: 'Metadata' }
 const artifact = { artifactId: 'artifact-1', runId: 'run-1', kind: 'json' as const, displayName: 'result.json', uri: 'lab-artifact://result.json', mediaType: 'application/json', size: 12, digest: 'sha256:test', createdAt: 1 }
 
 describe('LabArtifactPreview', () => {

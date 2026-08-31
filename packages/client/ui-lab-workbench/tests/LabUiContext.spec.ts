@@ -50,4 +50,19 @@ describe('LabUiContext presentation selection', () => {
     expect(ui.snapshot().activeRunId).toBeUndefined()
     expect(ui.snapshot().activeArtifactId).toBeUndefined()
   })
+
+  it('restores each Project destination and descendant selection independently', () => {
+    const ui = new LabUiContext()
+    ui.selectProject('project-1')
+    ui.selectExperiment('experiment-1')
+    ui.selectRun('run-1')
+    ui.selectArtifact('artifact-1')
+    ui.openProjectPage('evidence')
+
+    ui.selectProject('project-2')
+    ui.openProjectPage('planning')
+    ui.selectProject('project-1')
+
+    expect(ui.snapshot()).toMatchObject({ activeProjectId: 'project-1', activeExperimentId: 'experiment-1', activeRunId: 'run-1', activeArtifactId: 'artifact-1', projectPage: 'evidence' })
+  })
 })

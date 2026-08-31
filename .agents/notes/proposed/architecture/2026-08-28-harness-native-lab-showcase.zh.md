@@ -28,7 +28,7 @@ Host 继续作为注册目录 Workspace、实验 Project、Experiment、Run、Ar
 
 验证覆盖了动态全局 monitor、Projects tree、Project 生命周期目的地、以生命周期为主的 Overview、待处理动作展示、配置能力状态、typed Project 与 Artifact 选择、单一 textarea、跨目的地切换时的 draft 保留、Agent timeline 展开、侧栏 rail 行为，以及桌面、平板和窄桌面布局。修订后的证据还必须覆盖两侧收起路径、中间 conversation 滚动、Project/file 切换、metadata-event refresh、手动刷新、preview 和 download。可重复的 assembled 浏览器场景位于 `apps/web/tests/lab-showcase.e2e.ts`；第 9 阶段从 Knowledge 到报告的业务流程仍不属于这份证据。
 
-客户端 fixture 现在覆盖了分组的 Project file metadata、授权 preview 和 download action，以及能够触发当前 catalog 重载的仅含 metadata 的 revision event。Host command 和 event wiring 仍属于第 10 阶段依赖，因此这还不能关闭 assembled 浏览器门禁。
+客户端 fixture 覆盖了分组的 Project file metadata、授权 preview 和 download action，以及能够触发当前 catalog 重载的仅含 metadata 的 revision event。生产组合已经通过 typed Host adapter 接入核心 Project、Run、报告和 Run 动作调用；Project-file command 与 event、完整 capability summary 以及 Agent/Runtime event path 仍属于第 10 阶段，因此这还不能关闭 assembled 浏览器门禁。
 
 只有在新页面完成验证后删除被替代的 `conversation.view` 工作台、实验 profile 中的默认 Conversation composition、平铺导航、`sidebar.footer.action`、`lab:navigate`、浏览器生成的业务 ID、阶段映射、固定 split layout 和重复 composer，迁移才算完成。相关基础变更仍保留各自的最终验证任务；本变更不得替它们标记完成，也不得重新实现它们负责的内部能力。
 
