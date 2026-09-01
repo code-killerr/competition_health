@@ -94,6 +94,26 @@ describe('LabProjectService', () => {
     await expect(service.context(firstProject, sessionId('unassociated'))).rejects.toThrow(/not associated/)
   })
 
+  it('reuses the unique Project mapping when a Workspace is created again', async () => {
+    const ctx = new Context()
+    const target = workspace('workspace-unique')
+    const session = sessionId('session-unique')
+    target.sessionIds = [session]
+    installWorkspaces(ctx, [target])
+    let nextProject = 0
+    const service = new LabProjectService(ctx, {
+      idGenerator: () => projectId(`project-${++nextProject}`),
+    })
+
+    const first = await service.create({ workspaceId: target.id, createdBy: session })
+    const second = await service.create({ workspaceId: target.id, name: 'Ignored duplicate name', createdBy: session })
+
+    expect(second.project.projectId).toBe(first.project.projectId)
+    expect(second.project.name).toBe('workspace-unique')
+    expect(await service.list()).toHaveLength(1)
+    expect(nextProject).toBe(1)
+  })
+
   it('records auditable Session associations and rebuildable evidence projections', async () => {
     const ctx = new Context()
     const projectWorkspace = workspace('workspace-a')

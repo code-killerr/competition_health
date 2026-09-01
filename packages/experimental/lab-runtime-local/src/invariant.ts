@@ -10,6 +10,7 @@ export const name = 'lab-runtime-local-invariant'
 /** 需要使用的 invariant 服务。 */
 export const inject = ['invariants']
 
+/** No runtime invariant: the local Runtime Provider owns only in-process execution state. */
 const install: InvariantInstaller = () => {}
 
 /** 注册本地 Runtime Provider 的 invariant 所有权。 */

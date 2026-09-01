@@ -1,5 +1,6 @@
 import type {
   LabArtifactRecord,
+  LabDevice,
   LabProjectFileDownload,
   LabProjectFilePreview,
   LabProjectFileRecord,
@@ -11,6 +12,8 @@ import type {
   LabValidation,
   LabProjectRecord,
   LabProjectView,
+  LabProjectContextView,
+  LabPlanReview,
   LabConfigurationCapability,
   LabReportView,
   LabResultAssessmentRecord,
@@ -19,6 +22,7 @@ import type {
   LabSkillRevision,
   LabWorkflowRecord,
 } from './api.ts'
+import type { LabPresentationValidation } from './lifecycle.ts'
 
 /** Stable error codes that page state may branch on. */
 export type LabAdapterErrorCode =
@@ -77,7 +81,10 @@ export interface LabProjectFileAdapter {
 export interface LabWorkbenchQueries {
   listProjects(): Promise<LabQueryState<readonly LabProjectRecord[]>>
   openProject(projectId: string): Promise<LabQueryState<LabProjectView>>
+  getProjectContext(projectId: string): Promise<LabQueryState<LabProjectContextView>>
+  listDevices(): Promise<LabQueryState<readonly LabDevice[]>>
   listExperiments(projectId: string): Promise<LabQueryState<readonly LabExperimentRecord[]>>
+  listExperimentReviews(experimentId: string): Promise<LabQueryState<readonly LabPlanReview[]>>
   openExperiment(projectId: string, experimentId: string): Promise<LabQueryState<LabExperimentRecord>>
   listRuns(experimentId: string): Promise<LabQueryState<readonly LabRun[]>>
   compareRuns(leftRunId: string, rightRunId: string): Promise<LabQueryState<LabRunComparisonView>>
@@ -89,24 +96,26 @@ export interface LabWorkbenchQueries {
   listSkillRevisions(experimentId: string): Promise<LabQueryState<readonly LabSkillRevision[]>>
   getResultAssessment(runId: string): Promise<LabQueryState<LabResultAssessmentRecord>>
   getKnowledgeScope(projectId?: string): Promise<LabQueryState<LabKnowledgeScopeView>>
-  validatePlan(planId: string): Promise<LabQueryState<LabValidation>>
-  validateSkill(revisionId: string): Promise<LabQueryState<LabValidation>>
+  validatePlan(planId: string, sessionId?: string): Promise<LabQueryState<LabValidation>>
+  validateSkill(revisionId: string, sessionId?: string): Promise<LabQueryState<LabValidation>>
 }
 
 /** Typed actions that may change Host-owned records or request human approval. */
 export interface LabWorkbenchActions {
-  createProject(input: { readonly workspaceId: string; readonly name?: string; readonly description?: string }): Promise<LabProjectView>
+  createProject(input: { readonly workspaceId: string; readonly name?: string; readonly description?: string; readonly sessionId?: string }): Promise<LabProjectView>
+  updateProjectScope(input: { readonly projectId: string; readonly sources: readonly { readonly documentId: string; readonly versionId: string }[]; readonly deviceIds: readonly string[]; readonly sessionId?: string }): Promise<LabProjectView>
   archiveProject(projectId: string): Promise<LabProjectView>
   createExperiment(input: { readonly projectId: string; readonly title: string; readonly objective: string }): Promise<LabExperimentRecord>
   deriveExperiment(input: { readonly projectId: string; readonly sourceExperimentId: string; readonly title: string; readonly objective: string }): Promise<LabExperimentRecord>
   linkExperimentSession(input: { readonly projectId: string; readonly experimentId: string; readonly targetSessionId: string; readonly role: 'created' | 'continued' | 'reviewed' }): Promise<LabProjectView>
-  approvePlan(input: { readonly experimentId: string; readonly planId: string; readonly approvedBy: string }): Promise<LabWorkflowRecord>
-  approveSkill(input: { readonly revisionId: string; readonly approvedBy: string }): Promise<LabSkillRevision>
-  activateSkill(revisionId: string): Promise<LabSkillRevision>
+  approvePlan(input: { readonly experimentId: string; readonly planId: string; readonly approvedBy: string; readonly sessionId?: string }): Promise<LabWorkflowRecord>
+  approveSkill(input: { readonly revisionId: string; readonly approvedBy: string; readonly sessionId?: string }): Promise<LabSkillRevision>
+  activateSkill(input: { readonly revisionId: string; readonly sessionId?: string } | string): Promise<LabSkillRevision>
   startRun(input: { readonly experimentId: string; readonly planId: string; readonly sessionId?: string }): Promise<LabRun>
-  stopRun(input: { readonly runId: string; readonly requestedBy: string }): Promise<LabRun>
-  retryRun(input: { readonly runId: string; readonly actor: string }): Promise<LabRun>
-  confirmStep(input: { readonly runId: string; readonly evidence: readonly string[]; readonly confirmedBy: string; readonly stepId?: string; readonly operationId?: string }): Promise<LabRun>
+  stopRun(input: { readonly runId: string; readonly requestedBy: string; readonly sessionId?: string }): Promise<LabRun>
+  retryRun(input: { readonly runId: string; readonly actor: string; readonly sessionId?: string }): Promise<LabRun>
+  confirmStep(input: { readonly runId: string; readonly evidence: readonly string[]; readonly confirmedBy: string; readonly stepId?: string; readonly operationId?: string; readonly sessionId?: string }): Promise<LabRun>
+  presentForSession(input: { readonly sessionId: string; readonly value: unknown }): Promise<LabPresentationValidation>
 }
 
 /**

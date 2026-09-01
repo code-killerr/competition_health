@@ -61,6 +61,28 @@ export class LabUiContext {
     this.#emit()
   }
 
+  /** 清除当前 Project 及其下游页面选择，同时保留 Workspace 选择。
+   * @returns - 无返回值。
+   */
+  clearProjectSelection(): void {
+    this.#rememberCurrentProject()
+    const {
+      activeProjectId: previousProjectId,
+      activeExperimentId: previousExperimentId,
+      activeRunId: previousRunId,
+      activeArtifactId: previousArtifactId,
+      activeCitation: previousCitation,
+      ...rest
+    } = this.#state
+    void previousProjectId
+    void previousExperimentId
+    void previousRunId
+    void previousArtifactId
+    void previousCitation
+    this.#state = { ...rest, projectPage: 'overview' }
+    this.#emit()
+  }
+
   /** 选择一个 Project。
    * @param projectId - 要选中的 Project 标识。
    */

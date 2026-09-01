@@ -195,6 +195,19 @@ Source: [`packages/experimental/lab-knowledge/src/index.ts`](../../packages/expe
 Web Consumer Facade 服务。
 
 ```ts cordis-catalog
+/** 订阅 Host 授权的 Project 文件 revision 通知。
+ * @param listener - 收到文件 revision 时调用的监听器。
+ * @returns - 取消订阅的函数。
+ */
+subscribeProjectFileEvents(listener: (event: LabProjectFileRevisionEvent) => void): () => void
+
+/** Validate and record an Agent request to present a registered Host view.
+ * @param sessionId - Session receiving the navigation evidence.
+ * @param value - untrusted Agent presentation payload.
+ * @returns - accepted typed intent or a stable rejection.
+ */
+async presentForSession(sessionId: SessionId, value: unknown): Promise<LabHostPresentationValidation>
+
 /** 返回供 Web 层序列化的当前实验状态。
  * @param experimentId - experiment whose run state is projected.
  * @param planningContext - optional planning context to include.
@@ -214,6 +227,8 @@ async dispatch(command: LabWebCommand): Promise<LabWebCommandResult>
  */
 async dispatchProject(command: LabProjectConversationCommand): Promise<LabProjectConversationResult>
 ```
+
+Types: [SessionId](core.md)
 
 Source: [`packages/experimental/lab-mvp-web/src/index.ts`](../../packages/experimental/lab-mvp-web/src/index.ts)
 
@@ -289,9 +304,9 @@ Durable project/session association and scope service.
  */
 async attach(store: LabProjectStore): Promise<void>
 
-/** Create an empty active project.
+/** Create or reuse the active Project bound to a Workspace.
  * @param request - project creation request.
- * @returns - created project view.
+ * @returns - the existing or newly created project view.
  */
 async create(request: CreateLabProjectRequest): Promise<LabProjectView>
 

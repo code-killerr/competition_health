@@ -4274,6 +4274,9 @@ importers:
       '@deepseek-ai/dsh-experimental-lab-domain':
         specifier: workspace:^
         version: link:../lab-domain
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
 
   packages/experimental/lab-device:
     devDependencies:
@@ -4525,6 +4528,9 @@ importers:
       '@deepseek-ai/dsh-experimental-lab-knowledge':
         specifier: workspace:^
         version: link:../lab-knowledge
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
       '@deepseek-ai/dsh-session':
         specifier: workspace:^
         version: link:../../core/session

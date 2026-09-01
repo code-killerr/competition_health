@@ -10,7 +10,7 @@ export const name = 'lab-planning-invariant'
 /** 需要使用的 invariant 服务。 */
 export const inject = ['invariants']
 
-/** 规划 Service 的 Provider 注册关系由 Service 自身负责。 */
+/** No runtime invariant: 规划 Service 的 Provider 注册关系由 Service 自身负责。 */
 const install: InvariantInstaller = () => {}
 
 /** 注册实验规划包的 invariant 所有权。 */

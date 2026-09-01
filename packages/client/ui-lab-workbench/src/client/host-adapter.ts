@@ -6,6 +6,7 @@ import {
   type LabCommand,
   type LabExperimentRecord,
   type LabPlanReview,
+  type LabProjectContextView,
   type LabProjectCommand,
   type LabProjectView,
   type LabRun,
@@ -22,7 +23,10 @@ export interface LabHostAdapterDependencies {
   readonly subscribeHostEvents?: (listener: (envelope: HostEventEnvelope) => void) => () => void
 }
 
-/** Build the Host-backed adapter used by the LABWEAVE production composition. */
+/** Build the Host-backed adapter used by the LABWEAVE production composition.
+ * @param dependencies - optional transports and Host event subscription.
+ * @returns - typed queries and actions backed by the Host Facade.
+ */
 export function createLabHostAdapter(dependencies: LabHostAdapterDependencies = {}): LabWorkbenchAdapter & LabProjectFileAdapter {
   const sendCommand = dependencies.sendCommand ?? sendLabCommand
   const sendProjectCommand = dependencies.sendProjectCommand ?? sendLabProjectCommand
@@ -35,11 +39,18 @@ export function createLabHostAdapter(dependencies: LabHostAdapterDependencies = 
       return result.value.flatMap(project => project.project === undefined ? [] : [project.project])
     }),
     openProject: projectId => query(async () => projectResult(await sendProjectCommand({ command: 'project-open', projectId }), 'project')),
+    getProjectContext: projectId => query(async () => projectContextResult(await sendProjectCommand({ command: 'project-context', projectId }))),
+    listDevices: () => query(async () => {
+      const result = await sendCommand({ command: 'device-list' })
+      if (result.kind !== 'device-list') throw invalid('设备列表响应格式无效')
+      return result.value
+    }),
     listExperiments: projectId => query(async () => {
       const result = await sendProjectCommand({ command: 'experiment-list', projectId })
       if (result.kind !== 'experiment-list') throw invalid('实验列表响应格式无效')
       return result.value
     }),
+    listExperimentReviews: experimentId => query(async () => listReviews(sendProjectCommand, experimentId)),
     openExperiment: (projectId, experimentId) => query(async () => {
       const result = await sendProjectCommand({ command: 'experiment-open', projectId, experimentId })
       if (result.kind !== 'experiment') throw invalid('实验详情响应格式无效')
@@ -85,31 +96,42 @@ export function createLabHostAdapter(dependencies: LabHostAdapterDependencies = 
     }),
     getKnowledgeScope: projectId => query(async () => {
       if (projectId === undefined) return unavailable('未选择 Project，Knowledge scope 不可用')
+      const context = projectContextResult(await sendProjectCommand({ command: 'project-context', projectId }))
       const project = await projectResult(await sendProjectCommand({ command: 'project-open', projectId }), 'project')
-      return { capability: { state: 'unavailable', reason: 'Knowledge capability 未通过 Project Facade 暴露' }, sources: project.sources, evidence: project.evidence }
+      return { capability: context.knowledgeCapability, sources: context.project.sources, evidence: project.evidence }
     }),
-    validatePlan: planId => query(async () => {
-      const result = await sendCommand({ command: 'plan-validate', planId })
+    validatePlan: (planId, sessionId) => query(async () => {
+      const result = await sendCommand({ command: 'plan-validate', planId, ...sessionId === undefined ? {} : { sessionId } })
       if (result.kind !== 'plan-proposal') throw invalid('Plan 校验响应格式无效')
       return result.value.validation ?? unavailable('Host 未返回 Plan 校验结果')
     }),
-    validateSkill: revisionId => query(async () => {
-      const result = await sendCommand({ command: 'skill-validate', revisionId })
+    validateSkill: (revisionId, sessionId) => query(async () => {
+      const result = await sendCommand({ command: 'skill-validate', revisionId, ...sessionId === undefined ? {} : { sessionId } })
       if (result.kind !== 'skill-revision') throw invalid('Skill 校验响应格式无效')
-      return unavailable(`Host 已返回 Skill revision ${result.value.revisionId ?? revisionId}，但 Facade 尚未暴露结构化校验结果`)
+      return { valid: true, issues: [] }
     }),
-    createProject: async input => projectResult(await sendProjectCommand({ command: 'project-create', workspaceId: input.workspaceId, ...input.name === undefined ? {} : { name: input.name }, ...input.description === undefined ? {} : { description: input.description } }), 'project'),
+    createProject: async input => projectResult(await sendProjectCommand({ command: 'project-create', workspaceId: input.workspaceId, ...input.name === undefined ? {} : { name: input.name }, ...input.description === undefined ? {} : { description: input.description }, ...input.sessionId === undefined ? {} : { sessionId: input.sessionId } }), 'project'),
+    updateProjectScope: async input => projectResult(await sendProjectCommand({ command: 'project-scope-update', projectId: input.projectId, sources: input.sources, deviceIds: input.deviceIds, ...input.sessionId === undefined ? {} : { sessionId: input.sessionId } }), 'project'),
     archiveProject: async projectId => projectResult(await sendProjectCommand({ command: 'project-archive', projectId }), 'project'),
     createExperiment: async input => experimentFromProjectAction(await sendProjectCommand({ command: 'experiment-create', projectId: input.projectId, title: input.title, objective: input.objective }), input.title, input.objective),
     deriveExperiment: async input => experimentFromProjectAction(await sendProjectCommand({ command: 'experiment-derive', projectId: input.projectId, sourceExperimentId: input.sourceExperimentId, title: input.title, objective: input.objective }), input.title, input.objective),
     linkExperimentSession: async input => projectResult(await sendProjectCommand({ command: 'experiment-session-link', projectId: input.projectId, experimentId: input.experimentId, targetSessionId: input.targetSessionId, role: input.role }), 'experiment-project'),
-    approvePlan: async input => workflowFromReview(await agentReview(sendCommand, { command: 'plan-approve', experimentId: input.experimentId, planId: input.planId, approvedBy: input.approvedBy })),
-    approveSkill: async input => agentRevision(sendCommand, { command: 'skill-approve', revisionId: input.revisionId, approvedBy: input.approvedBy }),
-    activateSkill: async revisionId => agentRevision(sendCommand, { command: 'skill-activate', revisionId }),
+    approvePlan: async input => workflowFromReview(await agentReview(sendCommand, { command: 'plan-approve', experimentId: input.experimentId, planId: input.planId, approvedBy: input.approvedBy, ...input.sessionId === undefined ? {} : { sessionId: input.sessionId } })),
+    approveSkill: async input => agentRevision(sendCommand, { command: 'skill-approve', revisionId: input.revisionId, approvedBy: input.approvedBy, ...input.sessionId === undefined ? {} : { sessionId: input.sessionId } }),
+    activateSkill: async input => {
+      const revisionId = typeof input === 'string' ? input : input.revisionId
+      const sessionId = typeof input === 'string' ? undefined : input.sessionId
+      return agentRevision(sendCommand, { command: 'skill-activate', revisionId, ...sessionId === undefined ? {} : { sessionId } })
+    },
     startRun: async input => projectResult(await sendProjectCommand({ command: 'run-start', experimentId: input.experimentId, planId: input.planId, ...input.sessionId === undefined ? {} : { sessionId: input.sessionId } }), 'run'),
-    stopRun: async input => agentRun(sendCommand, { command: 'run-stop', runId: input.runId, requestedBy: input.requestedBy }),
-    retryRun: async input => projectResult(await sendProjectCommand({ command: 'run-retry', runId: input.runId }), 'run'),
-    confirmStep: async input => agentRun(sendCommand, { command: 'run-confirm', runId: input.runId, evidence: input.evidence, confirmedBy: input.confirmedBy, ...input.stepId === undefined ? {} : { stepId: input.stepId }, ...input.operationId === undefined ? {} : { operationId: input.operationId } }),
+    stopRun: async input => agentRun(sendCommand, { command: 'run-stop', runId: input.runId, requestedBy: input.requestedBy, ...input.sessionId === undefined ? {} : { sessionId: input.sessionId } }),
+    retryRun: async input => projectResult(await sendProjectCommand({ command: 'run-retry', runId: input.runId, ...input.sessionId === undefined ? {} : { sessionId: input.sessionId } }), 'run'),
+    confirmStep: async input => agentRun(sendCommand, { command: 'run-confirm', runId: input.runId, evidence: input.evidence, confirmedBy: input.confirmedBy, ...input.stepId === undefined ? {} : { stepId: input.stepId }, ...input.operationId === undefined ? {} : { operationId: input.operationId }, ...input.sessionId === undefined ? {} : { sessionId: input.sessionId } }),
+    presentForSession: async input => {
+      const result = await sendProjectCommand({ command: 'presentation-intent', sessionId: input.sessionId, intent: presentationPayload(input.value) })
+      if (result.kind !== 'presentation') throw invalid('Host presentation 响应格式无效')
+      return result.value
+    },
     listProjectFiles: projectId => query(async () => {
       const result = await sendProjectCommand({ command: 'project-file-list', projectId })
       if (result.kind !== 'project-file-list') throw invalid('Project 文件列表响应格式无效')
@@ -143,6 +165,11 @@ export function createLabHostAdapter(dependencies: LabHostAdapterDependencies = 
       }),
   }
   return adapter
+}
+
+function presentationPayload(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new LabWorkbenchError('VALIDATION_FAILED', 'Presentation intent 必须是对象')
+  return value as Record<string, unknown>
 }
 
 function isProjectFileRevisionFrame(value: unknown): value is {
@@ -191,6 +218,11 @@ function projectResult(result: Awaited<ReturnType<typeof sendLabProjectCommand>>
 function projectResult(result: Awaited<ReturnType<typeof sendLabProjectCommand>>, kind: 'artifact'): LabArtifactRecord
 function projectResult(result: Awaited<ReturnType<typeof sendLabProjectCommand>>, kind: 'project' | 'experiment-project' | 'run' | 'artifact'): LabProjectView | LabRun | LabArtifactRecord {
   if (result.kind !== kind) throw invalid(`${kind} 响应格式无效`)
+  return result.value
+}
+
+function projectContextResult(result: Awaited<ReturnType<typeof sendLabProjectCommand>>): LabProjectContextView {
+  if (result.kind !== 'project-context') throw invalid('Project context 响应格式无效')
   return result.value
 }
 

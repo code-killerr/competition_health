@@ -2,7 +2,9 @@
   "name": "@deepseek-ai/dsh-client-ui-lab-workbench",
   "description": "实验自动化第一阶段最小 Web Consumer 工作台",
   "version": "0.1.1-rc.2",
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",

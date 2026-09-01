@@ -10,7 +10,7 @@ export const name = 'tool-lab-project-invariant'
 /** Invariant registry service. */
 export const inject = ['invariants']
 
-/** Project tool invariants are covered by the assembled Agent tests. */
+/** No runtime invariant: Project tool invariants are covered by the assembled Agent tests. */
 const install: InvariantInstaller = () => {}
 
 /** Register the project tool invariant companion. */

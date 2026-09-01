@@ -48,9 +48,9 @@ export interface LabSkillViewProps {
 /** Display Skill reuse/review state and emit only explicit review intents. */
 export function LabSkillView(props: LabSkillViewProps): JSX.Element {
   const labels = props.labels
-  const canValidate = props.state === 'draft' || props.state === 'reuse'
-  const canApprove = props.state === 'validated' && props.validation?.valid === true
-  const canActivate = props.state === 'approved'
+  const canValidate = props.onReviewAction !== undefined && (props.state === 'draft' || props.state === 'reuse')
+  const canApprove = props.onReviewAction !== undefined && props.state === 'validated' && props.validation?.valid === true
+  const canActivate = props.onReviewAction !== undefined && props.state === 'approved'
   return (
     <section className={css.root} aria-label={labels.title} data-lab-skill>
       <header className={css.header}><div><h2>{props.revision.name ?? labels.noValue}</h2><span>{labels.revision}: {props.revision.revision ?? labels.noValue}</span></div><span className={css.badge}>{labels.statusLabel(props.state)}</span></header>

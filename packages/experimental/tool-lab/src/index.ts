@@ -21,6 +21,7 @@ export const inject = ['agents', 'tools', 'labRuntime', 'labPlanning', 'labSkill
 
 const JSON_SCHEMA = { type: 'json' } as const
 const HUMAN_ACTION_TOOLS = new Set([
+  'lab_experiment_create',
   'lab_plan_approve',
   'lab_plan_reject',
   'lab_skill_approve',
@@ -30,6 +31,7 @@ const HUMAN_ACTION_TOOLS = new Set([
   'lab_run_confirm',
 
   'lab_run_stop',
+  'lab_run_report',
 ])
 
 function jsonOutput<const S extends ValueSchemaSpec>(schema: S): {
@@ -68,8 +70,32 @@ function install(
       return Promise.resolve({ kind: 'deny', reason: 'This laboratory action requires an explicit human action in the project workspace.' })
     }))
     register(agent.ctx.tools.register(defineTool({
+      name: 'lab_experiment_propose',
+      description: 'Submit an Experiment proposal for human review. This records the Agent request but never creates a Project Experiment or Runtime record.',
+      parameters: {
+        experiment_id: { type: 'string', required: true, description: 'Opaque proposal identity supplied by the Agent.' },
+        objective: { type: 'string', required: true, description: 'User experiment objective.' },
+        expected_outputs: { type: 'array', required: true, items: { type: 'string' }, description: 'Expected result labels.' },
+      },
+      output: jsonOutput(JSON_SCHEMA),
+      async execute(args, exec) {
+        const caller = callingAgent(exec.agent, 'lab_experiment_propose')
+        const experimentId = brandId<'ExperimentId'>(string(args.experiment_id, 'experiment_id'))
+        const objective = string(args.objective, 'objective')
+        const expectedOutputs = stringArray(args.expected_outputs, 'expected_outputs')
+        caller.session.append('lab/experiment/requested', {
+          version: 1,
+          experimentId,
+          objective,
+          sessionId: caller.session.id,
+        })
+        return jsonValue({ experimentId, objective, expectedOutputs, status: 'PROPOSED' })
+      },
+    })))
+
+    register(agent.ctx.tools.register(defineTool({
       name: 'lab_experiment_create',
-      description: 'Register an experiment request before planning. This records the request but never approves or executes a plan.',
+      description: 'Create a Project Experiment after human confirmation. Agent calls are denied; use the project workspace action.',
       parameters: {
         experiment_id: { type: 'string', required: true, description: 'Opaque experiment id.' },
         objective: { type: 'string', required: true, description: 'User experiment objective.' },
@@ -239,6 +265,15 @@ function install(
         const evidence = stringArray(args.evidence, 'evidence')
         const confirmedBy = string(args.confirmed_by, 'confirmed_by')
         const run = await runtime.confirmStep(runId, evidence, confirmedBy, stepId, operationId)
+        caller.session.append('lab/run/approval', {
+          version: 1,
+          experimentId: run.experimentId,
+          runId,
+          stepId,
+          operationId,
+          approvedBy: confirmedBy,
+          evidence,
+        })
         caller.session.append('lab/run/observation', {
           version: 1,
           experimentId: run.experimentId,
@@ -285,8 +320,23 @@ function install(
       },
       output: jsonOutput(JSON_SCHEMA),
       async execute(args, exec) {
-        callingAgent(exec.agent, 'lab_run_report')
-        return jsonValue(await runtime.buildReport(brandId<'RunId'>(string(args.run_id, 'run_id'))))
+        const caller = callingAgent(exec.agent, 'lab_run_report')
+        const report = await runtime.buildReport(brandId<'RunId'>(string(args.run_id, 'run_id')))
+        const run = runtime.getRun(report.runId)
+        for (const artifact of run?.artifacts ?? []) appendArtifact(caller, artifact, report.experimentId, report.runId)
+        caller.session.append('lab/run/verdict', {
+          version: 1,
+          experimentId: report.experimentId,
+          runId: report.runId,
+          status: report.assessment.status,
+          ...report.assessment.verdict === undefined ? {} : { verdict: report.assessment.verdict },
+          ...report.assessment.method === undefined ? {} : { method: report.assessment.method },
+          evidenceIds: report.assessment.evidenceIds,
+          ...report.assessment.assessedBy === undefined ? {} : { assessedBy: report.assessment.assessedBy },
+          ...report.assessment.assessedAt === undefined ? {} : { assessedAt: report.assessment.assessedAt },
+          humanQcRequired: report.assessment.humanQcRequired,
+        })
+        return jsonValue(report)
       },
     })))
   } catch (error) {
@@ -317,6 +367,25 @@ async function appendCache(agent: Agent, run: RunView, cache: LabExperimentCache
 }
 
 function appendObservation(agent: Agent, run: RunView, observation: RunView['observations'][number]): void {
+  const step = run.executionGraph.steps.find(candidate => candidate.stepId === observation.stepId)
+  agent.session.append('lab/run/step', {
+    version: 1,
+    experimentId: run.experimentId,
+    runId: run.runId,
+    stepId: observation.stepId,
+    operationId: observation.operationId,
+    status: observation.status,
+    requestedBy: agent.session.id,
+  })
+  if (step?.operationKind === 'device') agent.session.append('lab/run/device-receipt', {
+    version: 1,
+    experimentId: run.experimentId,
+    runId: run.runId,
+    stepId: observation.stepId,
+    operationId: observation.operationId,
+    status: observation.status === 'COMPLETED' ? 'completed' : observation.status === 'WAITING' ? 'accepted' : observation.status === 'STOPPED' ? 'stopped' : 'failed',
+    evidence: observation.evidence,
+  })
   agent.session.append('lab/run/observation', {
     version: 1,
     experimentId: run.experimentId,
@@ -328,6 +397,26 @@ function appendObservation(agent: Agent, run: RunView, observation: RunView['obs
     status: observation.status,
     ...observation.error === undefined ? {} : { error: observation.error },
     ...observation.replanRequested === undefined ? {} : { replanRequested: observation.replanRequested },
+  })
+}
+
+function appendArtifact(
+  agent: Agent,
+  artifact: RunView['artifacts'][number],
+  experimentId: RunView['experimentId'],
+  runId: RunView['runId'],
+): void {
+  agent.session.append('lab/run/artifact', {
+    version: 1,
+    experimentId,
+    runId,
+    artifactId: artifact.artifactId,
+    kind: artifact.kind,
+    displayName: artifact.displayName,
+    mediaType: artifact.mediaType,
+    size: artifact.size,
+    digest: artifact.digest,
+    createdAt: artifact.createdAt,
   })
 }
 

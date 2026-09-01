@@ -58,6 +58,17 @@ export function LabProjectsView(props: Props): JSX.Element {
     props.openProjectView?.()
   }
 
+  const selectWorkspace = (nextWorkspaceId: string): void => {
+    setWorkspaceId(nextWorkspaceId)
+    props.ui.selectWorkspace(nextWorkspaceId)
+    const project = items.find(item => item.workspaceId === nextWorkspaceId)
+    if (project === undefined) {
+      props.ui.clearProjectSelection()
+      return
+    }
+    selectProject(project)
+  }
+
   useEffect(() => {
     if (workspaceInitialized.current || workspaceId !== '' || workspaces[0] === undefined) return
     workspaceInitialized.current = true
@@ -122,7 +133,7 @@ export function LabProjectsView(props: Props): JSX.Element {
             <span>{props.t('labProjectsWorkspace')}</span>
             <select
               value={workspaceId}
-              onChange={(event) => { const nextWorkspaceId = event.currentTarget.value; setWorkspaceId(nextWorkspaceId); props.ui.selectWorkspace(nextWorkspaceId) }}
+              onChange={(event) => { selectWorkspace(event.currentTarget.value) }}
               disabled={workspaces.length === 0}
             >
               {workspaces.length === 0 && <option value="">{props.t('labProjectsNoWorkspace')}</option>}

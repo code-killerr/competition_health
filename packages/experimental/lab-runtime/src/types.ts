@@ -70,6 +70,17 @@ export interface RuntimeFeedback {
   readonly replanRequested: boolean
 }
 
+/** Host-owned result assessment produced from stored Run evidence. */
+export interface LabResultAssessment {
+  readonly status: 'PENDING' | 'PASSED' | 'FAILED' | 'HUMAN_QC'
+  readonly verdict?: 'PASS' | 'FAIL' | 'INCONCLUSIVE'
+  readonly method?: string
+  readonly evidenceIds: readonly string[]
+  readonly assessedBy?: string
+  readonly assessedAt?: number
+  readonly humanQcRequired: boolean
+}
+
 /** 结构化运行报告，供页面和 Tool 共同读取。 */
 export interface LabRunReport {
   readonly experimentId: ExperimentId
@@ -80,6 +91,7 @@ export interface LabRunReport {
   readonly observations: readonly RuntimeObservation[]
   readonly evidenceMode: 'MANUAL' | 'CONTROLLED'
   readonly feedback: RuntimeFeedback
+  readonly assessment: LabResultAssessment
   readonly replanRequest?: ReplanRequest
 }
 

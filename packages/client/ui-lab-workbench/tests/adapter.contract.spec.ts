@@ -19,7 +19,10 @@ function adapterFor(runs: readonly LabRun[]): LabWorkbenchAdapter {
   return {
     listProjects: async () => ready([projectView.project ?? {}]),
     openProject: async () => ready(projectView),
+    getProjectContext: async () => ready({ project: { projectId: 'project-1', sessionId: 'session-1', sources: [], devices: [], sharedFacts: [] }, knowledgeCapability: { state: 'available' } }),
+    listDevices: async () => ready([]),
     listExperiments: async () => ready([]),
+    listExperimentReviews: async () => ready([]),
     openExperiment: async () => ready({ experimentId: 'experiment-1', projectId: 'project-1', title: 'Demo', objective: 'Test', status: 'ACTIVE', createdInSessionId: 'session-1', createdAt: 1, updatedAt: 1 }),
     listRuns: async (experimentId) => ready(runs.filter(item => item.runId?.startsWith(experimentId === 'experiment-1' ? 'run-' : 'never'))),
     compareRuns: async (leftRunId, rightRunId) => ready({ leftRunId, rightRunId, status: { left: 'COMPLETED', right: 'COMPLETED' }, durationMs: { left: 0, right: 0 }, parameters: { left: [], right: [] }, stepStatuses: [], observations: [], artifactCounts: { left: 0, right: 0 }, artifactMetadata: { left: [], right: [] } } satisfies LabRunComparisonView),
@@ -34,6 +37,7 @@ function adapterFor(runs: readonly LabRun[]): LabWorkbenchAdapter {
     validatePlan: async () => ready({ valid: true, issues: [] }),
     validateSkill: async () => ready({ valid: true, issues: [] }),
     createProject: async () => projectView,
+    updateProjectScope: async () => projectView,
     archiveProject: async () => projectView,
     createExperiment: async () => ({ experimentId: 'experiment-2', projectId: 'project-1', title: 'New', objective: 'Test', status: 'DRAFT', createdInSessionId: 'session-1', createdAt: 1, updatedAt: 1 }),
     deriveExperiment: async () => ({ experimentId: 'experiment-3', projectId: 'project-1', title: 'Derived', objective: 'Test', status: 'DRAFT', createdInSessionId: 'session-1', createdAt: 1, updatedAt: 1 }),
@@ -45,6 +49,7 @@ function adapterFor(runs: readonly LabRun[]): LabWorkbenchAdapter {
     stopRun: async () => run('run-2'),
     retryRun: async () => run('run-3'),
     confirmStep: async () => run('run-2'),
+    presentForSession: async () => ({ accepted: true, intent: { view: 'projects' } }),
   }
 }
 

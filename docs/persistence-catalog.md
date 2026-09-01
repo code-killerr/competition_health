@@ -476,6 +476,31 @@ Source: [`packages/hooks/hook-protocol/src/types.ts:31`](../packages/hooks/hook-
 
 ### `lab/*`
 
+<a id="labagentcontext-read--log-only"></a>
+
+#### `lab/agent/context-read` — log-only
+
+```ts persistence-catalog
+/** Project scope and capability facts exposed to an Agent request. */
+'lab/agent/context-read': {
+  version: 1
+  sessionId: SessionId
+  kind: 'project' | 'planning'
+  projectId: LabProjectId
+  sourceIds: readonly { documentId: KnowledgeDocumentId; versionId: KnowledgeDocumentVersionId }[]
+  deviceIds: readonly DeviceId[]
+  sharedFactIds: readonly string[]
+  citationIds: readonly CitationId[]
+  knowledgeState: 'available' | 'unavailable'
+  knowledgeReason?: string
+  experimentId?: ExperimentId
+  objective?: string
+  unresolved: readonly string[]
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:302`](../packages/experimental/lab-domain/src/types.ts)
+
 <a id="labcacheprojected--log-only"></a>
 
 #### `lab/cache/projected` — log-only
@@ -488,7 +513,7 @@ Source: [`packages/hooks/hook-protocol/src/types.ts:31`](../packages/hooks/hook-
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:385`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:478`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labexperimentrequested--log-only"></a>
 
@@ -504,7 +529,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:385`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:291`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:295`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labknowledgeconfirmed--log-only"></a>
 
@@ -520,7 +545,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:291`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:343`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:380`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labplanapproved--log-only"></a>
 
@@ -537,7 +562,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:343`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:308`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:344`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labplanproposed--log-only"></a>
 
@@ -553,10 +578,11 @@ Source: [`packages/experimental/lab-domain/src/types.ts:308`](../packages/experi
   supersedesPlanId?: PlanId
   citationIds: readonly CitationId[]
   skillRevisionIds: readonly SkillRevisionId[]
+  validation: ValidationResult
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:298`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:333`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labplanrejected--log-only"></a>
 
@@ -574,7 +600,40 @@ Source: [`packages/experimental/lab-domain/src/types.ts:298`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:316`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:352`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labpresentationaccepted--log-only"></a>
+
+#### `lab/presentation/accepted` — log-only
+
+```ts persistence-catalog
+/** Host-validated Agent presentation intent. */
+'lab/presentation/accepted': {
+  version: 1
+  sessionId: SessionId
+  view: LabPresentationView
+  projectId?: LabProjectId
+  targetId?: string
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:318`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labpresentationrejected--log-only"></a>
+
+#### `lab/presentation/rejected` — log-only
+
+```ts persistence-catalog
+/** Rejected presentation intent retained as actionable Session evidence. */
+'lab/presentation/rejected': {
+  version: 1
+  sessionId: SessionId
+  code: 'UNKNOWN_VIEW' | 'PROJECT_SCOPE_MISMATCH' | 'RECORD_NOT_AUTHORIZED'
+  message: string
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:326`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labprojectarchived--log-only"></a>
 
@@ -676,6 +735,23 @@ Source: [`packages/experimental/lab-domain/src/project.ts:225`](../packages/expe
 
 Source: [`packages/experimental/lab-domain/src/project.ts:264`](../packages/experimental/lab-domain/src/project.ts)
 
+<a id="labprojectfile-revision--log-only"></a>
+
+#### `lab/project/file-revision` — log-only
+
+```ts persistence-catalog
+/** Metadata-only revision emitted after a Host-authorized Project file write. */
+'lab/project/file-revision': {
+  version: 1
+  projectId: LabProjectId
+  projectFileId: string
+  group: 'configuration' | 'conversation-output' | 'run-artifacts'
+  revision: number
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/project.ts:278`](../packages/experimental/lab-domain/src/project.ts)
+
 <a id="labprojectscope-updated--log-only"></a>
 
 #### `lab/project/scope-updated` — log-only
@@ -742,6 +818,66 @@ Source: [`packages/experimental/lab-domain/src/project.ts:249`](../packages/expe
 
 Source: [`packages/experimental/lab-domain/src/project.ts:256`](../packages/experimental/lab-domain/src/project.ts)
 
+<a id="labrunapproval--log-only"></a>
+
+#### `lab/run/approval` — log-only
+
+```ts persistence-catalog
+/** Human approval evidence for a waiting Runtime operation. */
+'lab/run/approval': {
+  version: 1
+  experimentId: ExperimentId
+  runId: RunId
+  stepId: PlanStepId
+  operationId: OperationId
+  approvedBy: string
+  evidence: readonly string[]
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:420`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labrunartifact--log-only"></a>
+
+#### `lab/run/artifact` — log-only
+
+```ts persistence-catalog
+/** Artifact manifest projected into the Agent Session. */
+'lab/run/artifact': {
+  version: 1
+  experimentId: ExperimentId
+  runId: RunId
+  artifactId: ArtifactId
+  kind: ArtifactKind
+  displayName: string
+  mediaType: string
+  size: number
+  digest: string
+  createdAt: number
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:430`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labrundevice-receipt--log-only"></a>
+
+#### `lab/run/device-receipt` — log-only
+
+```ts persistence-catalog
+/** Device operation receipt returned by the Host device capability. */
+'lab/run/device-receipt': {
+  version: 1
+  experimentId: ExperimentId
+  runId: RunId
+  stepId: PlanStepId
+  operationId: OperationId
+  status: 'accepted' | 'completed' | 'failed' | 'stopped'
+  evidence: readonly string[]
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:410`](../packages/experimental/lab-domain/src/types.ts)
+
 <a id="labrunfeedback--log-only"></a>
 
 #### `lab/run/feedback` — log-only
@@ -761,7 +897,7 @@ Source: [`packages/experimental/lab-domain/src/project.ts:256`](../packages/expe
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:363`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:443`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labrunobservation--log-only"></a>
 
@@ -783,7 +919,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:363`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:350`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:387`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labrunstate--log-only"></a>
 
@@ -802,7 +938,48 @@ Source: [`packages/experimental/lab-domain/src/types.ts:350`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:375`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:468`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labrunstep--log-only"></a>
+
+#### `lab/run/step` — log-only
+
+```ts persistence-catalog
+/** Runtime began or completed one immutable ExecutionGraph step. */
+'lab/run/step': {
+  version: 1
+  experimentId: ExperimentId
+  runId: RunId
+  stepId: PlanStepId
+  operationId: OperationId
+  status: 'STARTED' | 'WAITING' | 'COMPLETED' | 'FAILED' | 'STOPPED'
+  requestedBy?: SessionId
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:400`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labrunverdict--log-only"></a>
+
+#### `lab/run/verdict` — log-only
+
+```ts persistence-catalog
+/** Host-owned result assessment and authoritative verdict. */
+'lab/run/verdict': {
+  version: 1
+  experimentId: ExperimentId
+  runId: RunId
+  status: 'PENDING' | 'PASSED' | 'FAILED' | 'HUMAN_QC'
+  verdict?: 'PASS' | 'FAIL' | 'INCONCLUSIVE'
+  method?: string
+  evidenceIds: readonly string[]
+  assessedBy?: string
+  assessedAt?: number
+  humanQcRequired: boolean
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:455`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labskillactivated--log-only"></a>
 
@@ -817,7 +994,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:375`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:337`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:374`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labskillapproved--log-only"></a>
 
@@ -832,7 +1009,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:337`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:331`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:368`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labskillvalidated--log-only"></a>
 
@@ -844,10 +1021,11 @@ Source: [`packages/experimental/lab-domain/src/types.ts:331`](../packages/experi
   version: 1
   skillRevisionId: SkillRevisionId
   validatedBy: SessionId
+  validation: ValidationResult
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:325`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:361`](../packages/experimental/lab-domain/src/types.ts)
 
 ### `llm/*`
 

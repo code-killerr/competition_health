@@ -24,7 +24,11 @@ async function setup() {
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
   const workspace = { id: brandId<'WorkspaceId'>('workspace-tools'), path: '/workspace/tools', sessionIds: [SessionId('lab-project-tools')] }
-  ctx.provide('workspaceRegistry', { get: () => workspace, list: () => [workspace] })
+  const otherWorkspace = { id: brandId<'WorkspaceId'>('workspace-tools-other'), path: '/workspace/tools-other', sessionIds: [] }
+  ctx.provide('workspaceRegistry', {
+    get: (id: typeof workspace.id) => id === workspace.id ? workspace : id === otherWorkspace.id ? otherWorkspace : undefined,
+    list: () => [workspace, otherWorkspace],
+  })
   const projects = new LabProjectService(ctx, { clock: () => 100 })
   await projects.attach(new InMemoryLabProjectStore())
   const search = vi.fn().mockResolvedValue([])
@@ -84,6 +88,19 @@ describe('tool-lab-project', () => {
       },
       knowledgeCapability: { state: 'available' },
     })
+    expect(agent.session.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'lab/agent/context-read',
+        data: expect.objectContaining({
+          kind: 'project',
+          projectId: project,
+          sourceIds: [{ documentId: 'doc-1', versionId: 'version-1' }],
+          deviceIds: ['device-1'],
+          knowledgeState: 'available',
+          unresolved: [],
+        }) as unknown,
+      }),
+    ]))
   })
 
   it('limits planning retrieval to project source versions and carries unresolved inputs', async () => {
@@ -104,6 +121,20 @@ describe('tool-lab-project', () => {
     })
     expect(result.isError).toBe(false)
     expect(JSON.parse(text(result))).toMatchObject({ planningContext: { objective: 'calibration', unresolved: ['sample mass'] } })
+    expect(agent.session.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'lab/agent/context-read',
+        data: expect.objectContaining({
+          kind: 'planning',
+          projectId: project,
+          experimentId: 'experiment-1',
+          objective: 'calibration',
+          citationIds: [],
+          knowledgeState: 'available',
+          unresolved: ['sample mass'],
+        }) as unknown,
+      }),
+    ]))
     expect(search).toHaveBeenCalledWith({
       query: 'calibration',
       documentIds: ['doc-2'],
@@ -116,7 +147,7 @@ describe('tool-lab-project', () => {
   it('returns a stable cross-project reference error to the Agent', async () => {
     const { ctx, projects, agent } = await setup()
     const owner = (await projects.create({ name: 'Owner project', createdBy: agent.session.id })).project.projectId
-    const other = (await projects.create({ name: 'Other project', createdBy: agent.session.id })).project.projectId
+    const other = (await projects.create({ name: 'Other project', workspaceId: brandId<'WorkspaceId'>('workspace-tools-other'), createdBy: agent.session.id })).project.projectId
     await projects.attachSession({ projectId: owner, sessionId: agent.session.id, attachedBy: agent.session.id })
     const result = await execute(ctx, agent, 'lab_project_context', { project_id: other })
     expect(result.isError).toBe(true)

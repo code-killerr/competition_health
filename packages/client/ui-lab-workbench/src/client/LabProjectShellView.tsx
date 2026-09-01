@@ -12,7 +12,7 @@ import type { LabRunComparisonLabels } from './LabRunComparisonView.tsx'
 import { LabWorkflowView } from './LabWorkflowView.tsx'
 import type { LabWorkflowLabels } from './LabWorkflowView.tsx'
 import { LabSkillView } from './LabSkillView.tsx'
-import type { LabSkillLabels, LabSkillReviewState } from './LabSkillView.tsx'
+import type { LabSkillLabels, LabSkillReviewAction, LabSkillReviewState } from './LabSkillView.tsx'
 import { LabArtifactPreview } from './LabArtifactPreview.tsx'
 import type { LabArtifactPreviewLabels } from './LabArtifactPreview.tsx'
 import { LabProjectFileView, type LabProjectFileLabels } from './LabProjectFileView.tsx'
@@ -38,10 +38,15 @@ export interface LabProjectShellInjected {
   readonly loadRunReport: (runId: string) => Promise<LabQueryState<LabReportView>>
   readonly openArtifact: (runId: string, artifactId: string) => Promise<LabArtifactRecord>
   readonly loadExperimentReviews: (experimentId: string) => Promise<LabQueryState<readonly LabPlanReview[]>>
-  readonly compareRuns: (leftRunId: string, rightRunId: string) => Promise<LabQueryState<LabRunComparisonView>>
+ readonly compareRuns: (leftRunId: string, rightRunId: string) => Promise<LabQueryState<LabRunComparisonView>>
+  readonly validatePlan?: (planId: string) => Promise<unknown>
+  readonly approvePlan?: (input: { readonly experimentId: string; readonly planId: string }) => Promise<unknown>
+  readonly validateSkill?: (revisionId: string) => Promise<unknown>
+  readonly approveSkill?: (input: { readonly revisionId: string }) => Promise<unknown>
+  readonly activateSkill?: (revisionId: string) => Promise<unknown>
   readonly retryRun: (runId: string) => Promise<LabRun>
   readonly openCitation?: (citation: LabCitationSelection) => void
-  readonly confirmStep?: (input: { readonly runId: string; readonly stepId?: string; readonly operationId?: string }) => void | Promise<unknown>
+  readonly confirmStep?: (input: { readonly runId: string; readonly evidence: readonly string[]; readonly stepId?: string; readonly operationId?: string }) => void | Promise<unknown>
   readonly stopRun?: (runId: string) => void | Promise<unknown>
   readonly openSession: (sessionId: string) => void
   readonly listProjectFiles?: LabProjectFileAdapter['listProjectFiles']
@@ -84,6 +89,8 @@ export function LabProjectShellView(props: Props): JSX.Element {
   const [report, setReport] = useState<ReportState>({ state: 'empty', code: 'NO_RECORDS', message: '' })
   const [experimentReviews, setExperimentReviews] = useState<ReviewsState>({ state: 'loading' })
   const [comparison, setComparison] = useState<LabQueryState<LabRunComparisonView> | undefined>()
+  const [projectRefresh, setProjectRefresh] = useState(0)
+  const [reviewActionError, setReviewActionError] = useState<string | undefined>()
   const [fileRefresh, setFileRefresh] = useState(0)
   const [projectFiles, setProjectFiles] = useState<readonly LabProjectFileRecord[]>([])
   const [projectFilesState, setProjectFilesState] = useState<ProjectFilesState>({ state: 'empty', code: 'NO_RECORDS', message: '' })
@@ -106,7 +113,7 @@ export function LabProjectShellView(props: Props): JSX.Element {
       if (current) setProjectState(failed(reason))
     })
     return () => { current = false }
-  }, [props.loadProject, selection.activeProjectId])
+  }, [props.loadProject, projectRefresh, selection.activeProjectId])
 
   useEffect(() => {
     const experimentId = selection.activeExperimentId ?? project?.experiments[0]?.experimentId
@@ -140,7 +147,7 @@ export function LabProjectShellView(props: Props): JSX.Element {
     let current = true
     void props.loadExperimentReviews(experimentId).then(value => { if (current) setExperimentReviews(value) }).catch(reason => { if (current) setExperimentReviews(failed(reason)) })
     return () => { current = false }
-  }, [props.loadExperimentReviews, project, selection.activeExperimentId])
+  }, [projectRefresh, props.loadExperimentReviews, project, selection.activeExperimentId])
 
   useEffect(() => {
     const projectId = selection.activeProjectId
@@ -176,6 +183,30 @@ export function LabProjectShellView(props: Props): JSX.Element {
   }, [props.subscribeProjectFileEvents, selection.activeProjectId])
 
   const projectRecord = project?.project
+  const runReviewAction = async (action: () => Promise<unknown>): Promise<void> => {
+    setReviewActionError(undefined)
+    try {
+      await action()
+      setProjectRefresh(value => value + 1)
+      setFileRefresh(value => value + 1)
+      setProjectFileRefresh(value => value + 1)
+    } catch (reason) {
+      setReviewActionError(reason instanceof Error ? reason.message : String(reason))
+    }
+  }
+  const retryRun = async (runId: string): Promise<void> => {
+    const next = await props.retryRun(runId)
+    if (next.runId !== undefined) props.ui.selectRun(next.runId)
+    setFileRefresh(value => value + 1)
+  }
+  const confirmStep = props.confirmStep === undefined ? undefined : async (input: { readonly runId: string; readonly evidence: readonly string[]; readonly stepId?: string; readonly operationId?: string }): Promise<void> => {
+    await props.confirmStep?.(input)
+    setFileRefresh(value => value + 1)
+  }
+  const stopRun = props.stopRun === undefined ? undefined : async (runId: string): Promise<void> => {
+    await props.stopRun?.(runId)
+    setFileRefresh(value => value + 1)
+  }
   return (
     <section className={css.root} aria-label={props.t('projectShellTitle')} data-lab-project-shell>
       <header className={css.header}>
@@ -190,6 +221,7 @@ export function LabProjectShellView(props: Props): JSX.Element {
         </div>
       </header>
       {projectState.state !== 'ready' && <StateNotice state={projectState} t={props.t} emptyMessage={props.t('stateNoProject')} />}
+      {reviewActionError !== undefined && <div className={css.error} role='alert'>{reviewActionError}</div>}
       <div className={css.workspaceLayout}>
         <nav className={css.projectNavigation} aria-label={props.t('projectNavigation')} data-lab-project-navigation>
           <span className={css.navigationKicker}>{props.t('projectNavigation')}</span>
@@ -202,9 +234,9 @@ export function LabProjectShellView(props: Props): JSX.Element {
         </nav>
         <div className={css.workspaceContent}>
           {page === 'overview' && <Overview props={props} project={project} runs={runs} artifacts={artifacts} onNavigate={destination => { props.ui.openProjectPage(destination) }} />}
-          {page === 'planning' && <Experiments props={props} project={project} runs={runs} report={report} reviews={experimentReviews} />}
-          {page === 'approval' && <Experiments props={props} project={project} runs={runs} report={report} reviews={experimentReviews} />}
-          {(page === 'execution' || page === 'steps') && <><StateNoticeWhenVisible state={runsState} t={props.t} emptyMessage={props.t('stateNoExperiment')} /><Runs props={props} runs={runs} artifacts={artifacts} report={report} comparison={comparison} /></>}
+          {page === 'planning' && <Experiments props={props} project={project} runs={runs} report={report} reviews={experimentReviews} onReviewAction={runReviewAction} />}
+          {page === 'approval' && <Experiments props={props} project={project} runs={runs} report={report} reviews={experimentReviews} onReviewAction={runReviewAction} />}
+          {(page === 'execution' || page === 'steps') && <><StateNoticeWhenVisible state={runsState} t={props.t} emptyMessage={props.t('stateNoExperiment')} /><Runs props={props} runs={runs} artifacts={artifacts} report={report} comparison={comparison} onRetry={retryRun} {...confirmStep === undefined ? {} : { onConfirmStep: confirmStep }} {...stopRun === undefined ? {} : { onStop: stopRun }} /></>}
           {page === 'evidence' && <><StateNoticeWhenVisible state={artifactsState} t={props.t} emptyMessage={props.t('stateNoRun')} /><Evidence props={props} artifacts={artifacts} report={report} {...selection.activeArtifactId === undefined ? {} : { selectedArtifactId: selection.activeArtifactId }} /></>}
           {page === 'files' && <ProjectFiles props={props} projectId={selection.activeProjectId} files={projectFiles} filesState={projectFilesState} artifacts={artifacts} state={artifactsState} refreshKey={projectFileRefresh} onRefresh={() => { setFileRefresh(value => value + 1); setProjectFileRefresh(value => value + 1) }} />}
           {page === 'archive' && <Archive props={props} report={report} />}
@@ -241,24 +273,55 @@ function Overview({ props, project, runs, artifacts, onNavigate }: { readonly pr
   </div>
 }
 
-function Experiments({ props, project, runs, report, reviews }: { readonly props: Props; readonly project: LabProjectView | undefined; readonly runs: readonly LabRun[]; readonly report: ReportState; readonly reviews: ReviewsState }): JSX.Element {
+function Experiments({ props, project, runs, report, reviews, onReviewAction }: { readonly props: Props; readonly project: LabProjectView | undefined; readonly runs: readonly LabRun[]; readonly report: ReportState; readonly reviews: ReviewsState; readonly onReviewAction: (action: () => Promise<unknown>) => Promise<void> }): JSX.Element {
   const experiments = project?.experiments ?? []
   const selectedId = props.ui.snapshot().activeExperimentId ?? experiments[0]?.experimentId
   const selected = experiments.find(experiment => experiment.experimentId === selectedId)
   const review = reviews.state === 'ready' ? reviews.value.at(-1) : undefined
   const workflow = review === undefined ? undefined : toWorkflow(review)
+  const reviewPlanAction = (action: 'validate' | 'approve'): void => {
+    const planId = review?.plan.planId
+    const experimentId = review?.plan.experimentId
+    if (planId === undefined || experimentId === undefined) return
+    void onReviewAction(() => action === 'validate'
+      ? props.validatePlan?.(planId) ?? Promise.reject(new Error(props.t('hostStateUnavailable')))
+      : props.approvePlan?.({ experimentId, planId }) ?? Promise.reject(new Error(props.t('hostStateUnavailable'))))
+  }
   return <div className={css.experimentLayout}><div className={css.list}>{experiments.map(experiment => (
     <button key={experiment.experimentId} type='button' className={experiment.experimentId === selectedId ? css.rowActive : css.row} onClick={() => { props.ui.selectExperiment(experiment.experimentId); props.ui.openProjectPage('planning') }}>
       <strong>{experiment.title}</strong><span>{experiment.status}</span>
-    </button>
+  </button>
   ))}</div>{selected === undefined ? <div className={css.notice}>{props.t('stateNoExperiment')}</div> : reviews.state !== 'ready' || review === undefined ? <StateNotice state={reviews} t={props.t} emptyMessage={props.t('stateNoExperiment')} /> : <div className={css.detailStack}>
     <LabExperimentDetailView experiment={selected} sessions={(project?.experimentSessions ?? []).filter(session => session.experimentId === selected.experimentId)} review={review} runs={runs} {...report.state === 'ready' ? { report: report.value } : {}} evidence={(project?.evidence ?? []).filter(item => item.experimentId === selected.experimentId)} labels={experimentLabels(props.t)} onOpenSession={props.openSession} />
+    <ReviewActions props={props} review={review} onPlanAction={reviewPlanAction} />
     {workflow !== undefined && <LabWorkflowView workflow={workflow} validation={review.validation} labels={workflowLabels(props.t)} />}
     {(review.skillRevisions ?? []).map(skill => {
       const state = skillState(skill.status)
-      return state === undefined ? null : <LabSkillView key={skill.revisionId ?? skill.skillId ?? skill.name} revision={skill} state={state} validation={review.validation} labels={skillLabels(props.t)} />
+      if (state === undefined) return null
+      const reviewSkillAction = (action: LabSkillReviewAction): void => {
+        const revisionId = skill.revisionId
+        if (revisionId === undefined) return
+        void onReviewAction(() => action === 'validate'
+          ? props.validateSkill?.(revisionId) ?? Promise.reject(new Error(props.t('hostStateUnavailable')))
+          : action === 'approve'
+            ? props.approveSkill?.({ revisionId }) ?? Promise.reject(new Error(props.t('hostStateUnavailable')))
+            : props.activateSkill?.(revisionId) ?? Promise.reject(new Error(props.t('hostStateUnavailable'))))
+      }
+      return <LabSkillView key={skill.revisionId ?? skill.skillId ?? skill.name} revision={skill} state={state} validation={review.validation} labels={skillLabels(props.t)} {...props.validateSkill === undefined && props.approveSkill === undefined && props.activateSkill === undefined ? {} : { onReviewAction: reviewSkillAction }} />
     })}
   </div>}</div>
+}
+
+function ReviewActions({ props, review, onPlanAction }: { readonly props: Props; readonly review: LabPlanReview; readonly onPlanAction: (action: 'validate' | 'approve') => void }): JSX.Element | null {
+  const planId = review.plan.planId
+  const experimentId = review.plan.experimentId
+  if (planId === undefined || experimentId === undefined || props.validatePlan === undefined && props.approvePlan === undefined) return null
+  const canValidate = review.plan.status === 'DRAFT' || review.plan.status === 'REJECTED'
+  const canApprove = review.plan.status === 'VALIDATED' && review.validation?.valid === true
+  return <div className={css.actions} data-lab-plan-actions>
+    {props.validatePlan !== undefined && <button type='button' disabled={!canValidate} onClick={() => { onPlanAction('validate') }}>{props.t('validate')}</button>}
+    {props.approvePlan !== undefined && <button type='button' disabled={!canApprove} onClick={() => { onPlanAction('approve') }}>{props.t('approve')}</button>}
+  </div>
 }
 
 function toWorkflow(review: LabPlanReview): LabWorkflowRecord | undefined {
@@ -286,10 +349,10 @@ function workflowLabels(t: Props['t']): LabWorkflowLabels {
 function skillLabels(t: Props['t']): LabSkillLabels {
   return { title: t('experimentSkills'), status: t('experimentPlanStatus'), purpose: t('objective'), revision: t('experimentPlanRevision'), definition: t('notAvailable'), validation: t('validate'), changes: t('runComparison'), noChanges: t('notAvailable'), noValue: t('notAvailable'), validate: t('skillValidate'), approve: t('skillApprove'), activate: t('skillActivate'), actionUnavailable: t('notAvailable'), valid: t('lifecycleStatusValidated'), invalid: t('lifecycleInvalid'), statusLabel: value => value }
 }
-function Runs({ props, runs, artifacts, report, comparison }: { readonly props: Props; readonly runs: readonly LabRun[]; readonly artifacts: readonly LabArtifactRecord[]; readonly report: ReportState; readonly comparison: LabQueryState<LabRunComparisonView> | undefined }): JSX.Element {
+function Runs({ props, runs, artifacts, report, comparison, onRetry, onConfirmStep, onStop }: { readonly props: Props; readonly runs: readonly LabRun[]; readonly artifacts: readonly LabArtifactRecord[]; readonly report: ReportState; readonly comparison: LabQueryState<LabRunComparisonView> | undefined; readonly onRetry: (runId: string) => void | Promise<unknown>; readonly onConfirmStep?: (input: { readonly runId: string; readonly evidence: readonly string[]; readonly stepId?: string; readonly operationId?: string }) => void | Promise<unknown>; readonly onStop?: (runId: string) => void | Promise<unknown> }): JSX.Element {
   const selectedId = props.ui.snapshot().activeRunId ?? runs[0]?.runId
   const selected = runs.find(run => run.runId === selectedId)
-  return <div className={css.experimentLayout}><div className={css.list}>{runs.map(run => <button key={run.runId} type='button' className={run.runId === selectedId ? css.rowActive : css.row} onClick={() => { if (run.runId !== undefined) props.ui.selectRun(run.runId); props.ui.openProjectPage('execution') }}><strong>{run.runId ?? props.t('runs')}</strong><span>{run.runStatus ?? props.t('notAvailable')}</span></button>)}</div>{selected === undefined ? <div className={css.notice}>{props.t('stateNoRun')}</div> : <LabRunDetailView run={selected} artifacts={artifacts} {...report.state === 'ready' ? { report: report.value, assessment: report.value.assessment } : {}} {...comparison?.state === 'ready' ? { comparison: comparison.value } : {}} onRetry={props.retryRun} {...props.confirmStep === undefined ? {} : { onConfirmStep: props.confirmStep }} {...props.stopRun === undefined ? {} : { onStop: props.stopRun }} labels={runLabels(props.t)} />}</div>
+  return <div className={css.experimentLayout}><div className={css.list}>{runs.map(run => <button key={run.runId} type='button' className={run.runId === selectedId ? css.rowActive : css.row} onClick={() => { if (run.runId !== undefined) props.ui.selectRun(run.runId); props.ui.openProjectPage('execution') }}><strong>{run.runId ?? props.t('runs')}</strong><span>{run.runStatus ?? props.t('notAvailable')}</span></button>)}</div>{selected === undefined ? <div className={css.notice}>{props.t('stateNoRun')}</div> : <LabRunDetailView run={selected} artifacts={artifacts} {...report.state === 'ready' ? { report: report.value, assessment: report.value.assessment } : {}} {...comparison?.state === 'ready' ? { comparison: comparison.value } : {}} onRetry={onRetry} {...onConfirmStep === undefined ? {} : { onConfirmStep }} {...onStop === undefined ? {} : { onStop }} labels={runLabels(props.t)} />}</div>
 }
 
 function reportLabels(t: Props['t']): LabResultReportLabels {
@@ -299,7 +362,7 @@ function reportLabels(t: Props['t']): LabResultReportLabels {
 function runLabels(t: Props['t']): LabRunDetailLabels {
   const resultLabels: LabRunResultLabels = { runTitle: t('runDetail'), resultTitle: t('result'), runStatus: t('status'), resultStatus: t('status'), currentStep: t('runCurrentStep'), feedback: t('runFeedback'), replanReason: t('runReplanReason'), verdict: t('lifecycleVerdict'), evidence: t('evidence'), assessedBy: t('runAssessedBy'), assessedAt: t('runAssessedAt'), humanQcGate: t('runHumanQcGate'), noValue: t('notAvailable'), statusLabel: value => t(runStatusKey(value)) }
   const comparisonLabels: LabRunComparisonLabels = { title: t('runComparison'), left: t('runLeft'), right: t('runRight'), status: t('status'), duration: t('runDuration'), parameters: t('runParameters'), steps: t('steps'), observations: t('runObservations'), artifacts: t('runArtifacts'), artifactMetadata: t('runArtifactMetadata'), valid: t('runValidity'), operation: t('runOperation'), artifactIds: t('runArtifactIds'), noValue: t('notAvailable') }
-  return { title: t('runDetail'), overview: t('runOverview'), parameters: t('runParameters'), steps: t('steps'), executionGraph: t('runExecutionGraph'), evidence: t('evidence'), logs: t('runLogs'), timeline: t('runTimeline'), plan: t('plan'), currentStep: t('runCurrentStep'), dependencies: t('runDependencies'), operation: t('runOperation'), createdAt: t('runCreatedAt'), updatedAt: t('runUpdatedAt'), noValue: t('notAvailable'), noSteps: t('runNoSteps'), noEvidence: t('experimentNoEvidence'), noLogs: t('runNoLogs'), retry: t('runRetry'), retryOfRun: t('runRetryOf'), confirmStep: t('confirmStep'), stopRun: t('stopRun'), comparisonLabels, reportLabels: reportLabels(t), resultLabels }
+  return { title: t('runDetail'), overview: t('runOverview'), parameters: t('runParameters'), steps: t('steps'), executionGraph: t('runExecutionGraph'), evidence: t('evidence'), evidenceInput: t('evidence'), logs: t('runLogs'), timeline: t('runTimeline'), plan: t('plan'), currentStep: t('runCurrentStep'), dependencies: t('runDependencies'), operation: t('runOperation'), createdAt: t('runCreatedAt'), updatedAt: t('runUpdatedAt'), noValue: t('notAvailable'), noSteps: t('runNoSteps'), noEvidence: t('experimentNoEvidence'), noLogs: t('runNoLogs'), retry: t('runRetry'), retryOfRun: t('runRetryOf'), confirmStep: t('confirmStep'), stopRun: t('stopRun'), comparisonLabels, reportLabels: reportLabels(t), resultLabels }
 }
 
 function runStatusKey(value: LabRunDisplayState | LabResultDisplayState): LabWorkbenchKey {

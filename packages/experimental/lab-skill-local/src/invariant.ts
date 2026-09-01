@@ -10,7 +10,7 @@ export const name = 'lab-skill-local-invariant'
 /** 需要使用的 invariant 服务。 */
 export const inject = ['invariants']
 
-/** Provider 当前只维护进程内状态，没有额外的跨表 invariant。 */
+/** No runtime invariant: Provider 当前只维护进程内状态，没有额外的跨表 invariant。 */
 const install: InvariantInstaller = () => {}
 
 /** 注册本地 Skill Provider 的 invariant 所有权。 */

@@ -25,10 +25,33 @@ describe('LabProjectFileCatalog', () => {
       await expect(catalog.download('project-1', root, file.projectFileId)).resolves.toMatchObject({ projectFileId: file.projectFileId, displayName: 'workflow.json', mediaType: 'application/json' })
       await expect(catalog.open('project-1', root, 'project-file-unknown')).rejects.toThrow(/not authorized/)
 
+      const generated = await catalog.write('project-1', root, 'run-artifacts', 'report.json', '{"status":"COMPLETED"}\n')
+      expect(generated).toMatchObject({ group: 'run-artifacts', relativePath: 'run-artifacts/report.json', revision: 1 })
+      await expect(catalog.write('project-1', root, 'run-artifacts', '../outside.txt', 'rejected')).rejects.toThrow(/must stay relative/)
+
       await writeFile(join(root, 'configuration', 'workflow.json'), '{"revision":2}\n', 'utf8')
       const second = await catalog.list('project-1', root)
       expect(second[0]).toMatchObject({ revision: 2 })
       expect(events).toContainEqual(expect.objectContaining({ type: 'project-file-revision', projectId: 'project-1', revision: 2 }))
+    } finally {
+      catalog.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('emits a revision event for the first Host write before any catalog read', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-lab-project-files-first-write-'))
+    const events: unknown[] = []
+    const catalog = new LabProjectFileCatalog(event => { events.push(event) })
+    try {
+      const file = await catalog.write('project-1', root, 'configuration', 'workflow.json', '{"revision":1}\n')
+      expect(file).toMatchObject({ group: 'configuration', relativePath: 'configuration/workflow.json', revision: 1 })
+      expect(events).toContainEqual(expect.objectContaining({
+        type: 'project-file-revision',
+        projectId: 'project-1',
+        projectFileId: file.projectFileId,
+        revision: 1,
+      }))
     } finally {
       catalog.dispose()
       await rm(root, { recursive: true, force: true })

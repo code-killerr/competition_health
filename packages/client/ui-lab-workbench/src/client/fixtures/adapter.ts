@@ -1,14 +1,17 @@
 import type {
   LabArtifactRecord,
+  LabDevice,
   LabEvidenceRecord,
   LabExperimentRecord,
   LabKnowledgeItem,
   LabProjectRecord,
+  LabProjectContextView,
   LabProjectFileDownload,
   LabProjectFilePreview,
   LabProjectFileRecord,
   LabProjectFileRevisionEvent,
   LabProjectView,
+  LabPlanReview,
   LabReportView,
   LabResultAssessmentRecord,
   LabRunComparisonView,
@@ -17,6 +20,7 @@ import type {
   LabValidation,
   LabWorkflowRecord,
 } from '../api.ts'
+import { validateLabPresentationIntent } from '../lifecycle.ts'
 import type { LabAgentLifecycleProjection, LabPresentationScope } from '../lifecycle.ts'
 import type { LabKnowledgeScopeView, LabProjectFileAdapter, LabProjectFileEventListener, LabQueryState, LabWorkbenchAdapter } from '../adapter.ts'
 
@@ -139,6 +143,7 @@ const KNOWLEDGE: LabKnowledgeItem = {
   sourceName: 'fixture-protocol.pdf',
   status: 'READY',
 }
+const DEVICE: LabDevice = { id: 'device-fixture', name: 'Fixture measurement device', status: 'ready', capabilities: [{ name: 'measure', parameters: {} }] }
 const SKILL: LabSkillRevision = {
   skillId: LAB_FIXTURE_IDS.skillId,
   revisionId: LAB_FIXTURE_IDS.revisionId,
@@ -288,7 +293,10 @@ export function createLabFixtureAdapter(scenario: LabFixtureScenario): LabFixtur
     },
     listProjects: async () => ready([PROJECT]),
     openProject: async projectId => projectId === LAB_FIXTURE_IDS.projectId ? ready(PROJECT_VIEW) : empty('Fixture Project is not authorized'),
+    getProjectContext: async projectId => projectId === LAB_FIXTURE_IDS.projectId ? ready({ project: { projectId: LAB_FIXTURE_IDS.projectId, sessionId: LAB_FIXTURE_IDS.sessionId, sources: PROJECT_VIEW.sources, devices: PROJECT_VIEW.devices, sharedFacts: PROJECT_VIEW.sharedFacts }, knowledgeCapability: { state: 'available' } } satisfies LabProjectContextView) : empty('Fixture Project is not authorized'),
+    listDevices: async () => ready([DEVICE]),
     listExperiments: async projectId => projectId === LAB_FIXTURE_IDS.projectId ? ready([EXPERIMENT]) : empty('Fixture Project is not authorized'),
+    listExperimentReviews: async experimentId => experimentId === LAB_FIXTURE_IDS.experimentId ? ready([{ plan: { planId: WORKFLOW.planId, experimentId: WORKFLOW.experimentId, revision: WORKFLOW.revision, status: WORKFLOW.status, steps: WORKFLOW.steps, unresolved: WORKFLOW.unresolved }, skillRevisions: [SKILL] } satisfies LabPlanReview]) : empty('Fixture Experiment is not authorized'),
     openExperiment: async (projectId, experimentId) => projectId === LAB_FIXTURE_IDS.projectId && experimentId === LAB_FIXTURE_IDS.experimentId ? ready(EXPERIMENT) : empty('Fixture Experiment is not authorized'),
     listRuns: async experimentId => experimentId === LAB_FIXTURE_IDS.experimentId ? ready([run]) : empty('Fixture Experiment is not authorized'),
     compareRuns: async (leftRunId, rightRunId) => leftRunId === LAB_FIXTURE_IDS.runId && rightRunId === `${LAB_FIXTURE_IDS.runId}-retry` ? ready({ leftRunId, rightRunId, status: { left: 'FAILED', right: 'COMPLETED' }, durationMs: { left: 1200, right: 900 }, parameters: { left: [{ stepId: 'step-fixture', values: { temperature: { value: 25, unit: 'C' } } }], right: [{ stepId: 'step-fixture', values: { temperature: { value: 30, unit: 'C' } } }] }, stepStatuses: [{ stepId: 'step-fixture', left: 'FAILED', right: 'COMPLETED' }], observations: [{ stepId: 'step-fixture', left: { operationId: 'operation-fixture', status: 'FAILED', valid: false, artifactIds: [LAB_FIXTURE_IDS.artifactId] }, right: { operationId: 'operation-fixture-retry', status: 'COMPLETED', valid: true, artifactIds: [LAB_FIXTURE_IDS.artifactId] } }], artifactCounts: { left: 1, right: 1 }, artifactMetadata: { left: [{ artifactId: LAB_FIXTURE_IDS.artifactId, displayName: ARTIFACT.displayName, kind: ARTIFACT.kind, mediaType: ARTIFACT.mediaType, size: ARTIFACT.size, digest: ARTIFACT.digest, createdAt: ARTIFACT.createdAt }], right: [{ artifactId: LAB_FIXTURE_IDS.artifactId, displayName: ARTIFACT.displayName, kind: ARTIFACT.kind, mediaType: ARTIFACT.mediaType, size: ARTIFACT.size, digest: ARTIFACT.digest, createdAt: ARTIFACT.createdAt }] } } satisfies LabRunComparisonView) : empty('Fixture Runs are not authorized'),
@@ -307,6 +315,7 @@ export function createLabFixtureAdapter(scenario: LabFixtureScenario): LabFixtur
     validatePlan: async planId => planId === LAB_FIXTURE_IDS.planId ? ready(VALIDATION) : empty('Fixture Plan is not authorized'),
     validateSkill: async revisionId => revisionId === LAB_FIXTURE_IDS.revisionId ? ready(VALIDATION) : empty('Fixture Skill is not authorized'),
     createProject: async () => PROJECT_VIEW,
+    updateProjectScope: async () => PROJECT_VIEW,
     archiveProject: async () => PROJECT_VIEW,
     createExperiment: async () => EXPERIMENT,
     deriveExperiment: async () => EXPERIMENT,
@@ -321,6 +330,15 @@ export function createLabFixtureAdapter(scenario: LabFixtureScenario): LabFixtur
       return run.runId === undefined ? next : { ...next, retryOfRunId: run.runId }
     },
     confirmStep: async () => run,
+    presentForSession: async input => validateLabPresentationIntent(input.value, {
+      ...input.sessionId === LAB_FIXTURE_IDS.sessionId ? { activeProjectId: LAB_FIXTURE_IDS.projectId } : {},
+      registeredViews: ['projects', 'knowledge', 'devices', 'project', 'experiment', 'run', 'evidence', 'citation'],
+      projectIds: [LAB_FIXTURE_IDS.projectId],
+      experiments: [{ projectId: LAB_FIXTURE_IDS.projectId, experimentId: LAB_FIXTURE_IDS.experimentId }],
+      runs: [{ projectId: LAB_FIXTURE_IDS.projectId, experimentId: LAB_FIXTURE_IDS.experimentId, runId: LAB_FIXTURE_IDS.runId }],
+      artifacts: [{ runId: LAB_FIXTURE_IDS.runId, artifactId: LAB_FIXTURE_IDS.artifactId }],
+      citations: [{ projectId: LAB_FIXTURE_IDS.projectId, documentId: LAB_FIXTURE_IDS.documentId, versionId: LAB_FIXTURE_IDS.versionId }],
+    }),
   }
   return adapter
 }

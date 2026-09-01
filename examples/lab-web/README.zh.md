@@ -2,29 +2,23 @@
 
 [English](README.md) | 中文
 
-面向实验展示原型的 opt-in Web 组合。它装配已有实验 Service bundle、loopback `/api/lab` Facade、Harness 一级应用视图扩展、Project 列表/创建页面和现有 Session 作用域工作台，不改变默认 Web roster。
+面向实验展示原型的 opt-in Web 组合。它装配已有实验 Service bundle、loopback `/api/lab` Facade、Harness 一级应用视图扩展、层级化 LABWEAVE 导航、共享的原生 Session Conversation 和 Project 工作台，不改变默认 Web roster。
 
 ## 运行
 
-先构建源码和浏览器 bundle：
+构建源码和浏览器 bundle 后启动展示入口：
 
 ```sh
-pnpm run build
+pnpm run demo:lab-web
 ```
 
-启动展示入口：
-
-```sh
-pnpm dsh --profile web --patch examples/lab-web/cordis.patch.yml --no-open
-```
-
-打开命令打印的本地地址。当前已验证路径从 Projects 一级应用视图开始，不要求已有 Session：选择一个已注册 Workspace，按名称创建 Project，并确认页面选中了 Host 生成的 Project ID。现有 Session 工作台仍可从 Harness Conversation 视图打开，用于检查已接入的能力。
+打开命令打印的本地地址。默认 LABWEAVE 视图从全局执行监控开始，不要求已有 Session。可以从 Project 树选择 Workspace 或创建该 Workspace 的 Project；Host 会创建或复用项目 Session，中间的原生 Harness Conversation 与右侧 Project 工作台会保持同一 Project 关联。
 
 loopback Facade 使用两个明确的命令命名空间。通用 Knowledge、规划、Skill、设备和 Runtime 命令使用 `namespace: "lab"`；Project、Experiment、Run 和 Artifact 页面命令使用 `namespace: "project"`。浏览器只提交记录和动作参数，业务 ID 与持久化由 Host 负责。
 
-## 展示边界
+## 验证边界
 
-当前组合已证明 Harness 原生入口、Workspace 选择、Project 创建和 Project 选择路径。完整的 Knowledge→引用→Experiment→Plan→审批→Run→Artifact→报告浏览器流程仍需要后续 application view 和浏览器 e2e 工作；展示手册不会把这些能力写成已完成。
+Host 组合的无模型路径已经通过服务和组合测试覆盖 Project/Session identity、范围限定的 Knowledge context、Workflow/Skill/Plan 提案与审批、Runtime 执行、重规划、Project 文件、verdict 和报告持久化。桌面、窄桌面/平板和键盘行为仍需在可进行浏览器验证的设备上完成 assembled browser acceptance；展示手册不会把这部分证据写成已完成。
 
 模型规划是 opt-in 能力，需要配置 `DEEPSEEK_API_KEY`。确定性 Provider 和 fixture 只有在当前组合通过真实 Facade 暴露并在界面标注状态时才属于演示数据；fixture [`fixtures/minimal-plan.template.json`](fixtures/minimal-plan.template.json) 不属于 Project 入口路径的必要步骤。
 

@@ -10,7 +10,7 @@ export const name = 'tool-lab-planning-invariant'
 /** 需要使用的 invariant 服务。 */
 export const inject = ['invariants']
 
-/** Agent scope 工具关系由 Harness tools invariant 负责。 */
+/** No runtime invariant: Agent scope 工具关系由 Harness tools invariant 负责。 */
 const install: InvariantInstaller = () => {}
 
 /** 注册实验规划工具包的 invariant 所有权。 */

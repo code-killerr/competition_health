@@ -5,6 +5,7 @@ import type { KnowledgeCapabilityStatus, LabProjectSourceSelection } from '@deep
 import type { PlanProposalResult, PlanningContext } from '@deepseek-ai/dsh-experimental-lab-planning'
 import type { LabRunReport, RunView } from '@deepseek-ai/dsh-experimental-lab-runtime'
 import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { LabHostPresentationValidation } from './presentation.ts'
 
 /** 两次 Run 的可展示比较结果。 */
 export interface LabRunComparison {
@@ -136,6 +137,7 @@ export type LabProjectConversationCommand = { readonly sessionId?: SessionId } &
   | { readonly command: 'project-file-open'; readonly projectId: LabProjectId; readonly projectFileId: string }
   | { readonly command: 'project-file-download'; readonly projectId: LabProjectId; readonly projectFileId: string }
   | { readonly command: 'configuration-capabilities' }
+  | { readonly command: 'presentation-intent'; readonly intent: Record<string, unknown> }
 )
 
 /** Project/conversation Facade result envelope. */
@@ -158,6 +160,7 @@ export type LabProjectConversationResult =
   | { readonly kind: 'project-file-preview'; readonly value: LabProjectFilePreview }
   | { readonly kind: 'project-file-download'; readonly value: LabProjectFileDownload }
   | { readonly kind: 'configuration-capabilities'; readonly value: readonly LabConfigurationCapabilityRecord[] }
+  | { readonly kind: 'presentation'; readonly value: LabHostPresentationValidation }
 
 /** Parse one unknown JSON value into a project/conversation command.
  * @param value - unknown JSON value at the Web boundary.
@@ -171,7 +174,7 @@ export function parseLabProjectConversationCommand(value: unknown): LabProjectCo
     'project-session-attach', 'project-session-detach', 'project-session-rename', 'project-archive', 'project-context',
     'project-planning-context', 'experiment-list', 'experiment-reviews', 'experiment-open', 'experiment-create', 'experiment-derive',
     'experiment-session-link', 'run-list', 'run-open', 'run-start', 'run-stop', 'run-retry', 'run-compare', 'run-report',
-    'artifact-list', 'artifact-open', 'project-file-list', 'project-file-open', 'project-file-download', 'configuration-capabilities',
+    'artifact-list', 'artifact-open', 'project-file-list', 'project-file-open', 'project-file-download', 'configuration-capabilities', 'presentation-intent',
   ] as const)
   const sessionId = object.sessionId === undefined ? undefined : brandId<'SessionId'>(nonBlankString(object.sessionId, 'command.sessionId'))
   const parsed = (() => {
@@ -287,6 +290,8 @@ export function parseLabProjectConversationCommand(value: unknown): LabProjectCo
         return { command, projectId: projectId(object.projectId, 'command.projectId'), projectFileId: nonBlankString(object.projectFileId, 'command.projectFileId') }
       case 'configuration-capabilities':
         return { command }
+      case 'presentation-intent':
+        return { command, intent: record(object.intent, 'command.intent') }
     }
   })()
   return sessionId === undefined ? parsed : { ...parsed, sessionId }

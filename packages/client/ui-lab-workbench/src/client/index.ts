@@ -1,6 +1,6 @@
 /** 实验自动化工作台的浏览器插件；通过根级 app.view 与真实 Harness Conversation 组合。 */
 
-import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext, SessionId, WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -16,10 +16,10 @@ import { LabDevicesView } from './LabDevicesView.tsx'
 import type { LabDevicesInjected } from './LabDevicesView.tsx'
 import { LabUiContext } from './LabUiContext.ts'
 import type { LabCitationSelection } from './LabUiContext.ts'
-import { LabApiError, sendLabCommand, sendLabProjectCommand } from './api.ts'
-import type { LabDevice, LabPlanReview, LabRun } from './api.ts'
+import { LabApiError } from './api.ts'
+import type { LabDevice, LabProjectRecord, LabRun } from './api.ts'
 import { en, zh, type LabWorkbenchKey } from './locales.ts'
-import type { LabQueryState } from './adapter.ts'
+import type { LabQueryState, LabWorkbenchAdapter } from './adapter.ts'
 import { LabConversationHeaderAction } from './LabConversationHeaderAction.tsx'
 import type { LabConversationHeaderInjected } from './LabConversationHeaderAction.tsx'
 import { LabConversationContextDock } from './LabConversationContextDock.tsx'
@@ -104,6 +104,12 @@ export interface LabPresentationController {
   readonly openCitation: (citation: LabCitationSelection) => void
   /** Validate and consume an Agent presentation request before changing client selection. */
   readonly present: (value: unknown, scope: import('./lifecycle.ts').LabPresentationScope) => import('./lifecycle.ts').LabPresentationValidation
+  /** Ask the Host to validate and record the intent, then apply the accepted selection locally. */
+  readonly presentForSession: (
+    value: unknown,
+    scope: import('./lifecycle.ts').LabPresentationScope,
+    sessionId: string,
+  ) => Promise<import('./lifecycle.ts').LabPresentationValidation>
 }
 
 /** 工作台所需的客户端 Service。 */
@@ -120,7 +126,7 @@ export function apply(ctx: ClientContext): void {
   })
   ctx.effect(() => ctx.reflect.provide('labUi', ui), 'ui-lab-workbench: presentation selection')
   ctx.effect(() => ctx.reflect.provide('labAdapter', adapter), 'ui-lab-workbench: Host adapter')
-  const projectActions: LabProjectActions = { toggleSource: toggleProjectSource }
+  const projectActions: LabProjectActions = { toggleSource: (projectId, source) => toggleProjectSource(adapter, projectId, source, currentSessionId(ctx)) }
   ctx.effect(() => ctx.reflect.provide('labProjectActions', projectActions), 'ui-lab-workbench: project scope actions')
   const presentation: LabPresentationController = {
     openCitation: citation => {
@@ -131,6 +137,14 @@ export function apply(ctx: ClientContext): void {
       ui,
       openAppView: viewId => { ctx.layout.openAppView(viewId) },
     } satisfies LabPresentationTarget),
+    presentForSession: async (value, scope, sessionId) => {
+      const validation = await adapter.presentForSession({ sessionId, value })
+      if (!validation.accepted) return validation
+      return consumeLabPresentationIntent(validation.intent, scope, {
+        ui,
+        openAppView: viewId => { ctx.layout.openAppView(viewId) },
+      } satisfies LabPresentationTarget)
+    },
   }
   ctx.effect(() => ctx.reflect.provide('labPresentation', presentation), 'ui-lab-workbench: presentation controller')
 
@@ -142,8 +156,13 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     inject: (): LabProjectsInjected => ({
       ui,
-      listProjects: listProjectSummaries,
-      createProject: async workspaceId => projectSummary(await adapter.createProject({ workspaceId })),
+      listProjects: () => listProjectSummaries(adapter),
+      createProject: async workspaceId => {
+        const sessionId = await ctx.workspaces.connectWorkspace(workspaceId as WorkspaceId)
+        ctx.sessions.open(sessionId)
+        const session = String(sessionId)
+        return projectSummary(await adapter.createProject({ workspaceId, sessionId: session }))
+      },
       openProjectView: () => { ctx.layout.openAppView('lab-project') },
     }),
   }, LabProjectsView)
@@ -163,11 +182,16 @@ export function apply(ctx: ClientContext): void {
       listArtifacts: adapter.listArtifacts,
       loadRunReport: adapter.buildReport,
       openArtifact: async (runId, artifactId) => requireReady(await adapter.openArtifact(runId, artifactId)),
-      loadExperimentReviews,
+      loadExperimentReviews: adapter.listExperimentReviews,
       compareRuns: adapter.compareRuns,
-      retryRun: async runId => adapter.retryRun({ runId, actor: currentActor(ctx) }),
-      confirmStep: input => adapter.confirmStep({ runId: input.runId, evidence: [], confirmedBy: currentActor(ctx), ...input.stepId === undefined ? {} : { stepId: input.stepId } }),
-      stopRun: runId => adapter.stopRun({ runId, requestedBy: currentActor(ctx) }),
+      validatePlan: async planId => requireReady(await adapter.validatePlan(planId, currentSessionId(ctx))),
+      validateSkill: async revisionId => requireReady(await adapter.validateSkill(revisionId, currentSessionId(ctx))),
+      approvePlan: input => adapter.approvePlan({ ...input, approvedBy: currentActor(ctx), ...sessionArgument(ctx) }),
+      approveSkill: input => adapter.approveSkill({ ...input, approvedBy: currentActor(ctx), ...sessionArgument(ctx) }),
+      activateSkill: revisionId => adapter.activateSkill({ revisionId, ...sessionArgument(ctx) }),
+      retryRun: async runId => adapter.retryRun({ runId, actor: currentActor(ctx), ...sessionArgument(ctx) }),
+      confirmStep: input => adapter.confirmStep({ runId: input.runId, evidence: input.evidence, confirmedBy: currentActor(ctx), ...sessionArgument(ctx), ...input.stepId === undefined ? {} : { stepId: input.stepId } }),
+      stopRun: runId => adapter.stopRun({ runId, requestedBy: currentActor(ctx), ...sessionArgument(ctx) }),
       listProjectFiles: adapter.listProjectFiles,
       openProjectFile: adapter.openProjectFile,
       downloadProjectFile: adapter.downloadProjectFile,
@@ -180,13 +204,13 @@ export function apply(ctx: ClientContext): void {
 
   const registerMonitor = (): (() => void) => ctx.slots.register({
     name: 'app.view', id: 'lab-monitor', order: 8, default: true, conversationMode: 'lab-workspace', locale: NS,
-    inject: (): LabOperationsInjected => ({ kind: 'monitor', ui, listProjects: listProjectSummaries, openAppView: viewId => { ctx.layout.openAppView(viewId) } }),
+    inject: (): LabOperationsInjected => ({ kind: 'monitor', ui, listProjects: () => listProjectSummaries(adapter), openAppView: viewId => { ctx.layout.openAppView(viewId) } }),
   }, LabOperationsView)
   ctx.slots.inject('app.view', registerMonitor)
 
   const registerConfiguration = (): (() => void) => ctx.slots.register({
     name: 'app.view', id: 'lab-config', order: 9, conversationMode: 'replace', locale: NS,
-    inject: (): LabOperationsInjected => ({ kind: 'configuration', ui, listProjects: listProjectSummaries, ...adapter.listConfigurationCapabilities === undefined ? {} : { listConfigurationCapabilities: adapter.listConfigurationCapabilities }, openAppView: viewId => { ctx.layout.openAppView(viewId) } }),
+    inject: (): LabOperationsInjected => ({ kind: 'configuration', ui, listProjects: () => listProjectSummaries(adapter), ...adapter.listConfigurationCapabilities === undefined ? {} : { listConfigurationCapabilities: adapter.listConfigurationCapabilities }, openAppView: viewId => { ctx.layout.openAppView(viewId) } }),
   }, LabOperationsView)
   ctx.slots.inject('app.view', registerConfiguration)
 
@@ -198,7 +222,7 @@ export function apply(ctx: ClientContext): void {
     inject: (): LabDevicesInjected => ({
       ui,
       source: 'real',
-      loadDevices: listDevices,
+      loadDevices: experimentId => listDevices(adapter, experimentId),
     }),
   }, LabDevicesView)
   ctx.slots.inject('app.view', registerDevices)
@@ -211,7 +235,7 @@ export function apply(ctx: ClientContext): void {
     inject: (): LabGlobalNavigationInjected => ({
       openAppView: (viewId) => { ctx.layout.openAppView(viewId) },
       ui,
-      listProjects: listProjectSummaries,
+      listProjects: () => listProjectSummaries(adapter),
     }),
   }, LabGlobalNavigation)
   ctx.slots.inject('sidebar.navigation', registerGlobalNavigation)
@@ -228,7 +252,7 @@ export function apply(ctx: ClientContext): void {
     id: 'lab-context-dock',
     order: 10,
     locale: NS,
-    inject: (): LabConversationContextInjected => ({ ui, loadRunContext }),
+    inject: (): LabConversationContextInjected => ({ ui, loadRunContext: (experimentId, runId) => loadRunContext(adapter, experimentId, runId), loadProjectContext: adapter.getProjectContext }),
   }, LabConversationContextDock))
   for (const commandName of LAB_COMMAND_NAMES) {
     ctx.slots.inject('conversation.chat.commandview', () => ctx.slots.register({
@@ -269,15 +293,9 @@ function openLifecycleDetail(event: import('./lifecycle.ts').LabAgentLifecyclePr
   ctx.layout.openAppView('lab-project')
 }
 
-async function listDevices(experimentId: string): Promise<LabQueryState<readonly LabDevice[]>> {
-  try {
-    void experimentId
-    const result = await sendLabCommand({ command: 'device-list' })
-    if (result.kind !== 'device-list') return hostQueryFailure('设备列表响应格式无效')
-    return { state: 'ready', value: result.value }
-  } catch (error) {
-    return hostQueryFailure(error)
-  }
+async function listDevices(adapter: LabWorkbenchAdapter, experimentId: string): Promise<LabQueryState<readonly LabDevice[]>> {
+  void experimentId
+  return adapter.listDevices()
 }
 
 function currentActor(ctx: ClientContext): string {
@@ -285,21 +303,31 @@ function currentActor(ctx: ClientContext): string {
   return current === undefined ? 'lab-web:anonymous' : String(current)
 }
 
+function currentSessionId(ctx: ClientContext): string | undefined {
+  const current = ctx.sessions.list.getSnapshot().current
+  return current === undefined ? undefined : String(current)
+}
+
+function sessionArgument(ctx: ClientContext): { readonly sessionId: string } | Record<never, never> {
+  const sessionId = currentSessionId(ctx)
+  return sessionId === undefined ? {} : { sessionId }
+}
+
 async function requireReady<T>(state: LabQueryState<T>): Promise<T> {
   if (state.state === 'ready') return state.value
   throw new LabApiError(state.code, state.message)
 }
 
-async function listProjectSummaries(): Promise<readonly LabProjectSummary[]> {
-  const result = await sendLabProjectCommand({ command: 'project-list' })
-  if (result.kind !== 'project-list' || !Array.isArray(result.value)) throw new LabApiError('INVALID_RESPONSE', '项目列表响应格式无效')
-  return Promise.all(result.value.map(async value => {
-    const summary = projectSummary(value)
-    const experiments = array(asRecord(value).experiments).flatMap(item => {
-      const record = asRecord(item)
-      return typeof record.experimentId === 'string' ? [record.experimentId] : []
-    })
-    const states = await Promise.all(experiments.map(async experimentId => ({ experimentId, state: await listExperimentRuns(experimentId) })))
+async function listProjectSummaries(adapter: LabWorkbenchAdapter): Promise<readonly LabProjectSummary[]> {
+  const result = await adapter.listProjects()
+  if (result.state !== 'ready') throw new LabApiError(result.code, result.message)
+  return Promise.all(result.value.flatMap(value => value.projectId === undefined ? [] : [value]).map(async value => {
+    const opened = await adapter.openProject(value.projectId as string)
+    const summary = opened.state === 'ready' ? projectSummary(opened.value) : projectSummaryRecord(value)
+    const experiments = opened.state === 'ready'
+      ? opened.value.experiments.flatMap(item => item.experimentId === undefined ? [] : [item.experimentId])
+      : []
+    const states = await Promise.all(experiments.map(async experimentId => ({ experimentId, state: await listExperimentRuns(adapter, experimentId) })))
     if (states.some(({ state }) => state.state !== 'ready')) return summary
     const runs = states.flatMap(({ experimentId, state }) => state.state === 'ready'
       ? state.value.flatMap(run => run.runId === undefined || run.runStatus === undefined ? [] : [{
@@ -321,56 +349,34 @@ async function listProjectSummaries(): Promise<readonly LabProjectSummary[]> {
   }))
 }
 
-async function toggleProjectSource(projectId: string, source: { readonly documentId: string; readonly versionId: string }): Promise<void> {
-  const current = await sendLabProjectCommand({ command: 'project-open', projectId })
-  if (current.kind !== 'project') throw new LabApiError('INVALID_RESPONSE', '项目范围响应格式无效')
-  const existing = current.value.sources.some(item => item.documentId === source.documentId && item.versionId === source.versionId)
-  const sources = current.value.sources.flatMap(item => item.documentId !== undefined && item.versionId !== undefined
+async function toggleProjectSource(adapter: LabWorkbenchAdapter, projectId: string, source: { readonly documentId: string; readonly versionId: string }, sessionId?: string): Promise<void> {
+  const current = await requireReady(await adapter.openProject(projectId))
+  const existing = current.sources.some(item => item.documentId === source.documentId && item.versionId === source.versionId)
+  const sources = current.sources.flatMap(item => item.documentId !== undefined && item.versionId !== undefined
     ? [{ documentId: item.documentId, versionId: item.versionId }]
     : [])
   const nextSources = existing
     ? sources.filter(item => item.documentId !== source.documentId || item.versionId !== source.versionId)
     : [...sources, source]
-  const deviceIds = current.value.devices.flatMap(item => {
+  const deviceIds = current.devices.flatMap(item => {
     const deviceId = item.deviceId ?? item.id
     return deviceId === undefined ? [] : [deviceId]
   })
-  const updated = await sendLabProjectCommand({ command: 'project-scope-update', projectId, sources: nextSources, deviceIds })
-  if (updated.kind !== 'project') throw new LabApiError('INVALID_RESPONSE', '项目范围更新响应格式无效')
+  await adapter.updateProjectScope({ projectId, sources: nextSources, deviceIds, ...sessionId === undefined ? {} : { sessionId } })
 }
 
-async function listExperimentRuns(experimentId: string): Promise<LabQueryState<readonly LabRun[]>> {
-  try {
-    const result = await sendLabProjectCommand({ command: 'run-list', experimentId })
-    if (result.kind !== 'run-list') return hostQueryFailure('Run 列表响应格式无效')
-    return { state: 'ready', value: result.value }
-  } catch (error) {
-    return hostQueryFailure(error)
-  }
+async function listExperimentRuns(adapter: LabWorkbenchAdapter, experimentId: string): Promise<LabQueryState<readonly LabRun[]>> {
+  return adapter.listRuns(experimentId)
 }
 
-async function loadRunContext(experimentId: string, runId: string): Promise<{ readonly runStatus?: string; readonly currentStepId?: string }> {
-  const result = await listExperimentRuns(experimentId)
+async function loadRunContext(adapter: LabWorkbenchAdapter, experimentId: string, runId: string): Promise<{ readonly runStatus?: string; readonly currentStepId?: string }> {
+  const result = await listExperimentRuns(adapter, experimentId)
   if (result.state !== 'ready') return {}
   const run = result.value.find(item => item.runId === runId)
   return run === undefined ? {} : {
     ...run.runStatus === undefined ? {} : { runStatus: run.runStatus },
     ...run.currentStepId === undefined ? {} : { currentStepId: run.currentStepId },
   }
-}
-
-async function loadExperimentReviews(experimentId: string): Promise<LabQueryState<readonly LabPlanReview[]>> {
-  try {
-    const result = await sendLabProjectCommand({ command: 'experiment-reviews', experimentId })
-    if (result.kind !== 'experiment-reviews') return hostQueryFailure('实验计划审查响应格式无效')
-    return { state: 'ready', value: result.value }
-  } catch (error) {
-    return hostQueryFailure(error)
-  }
-}
-
-function hostQueryFailure<T>(error: unknown): LabQueryState<T> {
-  return { state: 'failed', code: 'PROVIDER_UNAVAILABLE', message: error instanceof Error ? error.message : String(error), retryable: true }
 }
 
 function projectSummary(value: unknown): LabProjectSummary {
@@ -390,6 +396,22 @@ function projectSummary(value: unknown): LabProjectSummary {
     status,
     sessionCount: sessions.length,
     experimentCount: experiments.length,
+  }
+}
+
+function projectSummaryRecord(project: LabProjectRecord): LabProjectSummary {
+  const projectId = stringField(project.projectId, 'project.projectId')
+  const workspaceId = stringField(project.workspaceId, 'project.workspaceId')
+  const status = project.status === 'ARCHIVED' ? 'ARCHIVED' : project.status === 'ACTIVE' ? 'ACTIVE' : undefined
+  if (status === undefined) throw new LabApiError('INVALID_RESPONSE', '项目状态无效')
+  return {
+    projectId,
+    workspaceId,
+    name: stringField(project.name, 'project.name'),
+    description: project.description ?? '',
+    status,
+    sessionCount: 0,
+    experimentCount: 0,
   }
 }
 

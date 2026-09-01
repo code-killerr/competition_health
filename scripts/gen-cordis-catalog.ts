@@ -618,6 +618,8 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   LabSkillRevision: 'packages/experimental/lab-skill/README.md',
   SkillSnapshot: 'packages/experimental/lab-skill/README.md',
   LabMvpWebSnapshot: 'packages/experimental/lab-mvp-web/README.md',
+  LabHostPresentationValidation: 'packages/experimental/lab-mvp-web/README.md',
+  LabProjectFileRevisionEvent: 'packages/experimental/lab-mvp-web/README.md',
   ExperimentId: 'packages/experimental/lab-domain/README.md',
   DeviceId: 'packages/experimental/lab-domain/README.md',
   KnowledgeDocumentId: 'packages/experimental/lab-domain/README.md',

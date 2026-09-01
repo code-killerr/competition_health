@@ -10,6 +10,7 @@ export const name = 'tool-lab-invariant'
 /** 需要使用的 invariant 服务。 */
 export const inject = ['invariants']
 
+/** No runtime invariant: the aggregate tool package delegates invariants to its tool consumers. */
 const install: InvariantInstaller = () => {}
 
 /** 注册实验工具聚合包的 invariant 所有权。 */

@@ -37,6 +37,15 @@ describe('lab workbench browser API', () => {
     expect(project.kind).toBe('project')
     if (project.kind !== 'project') throw new Error('project result was not decoded')
     expect(project.value.project?.projectId).toBe('project-1')
+
+    const context = parseLabProjectCommandResult({
+      kind: 'project-context',
+      value: {
+        project: { projectId: 'project-1', sessionId: 'session-1', sources: [{ documentId: 'doc-1', versionId: 'version-1' }], devices: [{ deviceId: 'device-1' }], sharedFacts: [] },
+        knowledgeCapability: { state: 'available' },
+      },
+    })
+    expect(context).toMatchObject({ kind: 'project-context', value: { project: { projectId: 'project-1', sources: [{ documentId: 'doc-1' }], devices: [{ deviceId: 'device-1' }] }, knowledgeCapability: { state: 'available' } } })
   })
 
   it('rejects an unknown result variant before it reaches page state', () => {

@@ -288,13 +288,15 @@ export class LabProjectService extends Service {
     await this.ready
   }
 
-  /** Create an empty active project.
+  /** Create or reuse the active Project bound to a Workspace.
    * @param request - project creation request.
-   * @returns - created project view.
+   * @returns - the existing or newly created project view.
    */
   async create(request: CreateLabProjectRequest): Promise<LabProjectView> {
     await this.ready
     const workspace = this.resolveWorkspace(request.workspaceId, request.createdBy)
+    const existing = this.state.projects.find(project => project.workspaceId === workspace.id)
+    if (existing !== undefined) return this.view(existing.projectId)
     const name = request.name === undefined
       ? nonBlank(basename(workspace.path), 'project name derived from Workspace')
       : nonBlank(request.name, 'project name')

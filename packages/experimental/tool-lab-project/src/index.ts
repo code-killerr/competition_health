@@ -101,10 +101,22 @@ function install(agent: Agent, projects: LabProjectService, knowledge: Knowledge
       async execute(args, exec) {
         const caller = callingAgent(exec.agent, 'lab_project_context')
         const id = await resolveProjectId(args.project_id, caller, projects, 'lab_project_context')
-        return jsonValue({
-          project: await readProjectContext(projects, id, caller.session.id),
-          knowledgeCapability: await consumer.capability(),
+        const project = await readProjectContext(projects, id, caller.session.id)
+        const knowledgeCapability = await consumer.capability()
+        caller.session.append('lab/agent/context-read', {
+          version: 1,
+          sessionId: caller.session.id,
+          kind: 'project',
+          projectId: id,
+          sourceIds: project.sources.map(source => ({ documentId: source.documentId, versionId: source.versionId })),
+          deviceIds: project.devices.map(device => device.deviceId),
+          sharedFactIds: project.sharedFacts.map(fact => String(fact.factId)),
+          citationIds: project.sharedFacts.flatMap(fact => fact.citationIds),
+          knowledgeState: knowledgeCapability.state,
+          ...knowledgeCapability.reason === undefined ? {} : { knowledgeReason: knowledgeCapability.reason },
+          unresolved: [],
         })
+        return jsonValue({ project, knowledgeCapability })
       },
     })))
 
@@ -141,6 +153,21 @@ function install(agent: Agent, projects: LabProjectService, knowledge: Knowledge
         const selectedDevices = new Set(project.devices.map(device => device.deviceId))
         const deviceViews = devices.listDevices().filter(device => selectedDevices.has(device.id))
         const unresolved = args.unresolved === undefined ? [] : parseStrings(args.unresolved, 'unresolved')
+        caller.session.append('lab/agent/context-read', {
+          version: 1,
+          sessionId: caller.session.id,
+          kind: 'planning',
+          projectId: id,
+          sourceIds: project.sources.map(source => ({ documentId: source.documentId, versionId: source.versionId })),
+          deviceIds: deviceViews.map(device => device.id),
+          sharedFactIds: project.sharedFacts.map(fact => String(fact.factId)),
+          citationIds: citations.map(citation => citation.citationId),
+          knowledgeState: capability.state,
+          ...capability.reason === undefined ? {} : { knowledgeReason: capability.reason },
+          experimentId,
+          objective,
+          unresolved,
+        })
         return jsonValue({
           project,
           knowledgeCapability: capability,

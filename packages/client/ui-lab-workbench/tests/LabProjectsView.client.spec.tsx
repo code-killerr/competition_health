@@ -6,7 +6,7 @@ import { LabUiContext } from '../src/client/LabUiContext.ts'
 
 type LabProjectsProps = Parameters<typeof LabProjectsView>[0]
 
-function props(): {
+function props(workspaceItems = [{ workspaceId: 'workspace-1', title: 'Lab', path: '/lab' }]): {
   value: LabProjectsProps
   listProjects: ReturnType<typeof vi.fn>
   createProject: ReturnType<typeof vi.fn>
@@ -27,7 +27,7 @@ function props(): {
     createProject,
     openProjectView,
     t: (key: string) => key,
-    useWorkspaces: (selector: (state: { readonly items: readonly { readonly workspaceId: string; readonly title: string; readonly path: string }[] }) => unknown) => selector({ items: [{ workspaceId: 'workspace-1', title: 'Lab', path: '/lab' }] }),
+    useWorkspaces: (selector: (state: { readonly items: readonly { readonly workspaceId: string; readonly title: string; readonly path: string }[] }) => unknown) => selector({ items: workspaceItems }),
     useSessions: () => undefined,
   } as unknown as LabProjectsProps
   return { value, listProjects, createProject, openProjectView, ui }
@@ -58,17 +58,38 @@ describe('LabProjectsView', () => {
     expect(setup.openProjectView).not.toHaveBeenCalled()
   })
 
+  it('opens the Host Project already mapped to the selected Workspace', async () => {
+    const setup = props([
+      { workspaceId: 'workspace-1', title: 'Lab', path: '/lab' },
+      { workspaceId: 'workspace-2', title: 'Other lab', path: '/other-lab' },
+    ])
+    const view = render(<LabProjectsView {...setup.value} />)
+
+    await waitFor(() => { expect(view.getByText('Calibration')).toBeTruthy() })
+    fireEvent.change(view.getByRole('combobox'), { target: { value: 'workspace-1' } })
+
+    expect(setup.ui.snapshot()).toMatchObject({ activeWorkspaceId: 'workspace-1', activeProjectId: 'project-1' })
+    expect(setup.openProjectView).toHaveBeenCalledTimes(1)
+    expect(setup.createProject).not.toHaveBeenCalled()
+  })
+
+  it('clears the active Project when the selected Workspace has no Host mapping', async () => {
+    const setup = props([
+      { workspaceId: 'workspace-1', title: 'Lab', path: '/lab' },
+      { workspaceId: 'workspace-2', title: 'Other lab', path: '/other-lab' },
+    ])
+    setup.ui.selectProject('project-1')
+    const view = render(<LabProjectsView {...setup.value} />)
+
+    await waitFor(() => { expect(view.getByText('Calibration')).toBeTruthy() })
+    fireEvent.change(view.getByRole('combobox'), { target: { value: 'workspace-2' } })
+
+    expect(setup.ui.snapshot()).toEqual({ activeWorkspaceId: 'workspace-2', projectPage: 'overview' })
+    expect(setup.openProjectView).not.toHaveBeenCalled()
+  })
+
   it('keeps creation unavailable when Host exposes no Workspace', () => {
-    const setup = props()
-    setup.value.useWorkspaces = selector => selector({
-      items: [],
-      archivedSessionIds: [],
-      state: 'idle',
-      phase: 'ready',
-      error: null,
-      baselinesReady: true,
-      recentWorkspaceId: undefined,
-    })
+    const setup = props([])
     const view = render(<LabProjectsView {...setup.value} />)
 
     expect(view.getByRole('button', { name: 'labProjectsCreateAction' })).toHaveProperty('disabled', true)

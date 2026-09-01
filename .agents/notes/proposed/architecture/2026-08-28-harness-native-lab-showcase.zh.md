@@ -16,7 +16,7 @@ Status: proposed
 
 LABWEAVE 负责可见应用 composition。它消费可复用的 `ui-conversation` presentation contract，并共用同一 Session、input state machine、draft、queue、slash/reference handling、attachment、access/model control、interaction takeover、timeline 和 node renderer。实验 profile 在左侧使用现有可收起的全局 sidebar，中间使用完整共享且保留 Harness 原生 header、hero 与 composer 的 Agent conversation，右侧使用可收起的 active Project workspace；不保留重复的 Conversation 外壳、context strip、重复 composer 或底部 Agent dock。整个页面只有一个 input DOM、一个 draft 和一个 Session。
 
-Host 继续作为注册目录 Workspace、实验 Project、Experiment、Run、Artifact manifest 和 Project file 的权威来源。一个 Project 精确关联一个目录 Workspace，但不替换 Workspace 身份。Session 仍然是 Harness Conversation，并通过 `created`、`continued` 或 `reviewed` 关系显式关联 Experiment。一个 Experiment 保留多个不可变 Run，重试通过新 Run 记录来源。右侧 Project workspace 将已授权 Project file 分为项目配置、对话输出和运行产物；Host 写入后只记录 metadata 与 revision 的 Project-scoped file event，打开的 file catalog 据此刷新。浏览器状态只保存展示选择并通过 typed Facade 命令重新加载记录，绝不拥有绝对路径或文件正文。
+Host 继续作为注册目录 Workspace、实验 Project、Experiment、Run、Artifact manifest 和 Project file 的权威来源。一个 Project 精确关联一个目录 Workspace，但不替换 Workspace 身份；一个 Workspace 至多对应一个 Project，重复创建时复用已有映射，未映射 Workspace 则按目录名创建 Project。Project scope 的变更通过 Host adapter action 执行，不由页面直接调用 Facade。Session 仍然是 Harness Conversation，并通过 `created`、`continued` 或 `reviewed` 关系显式关联 Experiment。一个 Experiment 保留多个不可变 Run，重试通过新 Run 记录来源。右侧 Project workspace 将已授权 Project file 分为项目配置、对话输出和运行产物；Host 写入后只记录 metadata 与 revision 的 Project-scoped file event，打开的 file catalog 据此刷新。浏览器状态只保存展示选择并通过 typed Facade 命令重新加载记录，绝不拥有绝对路径或文件正文。
 
 无模型演示使用确定性的 Knowledge、模型和设备 Provider，但仍通过真实能力配置使用的 Host Facade、Session events、审批门禁、Runtime 记录和浏览器贡献。界面根据 Provider 元数据标记模拟或不可用状态，不创建浏览器专属记录，不根据缺少 API key 推断演示模式，也不使用静态 fixture 替代真实规划和执行路径。
 
@@ -24,11 +24,11 @@ Host 继续作为注册目录 Workspace、实验 Project、Experiment、Run、Ar
 
 ## 当前验证
 
-2026-08-30 已在内置浏览器中实际运行 assembled LABWEAVE Web profile。根应用视图会保留 `conversationMode` 和默认选择元数据，因此 LABWEAVE 可以用一个共享 Conversation presentation 取代默认页面组合，同时保留 Harness 原生 header、hero 与 composer。三栏 Project workspace 与 Project-file event 流程仍需要修订后的第 8 阶段浏览器证据，才能将本方案转为 implemented。
+assembled LABWEAVE Web profile 保留 `conversationMode` 和默认选择元数据，使用共享的 Conversation presentation 保留 Harness 原生 header、hero 与 composer，并将 Project workspace 挂载在右侧 details 列。Host 组合的无模型流程已经通过服务和组合测试覆盖 Project/Session identity、范围限定的 context、Workflow/Skill/Plan 提案与审批、Runtime 执行、重规划、Project 文件、verdict 和报告持久化。
 
-验证覆盖了动态全局 monitor、Projects tree、Project 生命周期目的地、以生命周期为主的 Overview、待处理动作展示、配置能力状态、typed Project 与 Artifact 选择、单一 textarea、跨目的地切换时的 draft 保留、Agent timeline 展开、侧栏 rail 行为，以及桌面、平板和窄桌面布局。修订后的证据还必须覆盖两侧收起路径、中间 conversation 滚动、Project/file 切换、metadata-event refresh、手动刷新、preview 和 download。可重复的 assembled 浏览器场景位于 `apps/web/tests/lab-showcase.e2e.ts`；第 9 阶段从 Knowledge 到报告的业务流程仍不属于这份证据。
+现有浏览器场景覆盖动态全局 monitor、Projects tree、Project 生命周期目的地、以生命周期为主的 Overview、待处理动作展示、配置能力状态、typed Project 与 Artifact 选择、单一 textarea、跨目的地切换时的 draft 保留、Agent timeline 展开、侧栏 rail 行为和响应式布局。剩余浏览器验收必须覆盖两侧收起路径、中间 conversation 滚动、Project/file 切换、metadata-event refresh、手动刷新、preview 和 download。可重复的 assembled 浏览器场景位于 `apps/web/tests/lab-showcase.e2e.ts`；第 9 阶段从 Knowledge 到报告的浏览器证据仍不属于这份记录。
 
-客户端 fixture 覆盖了分组的 Project file metadata、授权 preview 和 download action，以及能够触发当前 catalog 重载的仅含 metadata 的 revision event。生产组合已经通过 typed Host adapter 接入核心 Project、Run、报告和 Run 动作调用；Project-file command 与 event、完整 capability summary 以及 Agent/Runtime event path 仍属于第 10 阶段，因此这还不能关闭 assembled 浏览器门禁。
+客户端 fixture 覆盖了分组的 Project file metadata、授权 preview 和 download action，以及能够触发当前 catalog 重载的仅含 metadata 的 revision event。生产组合已经通过 typed Host adapter 接入 Project、Run、报告、Run action、Project-file command 与 event、capability summary 以及 Agent/Runtime event projection。assembled 浏览器门禁仍需在可进行浏览器验证的设备上补齐响应式交互证据。
 
 只有在新页面完成验证后删除被替代的 `conversation.view` 工作台、实验 profile 中的默认 Conversation composition、平铺导航、`sidebar.footer.action`、`lab:navigate`、浏览器生成的业务 ID、阶段映射、固定 split layout 和重复 composer，迁移才算完成。相关基础变更仍保留各自的最终验证任务；本变更不得替它们标记完成，也不得重新实现它们负责的内部能力。
 

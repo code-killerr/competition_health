@@ -772,7 +772,7 @@ export interface LabProjectServiceConfig {
 
 Depends on: [`ExperimentId`](../packages/experimental/lab-domain/src/index.ts) · [`LabProjectId`](subsystems/lab-automation.md)
 
-Source: [`packages/experimental/lab-project/src/index.ts:249`](../packages/experimental/lab-project/src/index.ts)
+Source: [`packages/experimental/lab-project/src/index.ts:250`](../packages/experimental/lab-project/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-lab-runtime-local"></a>
 

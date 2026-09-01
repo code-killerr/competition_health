@@ -2,29 +2,23 @@
 
 English | [中文](README.zh.md)
 
-Opt-in Web composition for the laboratory showcase prototype. It assembles the existing lab Service bundle, loopback `/api/lab` Facade, Harness application-view extension, Project list/create view and the existing Session-scoped workbench without changing the default Web roster.
+Opt-in Web composition for the laboratory showcase prototype. It assembles the existing lab Service bundle, loopback `/api/lab` Facade, Harness application-view extension, hierarchical LABWEAVE navigation, the shared native Session Conversation, and the Project workspace without changing the default Web roster.
 
 ## Run
 
-Build the source and browser bundles first:
+Build the source and browser bundles, then start the showcase:
 
 ```sh
-pnpm run build
+pnpm run demo:lab-web
 ```
 
-Start the showcase:
-
-```sh
-pnpm dsh --profile web --patch examples/lab-web/cordis.patch.yml --no-open
-```
-
-Open the local URL printed by the command. The verified path starts on the Projects application view and does not require an existing Session: select a registered Workspace, create a Project by name, and confirm that the Host-generated Project ID is selected in the page. The current Session workbench remains available from the Harness Conversation view for capability-level checks.
+Open the local URL printed by the command. The default LABWEAVE view starts at the global execution monitor and does not require an existing Session. Select a Workspace from the Project tree or create the Workspace's Project; the Host creates or reuses the Project Session, and the central native Harness Conversation plus the right Project workspace stay linked to that Project.
 
 The loopback Facade has two explicit command namespaces. General Knowledge, planning, Skill, device and Runtime commands use `namespace: "lab"`; Project, Experiment, Run and Artifact page commands use `namespace: "project"`. Browser code submits records and action parameters, while the Host owns business IDs and persistence.
 
-## Showcase boundary
+## Verification boundary
 
-The current composition proves the Harness-native entry, Workspace selection, Project creation and Project selection path. A single browser-verified Knowledge→citation→Experiment→Plan→approval→Run→Artifact→report path requires the remaining application-view and browser-e2e work; the showcase guide does not present those capabilities as complete.
+The Host-composed keyless path is covered by service and composition tests for Project/Session identity, scoped Knowledge context, Workflow/Skill/Plan proposal and approval, Runtime execution, replanning, Project files, verdict and report persistence. Desktop, narrow-tablet and keyboard behavior still require the assembled browser acceptance on a device with browser verification available; the showcase guide does not present that evidence as complete.
 
 Model-backed planning is opt-in and requires `DEEPSEEK_API_KEY`. Deterministic providers and fixtures are development aids unless the active composition exposes them through the real Facade and labels their status in the UI. The fixture [`fixtures/minimal-plan.template.json`](fixtures/minimal-plan.template.json) is not required for the Project entry path.
 

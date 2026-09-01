@@ -63,7 +63,7 @@
 - [x] 2.6 创建 Project Session 时通过现有 Workspace/Session Host 服务在 Project Workspace 下创建真实 Session；基线实现通过 `ui-layout.closeAppView()` 返回现有 Conversation。5.4 保留 Session 创建与打开语义，并在实验 composition 中用持续工作台取代关闭页面的产品行为。
 - [x] 2.7 更新 `project-create`、`project-session-attach`、`project-session-detach`、`project-archive` 协议和 Facade；解析器拒绝浏览器提交的 Project ID。
 - [x] 2.8 为创建、Workspace 缺失、cwd 冲突、attach、detach、归档但保留 Session 日志增加领域、协议和组合测试；同步 Session events 和两个 SDK 投影。
-- [ ] 2.9 将 Workspace 确定为用户可见的实验项目入口，并在 Host 侧强制每个 Workspace 至多对应一个内部 LabProject；已有映射时复用并打开，未映射时按 Workspace 目录名创建，Workspace 切换时自动定位对应 Project。
+- [x] 2.9 将 Workspace 确定为用户可见的实验项目入口，并在 Host 侧强制每个 Workspace 至多对应一个内部 LabProject；已有映射时复用并打开，未映射时按 Workspace 目录名创建，Workspace 切换时自动定位对应 Project。
 
 ### 2 阶段检查点
 
@@ -210,14 +210,14 @@
 **文件：** `packages/experimental/lab-mvp-web/`、Agent tool Consumers、Session event/node projections、`packages/experimental/lab-mvp/`、deterministic Provider packages、`examples/lab-web/cordis.patch.yml`、snapshots。
 
 - [x] 10.1 实现 `LabWorkbenchAdapter` 的 Host 版本，将第 5–9 阶段组件接到 typed Facade；删除生产 composition 中的 fixture adapter，运行同一套 adapter contract tests。LABWEAVE Agent surface 必须绑定真实 Harness Session 和输入状态机，不得增加专用消息传输。
-- [ ] 10.2 完成 Project、Experiment、Workflow/Plan、Lab Skill、Run、Evidence、Result assessment、report、Project file catalog/open/download、全局 monitor summary 和配置 capability summary 的窄查询与动作命令；刷新后从 Host records 重建侧栏、工作台、Project files 和 Agent context。
-- [ ] 10.3 将 Agent 工具改为先提出 Experiment、Plan 和 Lab Skill draft，再由人类确认创建、批准或激活；模型可见 Project scope、capability results 和 validation findings 全部写入 Session events。
-- [ ] 10.4 接入 Runtime step、device receipt、approval、observation、Artifact、Project file revision 和 verdict 事件；事件同时更新 Agent 时间线、工作台与当前 Project files，Agent 不能直接推进步骤、提交设备命令或写入 verdict。
-- [ ] 10.5 实现 Host-validated presentation intent Consumer，并验证 Agent 只能打开已注册且属于当前 Project 的视图；用户手动导航和拒绝状态进入 Session evidence。
-- [ ] 10.6 通过 Host 授权文件操作把 Workflow/Skill 文档、配置快照、中间资产和报告写入 Project Workspace；将文件目录固定分类为 Project configuration、conversation output 与 run artifacts，写入后记录只含 Project/file/revision 元数据的 durable event，并支持授权 catalog/open/download；拒绝浏览器或模型提供的越界绝对路径、直接内容读取及浏览器侧文件写操作。
-- [ ] 10.7 将浏览器 `createLocalPlan()` 移到 Host 侧 deterministic planning Provider；deterministic Knowledge、mock device、Runtime 和 result assessor 通过固定 Provider 配置走正常 Agent proposal、approval、Session event 和 Runtime 路径。
-- [ ] 10.8 real profile 在配置 DeepSeek 和 Docling 时替换 Provider，不改变页面、按钮、adapter 或数据模型；缺失条件明确 skipped/unavailable，不回退到 fixture 或 demo 结果。
-- [ ] 10.9 增加 Host composed tests 和 keyless snapshots，覆盖 goal→clarification→source/citation→capability→Workflow/Skill/Plan→approval→Run→replan→Artifact→verdict→report，并断言侧栏 Project 状态、monitor summary、workbench selection 和 Agent timeline 来自同一 Host identities 和 Session events。
+- [x] 10.2 完成 Project、Experiment、Workflow/Plan、Lab Skill、Run、Evidence、Result assessment、report、Project file catalog/open/download、全局 monitor summary 和配置 capability summary 的窄查询与动作命令；刷新后从 Host records 重建侧栏、工作台、Project files 和 Agent context。
+- [x] 10.3 将 Agent 工具改为先提出 Experiment、Plan 和 Lab Skill draft，再由人类确认创建、批准或激活；模型可见 Project scope、capability results 和 validation findings 全部写入 Session events。
+- [x] 10.4 接入 Runtime step、device receipt、approval、observation、Artifact、Project file revision 和 verdict 事件；事件同时更新 Agent 时间线、工作台与当前 Project files，Agent 不能直接推进步骤、提交设备命令或写入 verdict。
+- [x] 10.5 实现 Host-validated presentation intent Consumer，并验证 Agent 只能打开已注册且属于当前 Project 的视图；用户手动导航和拒绝状态进入 Session evidence。
+- [x] 10.6 通过 Host 授权文件操作把 Workflow/Skill 文档、配置快照、中间资产和报告写入 Project Workspace；将文件目录固定分类为 Project configuration、conversation output 与 run artifacts，写入后记录只含 Project/file/revision 元数据的 durable event，并支持授权 catalog/open/download；拒绝浏览器或模型提供的越界绝对路径、直接内容读取及浏览器侧文件写操作。
+- [x] 10.7 将浏览器 `createLocalPlan()` 移到 Host 侧 deterministic planning Provider；deterministic Knowledge、mock device、Runtime 和 result assessor 通过固定 Provider 配置走正常 Agent proposal、approval、Session event 和 Runtime 路径。
+- [x] 10.8 real profile 在配置 DeepSeek 和 Docling 时替换 Provider，不改变页面、按钮、adapter 或数据模型；缺失条件明确 skipped/unavailable，不回退到 fixture 或 demo 结果。
+- [x] 10.9 增加 Host composed tests 和 keyless snapshots，覆盖 goal→clarification→source/citation→capability→Workflow/Skill/Plan→approval→Run→replan→Artifact→verdict→report，并断言侧栏 Project 状态、monitor summary、workbench selection 和 Agent timeline 来自同一 Host identities 和 Session events。
 
 **阶段验收：** 停用前端 fixture 后，同一界面可由 Host 数据完整驱动；清空本地 lab 数据后，无模型密钥仍能经过真实命令和事件完成流程，刷新后不丢失，配置真实 Provider 时无需修改前端。
 
@@ -225,7 +225,7 @@
 
 **文件：** `examples/lab-web/`、浏览器 e2e、用户文档、截图/GIF 资产；不把独立 HTML 加入产品导航。
 
-- [ ] 11.1 增加仓库级 `demo:lab-web` 启动脚本，复用 8.3 的客户端产物新鲜度检查并处理构建前置和 profile patch；文档命令必须从仓库根目录在 Node 24 下成功，且不得在源码更新后继续提供旧 client bundle。
+- [x] 11.1 增加仓库级 `demo:lab-web` 启动脚本，复用 8.3 的客户端产物新鲜度检查并处理构建前置和 profile patch；文档命令必须从仓库根目录在 Node 24 下成功，且不得在源码更新后继续提供旧 client bundle。
 - [ ] 11.2 增加真实浏览器 e2e：首次打开默认进入全局 Execution monitor；无 Session 时选择 Workspace、按当前 Workspace 目录名称创建 Project/Session；在中间唯一的原生 Harness Agent input 提交目标；Agent 补问；从配置中心导入/检索 Knowledge；选择或生成 Skill；创建/批准 Workflow/Plan；运行；触发一次异常重规划；确认 Result/Evidence 并打开报告。断言页面不存在默认 Conversation 大输入框或第二个 text area。
 - [ ] 11.3 e2e 在全局 monitor、Project tree、Knowledge、Agent timeline、Workflow、approval、Experiment、Run、Evidence 和 Result destinations 断言同一组 Host ID；验证 Agent presentation intent 驱动工作区，并在用户覆盖导航、刷新和 Session 切换后再次断言。
 - [ ] 11.4 增加模型不可用、Knowledge 失败、Workspace unavailable、Run 失败和 capability unload 恢复场景；不得以静态截图代替行为断言。

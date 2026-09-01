@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react'
 import { LabProjectShellView } from '../src/client/LabProjectShellView.tsx'
 import { LabUiContext } from '../src/client/LabUiContext.ts'
-import type { LabProjectFileRecord } from '../src/client/api.ts'
+import type { LabPlanReview, LabProjectFileRecord } from '../src/client/api.ts'
 
 describe('LabProjectShellView', () => {
   afterEach(() => { cleanup() })
@@ -117,5 +117,61 @@ describe('LabProjectShellView', () => {
     await waitFor(() => { expect(view.getByText('workflow.lock.json')).toBeTruthy() })
     expect(view.queryByText(/plan-1/)).toBeNull()
     expect(listProjectFiles).toHaveBeenCalledTimes(2)
+  })
+
+  it('emits Host review actions and refreshes the next Skill state', async () => {
+    const ui = new LabUiContext()
+    ui.selectProject('project-1')
+    let review: LabPlanReview = {
+      plan: { planId: 'plan-1', experimentId: 'experiment-1', revision: 1, status: 'LOCKED', objective: 'Test', steps: [], unresolved: [] },
+      validation: { valid: true, issues: [] },
+      skillRevisions: [{ skillId: 'skill-1', revisionId: 'skill-rev-1', name: 'Calibration skill', status: 'DRAFT', purpose: 'Calibrate the device', revision: 1 }],
+    }
+    const validateSkill = vi.fn(async () => {
+      review = { ...review, skillRevisions: [{ ...review.skillRevisions![0]!, status: 'VALIDATED' }] }
+      return { valid: true, issues: [] }
+    })
+    const approveSkill = vi.fn(async () => {
+      review = { ...review, skillRevisions: [{ ...review.skillRevisions![0]!, status: 'HUMAN_APPROVED' }] }
+      return review.skillRevisions![0]!
+    })
+    const activateSkill = vi.fn(async () => {
+      review = { ...review, skillRevisions: [{ ...review.skillRevisions![0]!, status: 'ACTIVE' }] }
+      return review.skillRevisions![0]!
+    })
+    const props = {
+      ui,
+      t: (key: string) => key,
+      loadProject: async () => ({ state: 'ready' as const, value: {
+        project: { projectId: 'project-1', workspaceId: 'workspace-1', name: 'Calibration', description: 'Demo', status: 'ACTIVE' as const },
+        sources: [], devices: [], sessions: [], sharedFacts: [], evidence: [],
+        experiments: [{ experimentId: 'experiment-1', projectId: 'project-1', title: 'Experiment', objective: 'Test', status: 'ACTIVE' as const, createdInSessionId: 'session-1', createdAt: 1, updatedAt: 1 }],
+        experimentSessions: [],
+      } }),
+      listRuns: async () => ({ state: 'empty' as const, code: 'NO_RECORDS' as const, message: '' }),
+      loadRunReport: async () => ({ state: 'empty' as const, code: 'NO_RECORDS' as const, message: '' }),
+      listArtifacts: async () => ({ state: 'empty' as const, code: 'NO_RECORDS' as const, message: '' }),
+      openArtifact: async () => ({ artifactId: 'artifact-1', runId: 'run-1', kind: 'json' as const, displayName: 'result.json', uri: 'lab-artifact://result.json', mediaType: 'application/json', size: 1, digest: 'sha256:test', createdAt: 1 }),
+      loadExperimentReviews: async () => ({ state: 'ready' as const, value: [review] }),
+      compareRuns: async () => ({ state: 'empty' as const, code: 'NO_RECORDS' as const, message: '' }),
+      validateSkill,
+      approveSkill,
+      activateSkill,
+      retryRun: async () => ({ runId: 'run-1' }),
+      openSession: () => {},
+    } as unknown as Parameters<typeof LabProjectShellView>[0]
+
+    const view = render(<LabProjectShellView {...props} />)
+    await waitFor(() => { expect(view.getByRole('heading', { name: 'Calibration' })).toBeTruthy() })
+    fireEvent.click(view.getByRole('button', { name: 'planning' }))
+    await waitFor(() => { expect(view.getByRole('button', { name: 'skillValidate' })).toHaveProperty('disabled', false) })
+    fireEvent.click(view.getByRole('button', { name: 'skillValidate' }))
+    await waitFor(() => { expect(validateSkill).toHaveBeenCalledWith('skill-rev-1') })
+    await waitFor(() => { expect(view.getByRole('button', { name: 'skillApprove' })).toHaveProperty('disabled', false) })
+    fireEvent.click(view.getByRole('button', { name: 'skillApprove' }))
+    await waitFor(() => { expect(approveSkill).toHaveBeenCalledWith({ revisionId: 'skill-rev-1' }) })
+    await waitFor(() => { expect(view.getByRole('button', { name: 'skillActivate' })).toHaveProperty('disabled', false) })
+    fireEvent.click(view.getByRole('button', { name: 'skillActivate' }))
+    await waitFor(() => { expect(activateSkill).toHaveBeenCalledWith('skill-rev-1') })
   })
 })

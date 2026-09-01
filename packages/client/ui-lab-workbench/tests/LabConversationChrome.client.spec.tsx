@@ -36,4 +36,15 @@ describe('Lab Conversation chrome', () => {
     expect(screen.getByLabelText(zh.executionMonitor).textContent).toContain('RUNNING')
     expect(screen.getByLabelText(zh.executionMonitor).textContent).toContain('step-2')
   })
+
+  it('loads Project scope counts from the Host query when no static context is supplied', async () => {
+    const ui = new LabUiContext()
+    ui.selectProject('project-1')
+    const loadProjectContext = vi.fn(async () => ({ state: 'ready' as const, value: { project: { projectId: 'project-1', sources: [{ documentId: 'doc-1', versionId: 'version-1' }], devices: [{ deviceId: 'device-1' }], sharedFacts: [] }, knowledgeCapability: { state: 'available' as const } } }))
+    render(<LabConversationContextDock {...({ ui, loadProjectContext, input: { imageIds: [], draft: '', draftRev: 0, phase: 'plain', occurrences: [], queue: [] }, t: (key: string) => String(zh[key as keyof typeof zh] ?? key), session: {} as never, sessionId: 'session-1' as never } as unknown as Parameters<typeof LabConversationContextDock>[0])} />)
+
+    expect((await screen.findByLabelText(zh.projectScope)).textContent).toContain('1')
+    expect(screen.getByLabelText(zh.projectScope).textContent).toContain('1')
+    expect(loadProjectContext).toHaveBeenCalledWith('project-1')
+  })
 })

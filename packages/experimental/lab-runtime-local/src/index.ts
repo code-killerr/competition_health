@@ -30,7 +30,7 @@ import type {
   RuntimeObservation,
   StartRunRequest,
 } from '@deepseek-ai/dsh-experimental-lab-runtime'
-import { validateRuntimeEvidence } from '@deepseek-ai/dsh-experimental-lab-runtime'
+import { assessRun, validateRuntimeEvidence } from '@deepseek-ai/dsh-experimental-lab-runtime'
 import { InMemoryRuntimeStateStore, SqliteRuntimeStateStore } from './sqlite-store.ts'
 
 /** Cordis 插件名称。 */
@@ -435,6 +435,7 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
       observations: run.observations.map(observation => cloneObservation(observation)),
       evidenceMode: run.executionGraph.steps.length === 0 ? 'MANUAL' : 'CONTROLLED',
       feedback: cloneFeedback(run.feedback),
+      assessment: assessRun(run),
       ...run.replanRequest === undefined ? {} : { replanRequest: { ...run.replanRequest } },
     }
   }

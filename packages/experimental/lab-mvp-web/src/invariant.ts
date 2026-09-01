@@ -10,6 +10,7 @@ export const name = 'lab-mvp-web-invariant'
 /** 需要使用的 invariant 服务。 */
 export const inject = ['invariants']
 
+/** No runtime invariant: the Web Consumer only binds Host actions and projections. */
 const install: InvariantInstaller = () => {}
 
 /** 注册 Web Consumer 的 invariant 所有权。 */

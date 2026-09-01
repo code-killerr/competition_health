@@ -12,10 +12,13 @@ import type { PlanProposalResult, PlanningContext } from '@deepseek-ai/dsh-exper
 import type { ExecutionStepSpec, LabRunReport, RunView } from '@deepseek-ai/dsh-experimental-lab-runtime'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { LabWebCommand, LabWebCommandResult } from './protocol.ts'
+import { validateHostPresentationIntent, type LabHostPresentationIntent, type LabHostPresentationValidation } from './presentation.ts'
 
 export * as Http from './http.ts'
 export { parseLabWebCommand } from './protocol.ts'
 export { parseLabProjectConversationCommand } from './project-protocol.ts'
+export { validateHostPresentationIntent } from './presentation.ts'
+export type { LabHostPresentationIntent, LabHostPresentationScope, LabHostPresentationValidation } from './presentation.ts'
 
 export type * from './protocol.ts'
 export type * from './project-protocol.ts'
@@ -39,16 +42,75 @@ export class LabMvpWebService extends Service {
   constructor(ctx: Context) {
     super(ctx, 'labMvpWeb')
     this.projectFileCatalog = new LabProjectFileCatalog(
-      event => { for (const listener of [...this.projectFileListeners]) listener(event) },
+      event => {
+        for (const listener of [...this.projectFileListeners]) listener(event)
+        void this.recordProjectFileRevision(event).catch(error => {
+          this.ctx.logger.warn('lab project file revision could not be recorded: ' + (error instanceof Error ? error.message : String(error)))
+        })
+      },
       () => this.projectFileListeners.size > 0,
     )
     ctx.effect(() => () => { this.projectFileCatalog.dispose() }, 'lab-mvp-web: project file catalog')
   }
 
-  /** 订阅 Host 授权的 Project 文件 revision 通知。 */
+  /** 订阅 Host 授权的 Project 文件 revision 通知。
+   * @param listener - 收到文件 revision 时调用的监听器。
+   * @returns - 取消订阅的函数。
+   */
   subscribeProjectFileEvents(listener: (event: LabProjectFileRevisionEvent) => void): () => void {
     this.projectFileListeners.add(listener)
     return () => { this.projectFileListeners.delete(listener) }
+  }
+
+  /** Validate and record an Agent request to present a registered Host view.
+   * @param sessionId - Session receiving the navigation evidence.
+   * @param value - untrusted Agent presentation payload.
+   * @returns - accepted typed intent or a stable rejection.
+   */
+  async presentForSession(sessionId: SessionId, value: unknown): Promise<LabHostPresentationValidation> {
+    const active = await this.ctx.labProjects.projectForSession(sessionId)
+    const projects = await this.ctx.labProjects.list()
+    const experiments = projects.flatMap(project => project.experiments.map(experiment => ({
+      projectId: String(project.project.projectId),
+      experimentId: String(experiment.experimentId),
+    })))
+    const runs = projects.flatMap(project => project.experiments.flatMap(experiment => this.ctx.labRuntime.listRuns(experiment.experimentId).map(run => ({
+      projectId: String(project.project.projectId),
+      experimentId: String(experiment.experimentId),
+      runId: String(run.runId),
+    }))))
+    const artifacts = projects.flatMap(project => project.experiments.flatMap(experiment => this.ctx.labRuntime.listRuns(experiment.experimentId).flatMap(run => run.artifacts)))
+    const citations = active === undefined ? [] : active.projectId === undefined ? [] : (await this.ctx.labProjects.context(active.projectId, sessionId)).sources.map(source => ({
+      projectId: String(source.projectId),
+      documentId: String(source.documentId),
+      versionId: String(source.versionId),
+    }))
+    const result = validateHostPresentationIntent(value, {
+      ...active === undefined ? {} : { activeProjectId: String(active.projectId) },
+      registeredViews: ['projects', 'knowledge', 'devices', 'project', 'experiment', 'run', 'evidence', 'citation'],
+      projects: projects.map(project => String(project.project.projectId)),
+      experiments,
+      runs,
+      artifacts,
+      citations,
+    })
+    const sessions = this.ctx.get('sessions')
+    const session = sessions?.get(sessionId)
+    if (session !== undefined) {
+      if (result.accepted) {
+        const targetId = presentationTargetId(result.intent)
+        session.append('lab/presentation/accepted', {
+          version: 1,
+          sessionId,
+          view: result.intent.view,
+          ...result.intent.projectId === undefined ? {} : { projectId: brandId<'LabProjectId'>(result.intent.projectId) },
+          ...targetId === undefined ? {} : { targetId },
+        })
+      } else {
+        session.append('lab/presentation/rejected', { version: 1, sessionId, code: result.code, message: result.message })
+      }
+    }
+    return result
   }
 
   /** 返回供 Web 层序列化的当前实验状态。
@@ -107,6 +169,12 @@ export class LabMvpWebService extends Service {
         }
       case 'knowledge-fact-confirm':
         await this.ctx.labKnowledge.confirmFact({ citationId: brandId<'CitationId'>(command.citationId), confirmedBy: command.confirmedBy, ...command.note === undefined ? {} : { note: command.note } })
+        this.sessionFor(command)?.append('lab/knowledge/confirmed', {
+          version: 1,
+          citationId: brandId<'CitationId'>(command.citationId),
+          confirmedBy: command.confirmedBy,
+          ...command.note === undefined ? {} : { note: command.note },
+        })
         return { kind: 'knowledge-fact-confirm', value: null }
       case 'knowledge-sop-create':
         return { kind: 'knowledge-sop', value: await this.ctx.labKnowledge.createSopDraft({ title: command.title, steps: command.steps, updatedBy: command.sessionId ?? 'lab-web:anonymous' }) }
@@ -165,12 +233,31 @@ export class LabMvpWebService extends Service {
       case 'project-list':
         return { kind: 'project-list', value: await this.ctx.labProjects.list() }
       case 'project-create': {
-        const value = await this.ctx.labProjects.create({
+        let value = await this.ctx.labProjects.create({
           ...command.workspaceId === undefined ? {} : { workspaceId: command.workspaceId },
           ...command.name === undefined ? {} : { name: command.name },
           ...command.description === undefined ? {} : { description: command.description },
           createdBy: actor,
         })
+        if (command.sessionId !== undefined) {
+          const attached = await this.ctx.labProjects.attachSession({
+            projectId: value.project.projectId,
+            sessionId: command.sessionId,
+            attachedBy: actor,
+          })
+          if (attached.status === 'conflict') {
+            throw new Error(
+              'Session "' + String(command.sessionId) + '" does not belong to Project Workspace "' + String(value.project.workspaceId) + '"',
+            )
+          }
+          value = attached.project
+          this.sessionFor(command)?.append('lab/project/session-attached', {
+            version: 1,
+            projectId: value.project.projectId,
+            sessionId: command.sessionId,
+            title: value.sessions.find(session => session.sessionId === command.sessionId)?.title ?? 'Conversation',
+          })
+        }
         this.sessionFor(command)?.append('lab/project/created', {
           version: 1,
           projectId: value.project.projectId,
@@ -299,6 +386,12 @@ export class LabMvpWebService extends Service {
           objective: result.experiment.objective,
           createdInSessionId: actor,
         })
+        this.sessionFor(command)?.append('lab/experiment/requested', {
+          version: 1,
+          experimentId: result.experiment.experimentId,
+          objective: result.experiment.objective,
+          sessionId: actor,
+        })
         return { kind: 'experiment-project', value: result.project }
       }
       case 'experiment-derive': {
@@ -318,6 +411,12 @@ export class LabMvpWebService extends Service {
           title: result.experiment.title,
           objective: result.experiment.objective,
           createdInSessionId: actor,
+        })
+        this.sessionFor(command)?.append('lab/experiment/requested', {
+          version: 1,
+          experimentId: result.experiment.experimentId,
+          objective: result.experiment.objective,
+          sessionId: actor,
         })
         return { kind: 'experiment-project', value: result.project }
       }
@@ -377,6 +476,19 @@ export class LabMvpWebService extends Service {
         const value = await this.ctx.labRuntime.buildReport(command.runId)
         const run = this.ctx.labRuntime.getRun(command.runId)
         if (run !== undefined) await this.persistRun(command, run)
+        await this.writeProjectFile(command, 'run-artifacts', 'report-' + String(command.runId) + '.json', JSON.stringify(value, null, 2))
+        this.sessionFor(command)?.append('lab/run/verdict', {
+          version: 1,
+          experimentId: value.experimentId,
+          runId: value.runId,
+          status: value.assessment.status,
+          ...value.assessment.verdict === undefined ? {} : { verdict: value.assessment.verdict },
+          ...value.assessment.method === undefined ? {} : { method: value.assessment.method },
+          evidenceIds: value.assessment.evidenceIds,
+          ...value.assessment.assessedBy === undefined ? {} : { assessedBy: value.assessment.assessedBy },
+          ...value.assessment.assessedAt === undefined ? {} : { assessedAt: value.assessment.assessedAt },
+          humanQcRequired: value.assessment.humanQcRequired,
+        })
         return { kind: 'run-report', value }
       }
       case 'artifact-list': {
@@ -399,6 +511,10 @@ export class LabMvpWebService extends Service {
         return { kind: 'project-file-download', value: await this.downloadProjectFile(command.projectId, command.projectFileId) }
       case 'configuration-capabilities':
         return { kind: 'configuration-capabilities', value: await this.configurationCapabilities() }
+      case 'presentation-intent': {
+        if (command.sessionId === undefined) throw new Error('presentation-intent requires a Session')
+        return { kind: 'presentation', value: await this.presentForSession(command.sessionId, command.intent) }
+      }
     }
   }
 
@@ -496,9 +612,27 @@ export class LabMvpWebService extends Service {
   }
 
   private async projectContext(projectId: LabProjectId, sessionId?: SessionId): Promise<LabProjectContextView> {
+    const project = await this.ctx.labProjects.context(projectId, sessionId)
+    const knowledgeCapability = await this.knowledgeConsumer().capability()
+    if (sessionId !== undefined) {
+      const session = this.sessionFor({ sessionId })
+      if (session !== undefined) session.append('lab/agent/context-read', {
+        version: 1,
+        sessionId,
+        kind: 'project',
+        projectId,
+        sourceIds: project.sources.map(source => ({ documentId: source.documentId, versionId: source.versionId })),
+        deviceIds: project.devices.map(device => device.deviceId),
+        sharedFactIds: project.sharedFacts.map(fact => String(fact.factId)),
+        citationIds: project.sharedFacts.flatMap(fact => fact.citationIds),
+        knowledgeState: knowledgeCapability.state,
+        ...knowledgeCapability.reason === undefined ? {} : { knowledgeReason: knowledgeCapability.reason },
+        unresolved: [],
+      })
+    }
     return {
-      project: await this.ctx.labProjects.context(projectId, sessionId),
-      knowledgeCapability: await this.knowledgeConsumer().capability(),
+      project,
+      knowledgeCapability,
     }
   }
 
@@ -525,6 +659,24 @@ export class LabMvpWebService extends Service {
     }
     const selectedDevices = new Set(project.devices.map(device => device.deviceId))
     const devices = this.ctx.labDevices.listDevices().filter(device => selectedDevices.has(device.id))
+    if (sessionId !== undefined) {
+      const session = this.sessionFor({ sessionId })
+      if (session !== undefined) session.append('lab/agent/context-read', {
+        version: 1,
+        sessionId,
+        kind: 'planning',
+        projectId,
+        sourceIds: project.sources.map(source => ({ documentId: source.documentId, versionId: source.versionId })),
+        deviceIds: devices.map(device => device.id),
+        sharedFactIds: project.sharedFacts.map(fact => String(fact.factId)),
+        citationIds: citations.map(citation => citation.citationId),
+        knowledgeState: knowledgeCapability.state,
+        ...knowledgeCapability.reason === undefined ? {} : { knowledgeReason: knowledgeCapability.reason },
+        experimentId: request.experimentId,
+        objective: request.objective,
+        unresolved: request.unresolved,
+      })
+    }
     return {
       project,
       knowledgeCapability,
@@ -550,6 +702,7 @@ export class LabMvpWebService extends Service {
       ...result.plan.supersedesPlanId === undefined ? {} : { supersedesPlanId: result.plan.supersedesPlanId },
       citationIds: result.plan.citations,
       skillRevisionIds: result.skillRevisions.map(revision => revision.revisionId),
+      validation: result.validation,
     })
     await this.projectEvidenceForSession(command, {
       version: 1,
@@ -559,6 +712,10 @@ export class LabMvpWebService extends Service {
       status: result.plan.status,
       updatedAt: Date.now(),
     })
+    await this.writeProjectFile(command, 'configuration', 'workflow/plan-' + String(result.plan.planId) + '.json', JSON.stringify(result, null, 2))
+    for (const revision of result.skillRevisions) {
+      await this.writeProjectFile(command, 'configuration', 'workflow/skill-' + String(revision.revisionId) + '.json', JSON.stringify(revision, null, 2))
+    }
     return result
   }
 
@@ -578,6 +735,10 @@ export class LabMvpWebService extends Service {
       skillSnapshots,
     })
     const result = await this.ctx.labPlanning.approvePlan(command.planId, command.approvedBy)
+    await this.writeProjectFile(command, 'configuration', 'workflow/plan-' + String(result.plan.planId) + '.json', JSON.stringify(result, null, 2))
+    for (const revision of result.skillRevisions ?? []) {
+      await this.writeProjectFile(command, 'configuration', 'workflow/skill-' + String(revision.revisionId) + '.json', JSON.stringify(revision, null, 2))
+    }
     this.sessionFor(command)?.append('lab/plan/approved', {
       version: 1,
       experimentId: command.experimentId,
@@ -614,7 +775,9 @@ export class LabMvpWebService extends Service {
       version: 1,
       skillRevisionId: revision.revisionId,
       validatedBy: command.sessionId ?? brandId<'SessionId'>('lab-web:anonymous'),
+      validation: { valid: true, issues: [] },
     })
+    await this.writeProjectFile(command, 'configuration', 'workflow/skill-' + String(revision.revisionId) + '.json', JSON.stringify(revision, null, 2))
     return revision
   }
 
@@ -625,6 +788,7 @@ export class LabMvpWebService extends Service {
       skillRevisionId: revision.revisionId,
       approvedBy: command.approvedBy,
     })
+    await this.writeProjectFile(command, 'configuration', 'workflow/skill-' + String(revision.revisionId) + '.json', JSON.stringify(revision, null, 2))
     return revision
   }
 
@@ -635,6 +799,7 @@ export class LabMvpWebService extends Service {
       skillRevisionId: revision.revisionId,
       activatedBy: command.sessionId ?? brandId<'SessionId'>('lab-web:anonymous'),
     })
+    await this.writeProjectFile(command, 'configuration', 'workflow/skill-' + String(revision.revisionId) + '.json', JSON.stringify(revision, null, 2))
     return revision
   }
 
@@ -655,6 +820,10 @@ export class LabMvpWebService extends Service {
   }
 
   private async confirmRunStep(command: Extract<LabWebCommand, { command: 'run-confirm' }>): Promise<RunView> {
+    const before = this.ctx.labRuntime.getRun(command.runId)
+    const waiting = before?.observations.find(observation => observation.status === 'WAITING')
+    const stepId = command.stepId ?? waiting?.stepId ?? before?.currentStepId
+    const operationId = command.operationId ?? waiting?.operationId
     const run = await this.ctx.labRuntime.confirmStep(
       command.runId,
       command.evidence,
@@ -663,6 +832,15 @@ export class LabMvpWebService extends Service {
       command.operationId,
     )
     await this.persistRun(command, run)
+    if (stepId !== undefined && operationId !== undefined) this.sessionFor(command)?.append('lab/run/approval', {
+      version: 1,
+      experimentId: run.experimentId,
+      runId: run.runId,
+      stepId,
+      operationId,
+      approvedBy: command.confirmedBy,
+      evidence: command.evidence,
+    })
     return run
   }
 
@@ -676,6 +854,19 @@ export class LabMvpWebService extends Service {
     const report = await this.ctx.labRuntime.buildReport(command.runId)
     const run = this.ctx.labRuntime.getRun(command.runId)
     if (run !== undefined) await this.persistRun(command, run)
+    await this.writeProjectFile(command, 'run-artifacts', 'report-' + String(command.runId) + '.json', JSON.stringify(report, null, 2))
+    this.sessionFor(command)?.append('lab/run/verdict', {
+      version: 1,
+      experimentId: report.experimentId,
+      runId: report.runId,
+      status: report.assessment.status,
+      ...report.assessment.verdict === undefined ? {} : { verdict: report.assessment.verdict },
+      ...report.assessment.method === undefined ? {} : { method: report.assessment.method },
+      evidenceIds: report.assessment.evidenceIds,
+      ...report.assessment.assessedBy === undefined ? {} : { assessedBy: report.assessment.assessedBy },
+      ...report.assessment.assessedAt === undefined ? {} : { assessedAt: report.assessment.assessedAt },
+      humanQcRequired: report.assessment.humanQcRequired,
+    })
     return report
   }
 
@@ -695,7 +886,30 @@ export class LabMvpWebService extends Service {
     const runStatus = run.runStatus
     if (runStatus === undefined) throw new Error('runtime returned a run without a state')
     for (const observation of run.observations) {
-      session.append('lab/run/observation', {
+      const step = run.executionGraph.steps.find(candidate => candidate.stepId === observation.stepId)
+      if (!session.events.some(event => event.type === 'lab/run/step' && event.data.runId === run.runId && event.data.operationId === observation.operationId)) {
+        session.append('lab/run/step', {
+          version: 1,
+          experimentId: run.experimentId,
+          runId: run.runId,
+          stepId: observation.stepId,
+          operationId: observation.operationId,
+          status: observation.status,
+          ...command.sessionId === undefined ? {} : { requestedBy: command.sessionId },
+        })
+      }
+      if (step?.operationKind === 'device' && !session.events.some(event => event.type === 'lab/run/device-receipt' && event.data.runId === run.runId && event.data.operationId === observation.operationId)) {
+        session.append('lab/run/device-receipt', {
+          version: 1,
+          experimentId: run.experimentId,
+          runId: run.runId,
+          stepId: observation.stepId,
+          operationId: observation.operationId,
+          status: observation.status === 'COMPLETED' ? 'completed' : observation.status === 'WAITING' ? 'accepted' : observation.status === 'STOPPED' ? 'stopped' : 'failed',
+          evidence: observation.evidence,
+        })
+      }
+      if (!session.events.some(event => event.type === 'lab/run/observation' && event.data.runId === run.runId && event.data.operationId === observation.operationId && event.data.status === observation.status)) session.append('lab/run/observation', {
         version: 1,
         experimentId: run.experimentId,
         runId,
@@ -706,6 +920,21 @@ export class LabMvpWebService extends Service {
         status: observation.status,
         ...observation.error === undefined ? {} : { error: observation.error },
         ...observation.replanRequested === undefined ? {} : { replanRequested: observation.replanRequested },
+      })
+    }
+    for (const artifact of run.artifacts) {
+      if (session.events.some(event => event.type === 'lab/run/artifact' && event.data.artifactId === artifact.artifactId)) continue
+      session.append('lab/run/artifact', {
+        version: 1,
+        experimentId: run.experimentId,
+        runId: run.runId,
+        artifactId: artifact.artifactId,
+        kind: artifact.kind,
+        displayName: artifact.displayName,
+        mediaType: artifact.mediaType,
+        size: artifact.size,
+        digest: artifact.digest,
+        createdAt: artifact.createdAt,
       })
     }
     session.append('lab/run/state', {
@@ -737,6 +966,12 @@ export class LabMvpWebService extends Service {
       status: runStatus,
       updatedAt: Date.now(),
     })
+    await this.writeProjectFile(
+      command,
+      'run-artifacts',
+      'run-' + String(runId) + '.json',
+      JSON.stringify(run, null, 2),
+    )
   }
 
   private async projectEvidenceForSession(
@@ -756,6 +991,43 @@ export class LabMvpWebService extends Service {
     this.sessionFor(command)?.append('lab/project/evidence/projected', { version: 1, projection })
   }
 
+  private async writeProjectFile(
+    command: { readonly sessionId?: SessionId },
+    group: 'configuration' | 'conversation-output' | 'run-artifacts',
+    relativePath: string,
+    content: string,
+  ): Promise<void> {
+    if (command.sessionId === undefined) return
+    const project = await this.ctx.labProjects.projectForSession(command.sessionId)
+    if (project === undefined) return
+    await this.projectFileCatalog.write(
+      String(project.projectId),
+      await this.projectFileWorkspace(project.projectId),
+      group,
+      relativePath,
+      content,
+    )
+  }
+
+  private async recordProjectFileRevision(event: LabProjectFileRevisionEvent): Promise<void> {
+    const project = await this.ctx.labProjects.open(brandId<'LabProjectId'>(event.projectId))
+    if (project.project === undefined) return
+    const sessions = this.ctx.get('sessions')
+    if (sessions === undefined) return
+    const sessionRecord = project.sessions.find(session => session.status === 'ACTIVE')
+    if (sessionRecord === undefined) return
+    const session = sessions.get(sessionRecord.sessionId)
+    if (session === undefined) return
+    session.append('lab/project/file-revision', {
+      version: 1,
+      projectId: brandId<'LabProjectId'>(event.projectId),
+      projectFileId: event.projectFileId,
+      group: event.group,
+      revision: event.revision,
+    })
+    await sessions.flush(session)
+  }
+
   private executionStep(step: ExperimentPlan['steps'][number]): ExecutionStepSpec {
     const revision = this.ctx.labSkills.resolveRevision(step.skillRevisionId)
     if (revision === undefined || revision.status !== 'ACTIVE') throw new Error(`Skill revision ${step.skillRevisionId} is not ACTIVE`)
@@ -771,6 +1043,10 @@ export class LabMvpWebService extends Service {
       ...step.deviceId === undefined ? {} : { deviceId: step.deviceId },
     }
   }
+}
+
+function presentationTargetId(intent: LabHostPresentationIntent): string | undefined {
+  return intent.artifactId ?? intent.runId ?? intent.experimentId ?? intent.projectId ?? intent.documentId
 }
 
 function compareRuns(left: RunView, right: RunView): LabRunComparison {

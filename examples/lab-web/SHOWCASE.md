@@ -7,8 +7,7 @@ This guide verifies the Stage 8 Harness-native LABWEAVE composition. It uses the
 Run these commands from the repository root:
 
 ```sh
-pnpm run build
-pnpm dsh --profile web --patch examples/lab-web/cordis.patch.yml --no-open
+pnpm run demo:lab-web
 ```
 
 Open the local URL printed by the command. The command starts the opt-in composition and leaves the default Web roster unchanged.
@@ -16,7 +15,7 @@ Open the local URL printed by the command. The command starts the opt-in composi
 ## Verified path
 
 1. Open the LABWEAVE application from the root application view. Before a Session exists, the sidebar shows global execution monitoring, a dynamic Projects tree, and the configuration center.
-2. Select a registered Workspace, enter a Project name, and create the Project. Confirm that the selected Project indicator uses the Host-returned record.
+2. Select a registered Workspace. If it already has a Project, the page opens that Host record; otherwise create one using the Workspace directory name and confirm that the selected Project indicator uses the Host-returned record. Repeating creation for the same Workspace must reuse the existing Project.
 3. Open Project Overview and confirm that lifecycle state and pending actions are primary content, while summary statistics remain secondary.
 4. Expand the Project tree and visit Planning and Workflow, Plan approval, Execution monitoring, Step orchestration, Evidence and reports, and Archive. The selected Project, Agent context, and single input remain synchronized across destinations.
 5. Expand the Agent timeline from the compact bottom dock. Confirm that the LABWEAVE page has one input DOM, retains the draft while destinations change, and does not render the default Conversation hero or an adjacent permanent Agent column.

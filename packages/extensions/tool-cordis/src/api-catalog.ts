@@ -1127,6 +1127,18 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Web Consumer Facade 服务。',
     methods: [
       {
+        signature: 'subscribeProjectFileEvents(listener: (event: LabProjectFileRevisionEvent) => void): () => void',
+        description: '订阅 Host 授权的 Project 文件 revision 通知。',
+        parameters: [{ name: 'listener', description: '收到文件 revision 时调用的监听器。' }],
+        returns: '取消订阅的函数。',
+      },
+      {
+        signature: 'async presentForSession(sessionId: SessionId, value: unknown): Promise<LabHostPresentationValidation>',
+        description: 'Validate and record an Agent request to present a registered Host view.',
+        parameters: [{ name: 'sessionId', description: 'Session receiving the navigation evidence.' }, { name: 'value', description: 'untrusted Agent presentation payload.' }],
+        returns: 'accepted typed intent or a stable rejection.',
+      },
+      {
         signature: 'async snapshot(experimentId: ExperimentId, planningContext?: PlanningContext): Promise<LabMvpWebSnapshot>',
         description: '返回供 Web 层序列化的当前实验状态。',
         parameters: [{ name: 'experimentId', description: 'experiment whose run state is projected.' }, { name: 'planningContext', description: 'optional planning context to include.' }],
@@ -1213,9 +1225,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'async create(request: CreateLabProjectRequest): Promise<LabProjectView>',
-        description: 'Create an empty active project.',
+        description: 'Create or reuse the active Project bound to a Workspace.',
         parameters: [{ name: 'request', description: 'project creation request.' }],
-        returns: 'created project view.',
+        returns: 'the existing or newly created project view.',
       },
       {
         signature: 'async createExperiment( request: CreateLabExperimentRequest, ): Promise<{ readonly experiment: LabExperimentRecord; readonly project: LabProjectView }>',
@@ -3733,7 +3745,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CreateLabProjectRequest',
-    declaration: 'export interface CreateLabProjectRequest {\n    readonly workspaceId?: WorkspaceId;\n    readonly name: string;\n    readonly description?: string;\n    readonly createdBy: SessionId;\n}',
+    declaration: 'export interface CreateLabProjectRequest {\n    readonly workspaceId?: WorkspaceId;\n    readonly name?: string;\n    readonly description?: string;\n    readonly createdBy: SessionId;\n}',
   },
   {
     name: 'CreateSessionOptions',
@@ -4276,6 +4288,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type LabExperimentSessionRole = \'created\' | \'continued\' | \'reviewed\';',
   },
   {
+    name: 'LabHostPresentationIntent',
+    declaration: 'export interface LabHostPresentationIntent {\n    readonly view: LabPresentationView;\n    readonly projectId?: string;\n    readonly experimentId?: string;\n    readonly runId?: string;\n    readonly artifactId?: string;\n    readonly documentId?: string;\n    readonly versionId?: string;\n    readonly location?: string;\n    readonly page?: string;\n}',
+  },
+  {
+    name: 'LabHostPresentationValidation',
+    declaration: 'export type LabHostPresentationValidation = {\n    readonly accepted: true;\n    readonly intent: LabHostPresentationIntent;\n} | {\n    readonly accepted: false;\n    readonly code: \'UNKNOWN_VIEW\' | \'PROJECT_SCOPE_MISMATCH\' | \'RECORD_NOT_AUTHORIZED\';\n    readonly message: string;\n};',
+  },
+  {
     name: 'LabMvpWebSnapshot',
     declaration: 'export interface LabMvpWebSnapshot {\n    readonly knowledge: readonly ImportStatusResult[];\n    readonly knowledgeCapability: KnowledgeCapabilityStatus;\n    readonly devices: readonly DeviceView[];\n    readonly planningContext?: PlanningContext;\n    readonly planReviews: readonly PlanProposalResult[];\n    readonly run?: RunView;\n    readonly report?: LabRunReport;\n}',
   },
@@ -4317,11 +4337,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LabProjectConversationCommand',
-    declaration: 'export type LabProjectConversationCommand = {\n    readonly sessionId?: SessionId;\n} & ({\n    readonly command: \'project-create\';\n    readonly workspaceId?: WorkspaceId;\n    readonly name: string;\n    readonly description?: string;\n} | {\n    readonly command: \'project-list\';\n} | {\n    readonly command: \'project-open\';\n    readonly projectId: LabProjectId;\n} | {\n    readonly command: \'project-scope-update\';\n    readonly projectId: LabProjectId;\n    readonly sources: readonly LabProjectSourceSelection[];\n    readonly deviceIds: readonly DeviceId[];\n} | {\n    readonly command: \'project-session-create\';\n    readonly projectId: LabProjectId;\n    readonly title?: string;\n} | {\n    readonly command: \'project-session-attach\';\n    readonly projectId: LabProjectId;\n    readonly targetSessionId: SessionId;\n    readonly title?: string;\n} | {\n    readonly command: \'project-session-detach\';\n    readonly projectId: LabProjectId;\n    readonly targetSessionId: SessionId;\n} | {\n    readonly command: \'project-archive\';\n    readonly projectId: LabProjectId;\n} | {\n    readonly command: \'project-session-rename\';\n    readonly projectId: LabProjectId;\n    readonly targetSessionId: SessionId;\n    readonly title: string;\n} | {\n    readonly command: \'project-context\';\n    readonly projectId: LabProjectId;\n} | {\n    readonly command: \'project-planning-context\';\n    readonly projectId: LabProjectId;\n    readonly request: ExperimentRequest;\n} | {\n    readonly command: \'experiment-list\';\n    readonly projec /* …truncated — full shape in source */',
+    declaration: 'export type LabProjectConversationCommand = {\n    readonly sessionId?: SessionId;\n} & ({\n    readonly command: \'project-create\';\n    readonly workspaceId?: WorkspaceId;\n    readonly name?: string;\n    readonly description?: string;\n} | {\n    readonly command: \'project-list\';\n} | {\n    readonly command: \'project-open\';\n    readonly projectId: LabProjectId;\n} | {\n    readonly command: \'project-scope-update\';\n    readonly projectId: LabProjectId;\n    readonly sources: readonly LabProjectSourceSelection[];\n    readonly deviceIds: readonly DeviceId[];\n} | {\n    readonly command: \'project-session-create\';\n    readonly projectId: LabProjectId;\n    readonly title?: string;\n} | {\n    readonly command: \'project-session-attach\';\n    readonly projectId: LabProjectId;\n    readonly targetSessionId: SessionId;\n    readonly title?: string;\n} | {\n    readonly command: \'project-session-detach\';\n    readonly projectId: LabProjectId;\n    readonly targetSessionId: SessionId;\n} | {\n    readonly command: \'project-archive\';\n    readonly projectId: LabProjectId;\n} | {\n    readonly command: \'project-session-rename\';\n    readonly projectId: LabProjectId;\n    readonly targetSessionId: SessionId;\n    readonly title: string;\n} | {\n    readonly command: \'project-context\';\n    readonly projectId: LabProjectId;\n} | {\n    readonly command: \'project-planning-context\';\n    readonly projectId: LabProjectId;\n    readonly request: ExperimentRequest;\n} | {\n    readonly command: \'experiment-list\';\n    readonly proje /* …truncated — full shape in source */',
   },
   {
     name: 'LabProjectConversationResult',
-    declaration: 'export type LabProjectConversationResult = {\n    readonly kind: \'project-list\';\n    readonly value: readonly LabProjectView[];\n} | {\n    readonly kind: \'project\';\n    readonly value: LabProjectView;\n} | {\n    readonly kind: \'project-context\';\n    readonly value: LabProjectContextView | LabProjectPlanningContextView;\n} | {\n    readonly kind: \'project-session-attach-conflict\';\n    readonly value: import(\'@deepseek-ai/dsh-experimental-lab-domain\').LabProjectSessionAttachConflict;\n} | {\n    readonly kind: \'experiment-list\';\n    readonly value: readonly LabExperimentRecord[];\n} | {\n    readonly kind: \'experiment-reviews\';\n    readonly value: readonly PlanProposalResult[];\n} | {\n    readonly kind: \'experiment\';\n    readonly value: LabExperimentRecord;\n} | {\n    readonly kind: \'experiment-project\';\n    readonly value: LabProjectView;\n} | {\n    readonly kind: \'run-list\';\n    readonly value: readonly RunView[];\n} | {\n    readonly kind: \'run\';\n    readonly value: RunView;\n} | {\n    readonly kind: \'run-report\';\n    readonly value: LabRunReport;\n} | {\n    readonly kind: \'run-comparison\';\n    readonly value: LabRunComparison;\n} | {\n    readonly kind: \'artifact-list\';\n    readonly value: RunView[\'artifacts\'];\n} | {\n    readonly kind: \'artifact\';\n    readonly value: RunView[\'artifacts\'][number];\n};',
+    declaration: 'export type LabProjectConversationResult = {\n    readonly kind: \'project-list\';\n    readonly value: readonly LabProjectView[];\n} | {\n    readonly kind: \'project\';\n    readonly value: LabProjectView;\n} | {\n    readonly kind: \'project-context\';\n    readonly value: LabProjectContextView | LabProjectPlanningContextView;\n} | {\n    readonly kind: \'project-session-attach-conflict\';\n    readonly value: import(\'@deepseek-ai/dsh-experimental-lab-domain\').LabProjectSessionAttachConflict;\n} | {\n    readonly kind: \'experiment-list\';\n    readonly value: readonly LabExperimentRecord[];\n} | {\n    readonly kind: \'experiment-reviews\';\n    readonly value: readonly PlanProposalResult[];\n} | {\n    readonly kind: \'experiment\';\n    readonly value: LabExperimentRecord;\n} | {\n    readonly kind: \'experiment-project\';\n    readonly value: LabProjectView;\n} | {\n    readonly kind: \'run-list\';\n    readonly value: readonly RunView[];\n} | {\n    readonly kind: \'run\';\n    readonly value: RunView;\n} | {\n    readonly kind: \'run-report\';\n    readonly value: LabRunReport;\n} | {\n    readonly kind: \'run-comparison\';\n    readonly value: LabRunComparison;\n} | {\n    readonly kind: \'artifact-list\';\n    readonly value: RunView[\'artifacts\'];\n} | {\n    readonly kind: \'artifact\';\n    readonly value: ArtifactOpenValue;\n} | {\n    readonly kind: \'project-file-list\';\n    readonly value: readonly LabProjectFileRecord[];\n} | {\n    readonly kind: \'project-file-preview\';\n    readonly value: LabProjectFilePreview;\n} | {\n    readonly /* …truncated — full shape in source */',
   },
   {
     name: 'LabProjectDevice',
@@ -4388,12 +4408,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface LabProjectStore {\n    load(): Promise<LabProjectState>;\n    save(state: LabProjectState): Promise<void>;\n    dispose?(): Promise<void> | void;\n}',
   },
   {
+    name: 'LabResultAssessment',
+    declaration: 'export interface LabResultAssessment {\n    readonly status: \'PENDING\' | \'PASSED\' | \'FAILED\' | \'HUMAN_QC\';\n    readonly verdict?: \'PASS\' | \'FAIL\' | \'INCONCLUSIVE\';\n    readonly method?: string;\n    readonly evidenceIds: readonly string[];\n    readonly assessedBy?: string;\n    readonly assessedAt?: number;\n    readonly humanQcRequired: boolean;\n}',
+  },
+  {
     name: 'LabRunComparison',
-    declaration: 'export interface LabRunComparison {\n    readonly leftRunId: RunId;\n    readonly rightRunId: RunId;\n    readonly status: {\n        readonly left: RunView[\'runStatus\'];\n        readonly right: RunView[\'runStatus\'];\n    };\n    readonly stepStatuses: readonly {\n        readonly stepId: string;\n        readonly left: string | undefined;\n        readonly right: string | undefined;\n    }[];\n    readonly artifactCounts: {\n        readonly left: number;\n        readonly right: number;\n    };\n}',
+    declaration: 'export interface LabRunComparison {\n    readonly leftRunId: RunId;\n    readonly rightRunId: RunId;\n    readonly status: {\n        readonly left: RunView[\'runStatus\'];\n        readonly right: RunView[\'runStatus\'];\n    };\n    readonly durationMs: {\n        readonly left: number;\n        readonly right: number;\n    };\n    readonly parameters: {\n        readonly left: readonly {\n            readonly stepId: string;\n            readonly values: Readonly<Record<string, PlanParameter>>;\n        }[];\n        readonly right: readonly {\n            readonly stepId: string;\n            readonly values: Readonly<Record<string, PlanParameter>>;\n        }[];\n    };\n    readonly stepStatuses: readonly {\n        readonly stepId: string;\n        readonly left: string | undefined;\n        readonly right: string | undefined;\n    }[];\n    readonly observations: readonly {\n        readonly stepId: string;\n        readonly left?: {\n            readonly operationId: string;\n            readonly status: string;\n            readonly valid: boolean;\n            readonly artifactIds: readonly string[];\n        };\n        readonly right?: {\n            readonly operationId: string;\n            readonly status: string;\n            readonly valid: boolean;\n            readonly artifactIds: readonly string[];\n        };\n    }[];\n    readonly artifactCounts: {\n        readonly left: number;\n        readonly right: number;\n    };\n    readonly artifactMetadata: {\n        readonly left: readonly ArtifactCompar /* …truncated — full shape in source */',
   },
   {
     name: 'LabRunReport',
-    declaration: 'export interface LabRunReport {\n    readonly experimentId: ExperimentId;\n    readonly planId: PlanId;\n    readonly runId: RunId;\n    readonly status: RunStatus;\n    readonly executionGraph: ExecutionGraph;\n    readonly observations: readonly RuntimeObservation[];\n    readonly evidenceMode: \'MANUAL\' | \'CONTROLLED\';\n    readonly feedback: RuntimeFeedback;\n    readonly replanRequest?: ReplanRequest;\n}',
+    declaration: 'export interface LabRunReport {\n    readonly experimentId: ExperimentId;\n    readonly planId: PlanId;\n    readonly runId: RunId;\n    readonly status: RunStatus;\n    readonly executionGraph: ExecutionGraph;\n    readonly observations: readonly RuntimeObservation[];\n    readonly evidenceMode: \'MANUAL\' | \'CONTROLLED\';\n    readonly feedback: RuntimeFeedback;\n    readonly assessment: LabResultAssessment;\n    readonly replanRequest?: ReplanRequest;\n}',
   },
   {
     name: 'LabRuntimeProvider',

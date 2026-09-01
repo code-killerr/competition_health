@@ -36,6 +36,20 @@ describe('LabUiContext presentation selection', () => {
     expect(ui.snapshot().activeArtifactId).toBeUndefined()
   })
 
+  it('clears the Project selection when its Workspace has no mapped Project', () => {
+    const ui = new LabUiContext()
+    ui.selectWorkspace('workspace-1')
+    ui.selectProject('project-1')
+    ui.selectExperiment('experiment-1')
+    ui.selectRun('run-1')
+    ui.selectArtifact('artifact-1')
+
+    ui.selectWorkspace('workspace-2')
+    ui.clearProjectSelection()
+
+    expect(ui.snapshot()).toEqual({ activeWorkspaceId: 'workspace-2', projectPage: 'overview' })
+  })
+
   it('clears descendant selections when a different Project is selected', () => {
     const ui = new LabUiContext()
     ui.selectProject('project-1')

@@ -137,8 +137,25 @@ describe('tool-lab-planning', () => {
     })
     expect(proposalResult.isError).toBe(false)
     expect(JSON.parse(text(proposalResult))).toMatchObject({ validation: { valid: false, issues: [{ code: 'SKILL_NOT_ACTIVE' }] } })
+    await expect(execute(ctx, agent, 'lab_skill_validate', { skill_revision_id: 'skill-revision-1' })).resolves.toMatchObject({ isError: false })
     expect(agent.session.events).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: 'lab/plan/proposed' }),
+      expect.objectContaining({
+        type: 'lab/plan/proposed',
+        data: expect.objectContaining({
+          planId: 'plan-1',
+          validation: expect.objectContaining({
+            valid: false,
+            issues: [expect.objectContaining({ code: 'SKILL_NOT_ACTIVE' })],
+          }) as unknown,
+        }) as unknown,
+      }),
+      expect.objectContaining({
+        type: 'lab/skill/validated',
+        data: expect.objectContaining({
+          skillRevisionId: 'skill-revision-1',
+          validation: expect.objectContaining({ valid: true, issues: [] }) as unknown,
+        }) as unknown,
+      }),
     ]))
   })
 

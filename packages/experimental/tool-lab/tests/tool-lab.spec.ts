@@ -68,6 +68,7 @@ describe('tool-lab runtime events', () => {
       'lab_plan_context',
       'lab_plan_devices',
       'lab_plan_propose',
+      'lab_experiment_propose',
       'lab_skill_validate',
       'lab_run_report',
     ]))
@@ -77,6 +78,7 @@ describe('tool-lab runtime events', () => {
     const { ctx, agent } = await setup()
     const attempts: readonly [string, unknown][] = [
       ['lab_plan_approve', { experiment_id: 'experiment-1', plan_id: 'plan-1', approved_by: 'reviewer-1', skill_revision_ids: [] }],
+      ['lab_experiment_create', { experiment_id: 'experiment-1', objective: 'prepare sample', expected_outputs: ['prepared sample'] }],
       ['lab_plan_reject', { experiment_id: 'experiment-1', plan_id: 'plan-1', reason: 'needs revision' }],
       ['lab_skill_approve', { skill_revision_id: 'skill-1', approved_by: 'reviewer-1' }],
       ['lab_skill_activate', { skill_revision_id: 'skill-1' }],
@@ -84,6 +86,7 @@ describe('tool-lab runtime events', () => {
       ['lab_run_step', { run_id: 'run-1' }],
       ['lab_run_confirm', { run_id: 'run-1', step_id: 'step-1', operation_id: 'operation-1', evidence: [], confirmed_by: 'reviewer-1' }],
       ['lab_run_stop', { run_id: 'run-1', requested_by: 'reviewer-1', reason: 'operator stop' }],
+      ['lab_run_report', { run_id: 'run-1' }],
     ]
 
     for (const [name, arguments_] of attempts) {
@@ -95,7 +98,7 @@ describe('tool-lab runtime events', () => {
 
   it('keeps request registration available without starting a run', async () => {
     const { ctx, agent } = await setup()
-    const result = await execute(ctx, agent, 'lab_experiment_create', {
+    const result = await execute(ctx, agent, 'lab_experiment_propose', {
       experiment_id: 'experiment-request',
       objective: 'prepare sample',
       expected_outputs: ['prepared sample'],

@@ -1,5 +1,8 @@
 /** 实验工作台的浏览器 HTTP DTO 与 `/api/lab` 客户端。 */
 
+import type { LabPresentationIntent, LabPresentationValidation } from './lifecycle.ts'
+
+/** A structured experiment request sent from the workbench to the Host. */
 export interface LabExperimentRequest {
   readonly experimentId: string
   readonly objective: string
@@ -488,6 +491,7 @@ export type LabProjectCommand = { readonly sessionId?: string } & (
   | { readonly command: 'project-file-open'; readonly projectId: string; readonly projectFileId: string }
   | { readonly command: 'project-file-download'; readonly projectId: string; readonly projectFileId: string }
   | { readonly command: 'configuration-capabilities' }
+  | { readonly command: 'presentation-intent'; readonly intent: Record<string, unknown> }
 )
 /** A command sent to the general laboratory Web Facade. */
 export type LabCommand = { readonly sessionId?: string } & (
@@ -552,14 +556,18 @@ export type LabProjectCommandResult =
   | { readonly kind: 'project-file-preview'; readonly value: LabProjectFilePreview }
   | { readonly kind: 'project-file-download'; readonly value: LabProjectFileDownload }
   | { readonly kind: 'configuration-capabilities'; readonly value: readonly LabConfigurationCapability[] }
+  | { readonly kind: 'presentation'; readonly value: LabPresentationValidation }
 
-/** Project scope records returned by a Host query. */
+/** Project scope and Knowledge capability returned by a Host query. */
 export interface LabProjectContextView {
-  readonly projectId: string
-  readonly sessionId?: string
-  readonly sources: readonly LabProjectSourceRecord[]
-  readonly devices: readonly LabProjectDeviceRecord[]
-  readonly sharedFacts: readonly LabProjectView['sharedFacts'][number][]
+  readonly project: {
+    readonly projectId: string
+    readonly sessionId?: string
+    readonly sources: readonly LabProjectSourceRecord[]
+    readonly devices: readonly LabProjectDeviceRecord[]
+    readonly sharedFacts: readonly LabProjectView['sharedFacts'][number][]
+  }
+  readonly knowledgeCapability: LabKnowledgeCapability
 }
 
 /** A stable attach conflict that the UI can render without parsing an error string. */
@@ -758,7 +766,7 @@ export function parseLabProjectCommandResult(value: unknown): LabProjectCommandR
   switch (object.kind) {
     case 'project-list': return { kind: 'project-list', value: array(object.value).map(item => toProjectView(item)) }
     case 'project': return { kind: 'project', value: toProjectView(object.value) }
-    case 'project-context': return { kind: 'project-context', value: decodeObject<LabProjectContextView>(object.value, 'result.value') }
+    case 'project-context': return { kind: 'project-context', value: toProjectContextView(object.value) }
     case 'project-session-attach-conflict': return { kind: 'project-session-attach-conflict', value: decodeObject<LabSessionAttachConflictView>(object.value, 'result.value') }
     case 'experiment-list': return { kind: 'experiment-list', value: array(object.value).map(item => decodeObject<LabExperimentRecord>(item, 'result.value')) }
     case 'experiment-reviews': return { kind: 'experiment-reviews', value: array(object.value).map(item => decodeObject<LabPlanReview>(item, 'result.value')) }
@@ -774,6 +782,7 @@ export function parseLabProjectCommandResult(value: unknown): LabProjectCommandR
     case 'project-file-preview': return { kind: 'project-file-preview', value: decodeObject<LabProjectFilePreview>(object.value, 'result.value') }
     case 'project-file-download': return { kind: 'project-file-download', value: decodeObject<LabProjectFileDownload>(object.value, 'result.value') }
     case 'configuration-capabilities': return { kind: 'configuration-capabilities', value: array(object.value).map(item => decodeObject<LabConfigurationCapability>(item, 'result.value')) }
+    case 'presentation': return { kind: 'presentation', value: parsePresentationValidation(object.value) }
     default: throw new LabApiError('INVALID_RESPONSE', '项目 API 返回未知结果类型')
   }
 }
@@ -796,9 +805,48 @@ export function toProjectView(value: unknown): LabProjectView {
   }
 }
 
+/** Decode a Host Project context while preserving its capability status.
+ * @param value - Untrusted JSON value containing the Project context.
+ * @returns The validated Project context for adapter consumers.
+ */
+function toProjectContextView(value: unknown): LabProjectContextView {
+  const object = record(value)
+  const project = record(object.project)
+  return {
+    project: {
+      projectId: stringField(project.projectId, 'project.projectId'),
+      ...(typeof project.sessionId === 'string' ? { sessionId: project.sessionId } : {}),
+      sources: array(project.sources).map(item => decodeObject<LabProjectSourceRecord>(item, 'project.sources')),
+      devices: array(project.devices).map(item => decodeObject<LabProjectDeviceRecord>(item, 'project.devices')),
+      sharedFacts: array(project.sharedFacts).map(item => decodeObject<LabProjectView['sharedFacts'][number]>(item, 'project.sharedFacts')),
+    },
+    knowledgeCapability: decodeObject<LabKnowledgeCapability>(object.knowledgeCapability, 'knowledgeCapability'),
+  }
+}
+
 function decodeObject<T>(value: unknown, path: string): T {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new LabApiError('INVALID_RESPONSE', `${path} 必须是对象`)
   return value as T
+}
+
+function parsePresentationValidation(value: unknown): LabPresentationValidation {
+  const object = recordOrUndefined(value)
+  if (object?.accepted === true) {
+    const intent = recordOrUndefined(object.intent)
+    if (intent === undefined || typeof intent.view !== 'string') throw new LabApiError('INVALID_RESPONSE', 'result.value.intent 缺少有效 view')
+    return { accepted: true, intent: intent as unknown as LabPresentationIntent }
+  }
+  if (object?.accepted === false
+    && (object.code === 'UNKNOWN_VIEW' || object.code === 'PROJECT_SCOPE_MISMATCH' || object.code === 'RECORD_NOT_AUTHORIZED')
+    && typeof object.message === 'string') {
+    return { accepted: false, code: object.code, message: object.message }
+  }
+  throw new LabApiError('INVALID_RESPONSE', 'result.value 不是有效的 presentation validation')
+}
+
+function stringField(value: unknown, path: string): string {
+  if (typeof value !== 'string' || value.trim() === '') throw new LabApiError('INVALID_RESPONSE', `${path} 缺少有效字符串`)
+  return value
 }
 
 function decodeJsonObject(value: unknown, path: string): Readonly<Record<string, LabJsonValue>> {

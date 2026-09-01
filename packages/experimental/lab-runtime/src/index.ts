@@ -17,6 +17,7 @@ import type {
 
 export type * from './types.ts'
 export { validateRuntimeEvidence, validatedObservation, type RuntimeValidationResult } from './validation.ts'
+export { assessRun } from './assessment.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

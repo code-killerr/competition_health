@@ -96,6 +96,7 @@ function install(agent: Agent, planning: LabPlanningService, devices: LabDeviceS
           ...result.plan.supersedesPlanId === undefined ? {} : { supersedesPlanId: result.plan.supersedesPlanId },
           citationIds: result.plan.citations,
           skillRevisionIds: result.skillRevisions.map(revision => revision.revisionId),
+          validation: result.validation,
         })
         return jsonValue(result)
       },
@@ -112,7 +113,12 @@ function install(agent: Agent, planning: LabPlanningService, devices: LabDeviceS
         const caller = callingAgent(exec.agent, 'lab_skill_validate')
         const revisionId = brandId<'SkillRevisionId'>(string(args.skill_revision_id, 'skill_revision_id'))
         const revision = await skills.validateDraft(revisionId)
-        caller.session.append('lab/skill/validated', { version: 1, skillRevisionId: revision.revisionId, validatedBy: caller.session.id })
+        caller.session.append('lab/skill/validated', {
+          version: 1,
+          skillRevisionId: revision.revisionId,
+          validatedBy: caller.session.id,
+          validation: { valid: true, issues: [] },
+        })
         return jsonValue(revision)
       },
     })))

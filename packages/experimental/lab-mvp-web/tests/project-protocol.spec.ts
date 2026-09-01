@@ -47,6 +47,7 @@ describe('project conversation protocol', () => {
     })
     ctx.provide('labDevices', { listDevices: () => [{ id: 'device-1', name: 'Bench', healthy: true, reserved: false, capabilities: [] }] })
     ctx.provide('labPlanning', { listProposals: () => [] })
+    ctx.provide('labRuntime', { listRuns: () => [] })
     ctx.provide('workspaceRegistry', {
       get: vi.fn((id: string) => id === projectWorkspace.id ? projectWorkspace : undefined),
       list: vi.fn(() => [projectWorkspace]),
@@ -69,6 +70,7 @@ describe('project conversation protocol', () => {
     const created = await web.dispatchProject(parseLabProjectConversationCommand({ command: 'project-create', workspaceId: 'workspace-1', sessionId: actor }))
     expect(created).toMatchObject({ kind: 'project' })
     expect(created).toMatchObject({ value: { project: { name: 'project' } } })
+    expect(created).toMatchObject({ value: { sessions: [{ sessionId: actor }] } })
     const projectId = (created.value as { project: { projectId: string } }).project.projectId
     await expect(web.dispatchProject(parseLabProjectConversationCommand({
       command: 'project-scope-update',
@@ -77,6 +79,19 @@ describe('project conversation protocol', () => {
       deviceIds: ['device-1'],
       sessionId: actor,
     }))).resolves.toMatchObject({ kind: 'project', value: { sources: [{ documentId: 'doc-1' }] } })
+    await expect(web.dispatchProject(parseLabProjectConversationCommand({
+      command: 'presentation-intent',
+      sessionId: actor,
+      intent: { view: 'project', projectId, page: 'execution' },
+    }))).resolves.toEqual({
+      kind: 'presentation',
+      value: { accepted: true, intent: { view: 'project', projectId, page: 'execution' } },
+    })
+    await expect(web.dispatchProject(parseLabProjectConversationCommand({
+      command: 'presentation-intent',
+      sessionId: actor,
+      intent: { view: 'https://example.test' },
+    }))).resolves.toMatchObject({ kind: 'presentation', value: { accepted: false, code: 'UNKNOWN_VIEW' } })
     await expect(web.dispatchProject(parseLabProjectConversationCommand({
       command: 'project-session-attach',
       projectId,
@@ -125,6 +140,8 @@ describe('project conversation protocol', () => {
     expect(appended).toHaveBeenCalledWith('lab/project/session-attached', expect.anything())
     expect(appended).toHaveBeenCalledWith('lab/project/session-detached', expect.anything())
     expect(appended).toHaveBeenCalledWith('lab/project/archived', expect.anything())
+    expect(appended).toHaveBeenCalledWith('lab/presentation/accepted', expect.objectContaining({ view: 'project', projectId }))
+    expect(appended).toHaveBeenCalledWith('lab/presentation/rejected', expect.objectContaining({ code: 'UNKNOWN_VIEW' }))
   })
   it('keeps empty project scope operable while Knowledge is unavailable', async () => {
     const ctx = new Context()

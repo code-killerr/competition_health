@@ -162,6 +162,9 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh-session-persistence-sqlite': ['resources/sql/**/*.sql'],
   '@deepseek-ai/dsh-skill-badge': ['assets'],
   '@deepseek-ai/dsh-subprocess-local': ['scripts/ensure-spawn-helper.mjs'],
+  // The optional local Knowledge Provider invokes the configured Docling
+  // subprocess runner from these package resources.
+  '@deepseek-ai/dsh-experimental-lab-knowledge-local': ['runtime/docling_runner.py', 'runtime/requirements.txt'],
 }
 
 function sameStringList(actual: readonly string[] | undefined, expected: readonly string[]): boolean {

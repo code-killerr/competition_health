@@ -2,6 +2,7 @@
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
+import type { LabProjectId } from './project.ts'
 
 /** 实验实例标识。 */
 export type ExperimentId = Branded<'ExperimentId'>
@@ -35,6 +36,9 @@ export type RunId = Branded<'RunId'>
 export type OperationId = Branded<'OperationId'>
 /** 运行产物标识。 */
 export type ArtifactId = Branded<'ArtifactId'>
+
+/** Registered destinations that an Agent may ask the Host to present. */
+export type LabPresentationView = 'projects' | 'knowledge' | 'devices' | 'project' | 'experiment' | 'run' | 'evidence' | 'citation'
 
 /** 运行产物的安全展示类别。 */
 export type ArtifactKind = 'text' | 'json' | 'image' | 'file'
@@ -294,6 +298,37 @@ declare module '@deepseek-ai/dsh-session/types' {
       objective: string
       sessionId: SessionId
     }
+    /** Project scope and capability facts exposed to an Agent request. */
+    'lab/agent/context-read': {
+      version: 1
+      sessionId: SessionId
+      kind: 'project' | 'planning'
+      projectId: LabProjectId
+      sourceIds: readonly { documentId: KnowledgeDocumentId; versionId: KnowledgeDocumentVersionId }[]
+      deviceIds: readonly DeviceId[]
+      sharedFactIds: readonly string[]
+      citationIds: readonly CitationId[]
+      knowledgeState: 'available' | 'unavailable'
+      knowledgeReason?: string
+      experimentId?: ExperimentId
+      objective?: string
+      unresolved: readonly string[]
+    }
+    /** Host-validated Agent presentation intent. */
+    'lab/presentation/accepted': {
+      version: 1
+      sessionId: SessionId
+      view: LabPresentationView
+      projectId?: LabProjectId
+      targetId?: string
+    }
+    /** Rejected presentation intent retained as actionable Session evidence. */
+    'lab/presentation/rejected': {
+      version: 1
+      sessionId: SessionId
+      code: 'UNKNOWN_VIEW' | 'PROJECT_SCOPE_MISMATCH' | 'RECORD_NOT_AUTHORIZED'
+      message: string
+    }
     /** Agent 生成并提交的计划草案。 */
     'lab/plan/proposed': {
       version: 1
@@ -303,6 +338,7 @@ declare module '@deepseek-ai/dsh-session/types' {
       supersedesPlanId?: PlanId
       citationIds: readonly CitationId[]
       skillRevisionIds: readonly SkillRevisionId[]
+      validation: ValidationResult
     }
     /** 人工确认的计划或 Skill 修订。 */
     'lab/plan/approved': {
@@ -326,6 +362,7 @@ declare module '@deepseek-ai/dsh-session/types' {
       version: 1
       skillRevisionId: SkillRevisionId
       validatedBy: SessionId
+      validation: ValidationResult
     }
     /** 人工批准 Skill 修订。 */
     'lab/skill/approved': {
@@ -359,6 +396,49 @@ declare module '@deepseek-ai/dsh-session/types' {
       error?: string
       replanRequested?: boolean
     }
+    /** Runtime began or completed one immutable ExecutionGraph step. */
+    'lab/run/step': {
+      version: 1
+      experimentId: ExperimentId
+      runId: RunId
+      stepId: PlanStepId
+      operationId: OperationId
+      status: 'STARTED' | 'WAITING' | 'COMPLETED' | 'FAILED' | 'STOPPED'
+      requestedBy?: SessionId
+    }
+    /** Device operation receipt returned by the Host device capability. */
+    'lab/run/device-receipt': {
+      version: 1
+      experimentId: ExperimentId
+      runId: RunId
+      stepId: PlanStepId
+      operationId: OperationId
+      status: 'accepted' | 'completed' | 'failed' | 'stopped'
+      evidence: readonly string[]
+    }
+    /** Human approval evidence for a waiting Runtime operation. */
+    'lab/run/approval': {
+      version: 1
+      experimentId: ExperimentId
+      runId: RunId
+      stepId: PlanStepId
+      operationId: OperationId
+      approvedBy: string
+      evidence: readonly string[]
+    }
+    /** Artifact manifest projected into the Agent Session. */
+    'lab/run/artifact': {
+      version: 1
+      experimentId: ExperimentId
+      runId: RunId
+      artifactId: ArtifactId
+      kind: ArtifactKind
+      displayName: string
+      mediaType: string
+      size: number
+      digest: string
+      createdAt: number
+    }
     /** 运行结果验证、失败策略和最终反馈。 */
     'lab/run/feedback': {
       version: 1
@@ -370,6 +450,19 @@ declare module '@deepseek-ai/dsh-session/types' {
       issues: readonly string[]
       replanRequested: boolean
       replanRequest?: { stepId: PlanStepId; reason: string }
+    }
+    /** Host-owned result assessment and authoritative verdict. */
+    'lab/run/verdict': {
+      version: 1
+      experimentId: ExperimentId
+      runId: RunId
+      status: 'PENDING' | 'PASSED' | 'FAILED' | 'HUMAN_QC'
+      verdict?: 'PASS' | 'FAIL' | 'INCONCLUSIVE'
+      method?: string
+      evidenceIds: readonly string[]
+      assessedBy?: string
+      assessedAt?: number
+      humanQcRequired: boolean
     }
     /** 运行状态转移，供运行时间线重建。 */
     'lab/run/state': {

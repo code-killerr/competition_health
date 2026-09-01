@@ -274,6 +274,14 @@ declare module '@deepseek-ai/dsh-session/types' {
       version: 1
       projection: LabProjectEvidenceProjection
     }
+    /** Metadata-only revision emitted after a Host-authorized Project file write. */
+    'lab/project/file-revision': {
+      version: 1
+      projectId: LabProjectId
+      projectFileId: string
+      group: 'configuration' | 'conversation-output' | 'run-artifacts'
+      revision: number
+    }
   }
 }
 

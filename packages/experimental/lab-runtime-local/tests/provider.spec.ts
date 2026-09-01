@@ -164,6 +164,7 @@ describe('local runtime controlled execution', () => {
     await expect(provider.buildReport(started.runId)).resolves.toMatchObject({
       feedback: { status: 'BLOCKED', replanRequested: true },
       replanRequest: { stepId: 'step-replan' },
+      assessment: { status: 'FAILED', verdict: 'FAIL', humanQcRequired: false },
     })
   })
 
