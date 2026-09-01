@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/architecture/2026-08-28-harness-native-lab-showcase.md
-2026-08-28-harness-native-lab-showcase.md: 354e2570be2ae28fcbe8c0bc022ff8b9b2c16bde
-2026-08-28-harness-native-lab-showcase.zh.md: 9fe3ff9adf068c4ea28c1b31700416bcf591e296
+2026-08-28-harness-native-lab-showcase.md: a4c23cbd9f05ce76f87d2e005d281ab9cc04d9fc
+2026-08-28-harness-native-lab-showcase.zh.md: 18c116279bd0b363002f1337d57a651168adfcc2

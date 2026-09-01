@@ -1,205 +1,326 @@
-# LABWEAVE Native Workspace Continuation Plan
+# LABWEAVE Native Workspace Continuation Implementation Plan
 
 English | [中文](2026-08-28-lab-showcase-ready-workspace-implementation-plan.zh.md)
 
-> **Execution rule:** This document explains how Luna should implement the remaining work in OpenSpec change `lab-showcase-ready-workspace`. [tasks.md](../../../openspec/changes/lab-showcase-ready-workspace/tasks.md) is the authoritative completion tracker. Follow task numbers in order and do not mark a task complete from an isolated component, fixture or screenshot.
+> **Execution requirement:** Use `superpowers:executing-plans` to implement one batch at a time and check [tasks.md](../../../openspec/changes/lab-showcase-ready-workspace/tasks.md) at every checkpoint. This document fixes the implementation order and technical locations; `tasks.md` is the sole authority for completion state.
 
-## Authority and completion semantics
+**Goal:** Complete the 17 remaining items in `lab-showcase-ready-workspace`: LABWEAVE opens on a conversation-free global monitor, a Project click selects the corresponding Workspace/Session and opens the three-pane workbench, and a laboratory-aware Agent can create and plan an Experiment before yielding at human gates.
 
-Read the proposal, design and all four capability specifications before editing code. Preserve unrelated work in the dirty tree and inspect the current diff before each batch.
+**Architecture:** Workspace is the user-visible laboratory project entry and maps to at most one internal LabProject; a LabProject owns multiple Sessions, Experiments, and Runs. The browser retains presentation selection only. A Host application operation owns identity resolution, persistence, and cross-service consistency, and both Agent tools and the Web Facade reuse that operation.
 
-Phases 0–3 are completed Host foundations. Phase 4 is complete except 4.3. Phases 5–7 established reusable navigation, Session persistence, typed projections and lifecycle components. Their checked state does not approve the current split-page presentation. Phase 8 intentionally replaces that presentation. Tasks 7.3 and 7.4 still complete reusable lifecycle cards; they do not require preserving the default Conversation page.
+**Tech Stack:** TypeScript, Cordis plugins/services, React, Harness client slots/runtime, Session event log, Vitest, assembled Chromium, and OpenSpec.
 
-Do not reopen a checked foundation task merely because its first presentation is removed. Reuse its contract and tests, then replace only the LABWEAVE composition identified by phase 8.
+**Spec:** [proposal](../../../openspec/changes/lab-showcase-ready-workspace/proposal.md), [design](../../../openspec/changes/lab-showcase-ready-workspace/design.md), and the four delta specs under `openspec/changes/lab-showcase-ready-workspace/specs/`.
 
-## Target composition
+## Global Constraints
+
+- Preserve unrelated changes in the current worktree. Run `git status --short` before each batch and edit only the files listed for that batch.
+- Do not add a standalone Project creation page. Host creates or reuses the Workspace mapping automatically, and the Project name comes from the Host Workspace title or path basename.
+- The browser never generates Project, Experiment, Run, or file identities and never stores domain records, file bodies, or absolute paths.
+- The Agent may create an Experiment inside the current Session's Project. It may not create a Workspace/LabProject, approve a Plan/Skill, start a Run, confirm a human step, or publish a verdict.
+- Every model-visible input and continuation state is recorded as a Session event. Reload and replay reconstruct only from Host records and the event log.
+- Default-profile Conversation, sidebar, and details behavior remains unchanged. LABWEAVE reuses the Harness input state machine and always has one Session, one draft, and one input DOM.
+- Do not add silent fallbacks. Unresolvable Workspace, Session, Project, or capability state returns a typed unavailable/blocked result with a real executable next action.
+- This plan does not authorize new product copy. New visible strings must be added to both locale resources and pinned by tests in the same batch.
+
+## Locked User Flow
 
 ```text
-AppFrame
-├── LABWEAVE sidebar
-│   ├── Global execution monitor
-│   ├── Projects
-│   │   └── Project
-│   │       ├── Overview
-│   │       ├── Planning / Workflow
-│   │       ├── Plan approval
-│   │       ├── Execution monitoring
-│   │       ├── Step orchestration
-│   │       ├── Results / Evidence
-│   │       └── Archive
-│   └── Configuration
-│       ├── Knowledge
-│       ├── Agent
-│       ├── Workflow / Lab Skill
-│       ├── Devices
-│       └── People / permissions
-├── LABWEAVE Agent conversation
-│   ├── full Session timeline and lifecycle cards
-│   └── one shared Harness composer
-└── LABWEAVE Project workspace
-    ├── Project / Experiment / Run lifecycle destinations
-    └── Project files: configuration / conversation output / run artifacts
+首次进入
+  -> 全局执行监控（replace view，无 Conversation/composer/details）
+  -> Project 状态列表
+  -> 点击 Project/Run
+  -> Host 返回 Project 的 Workspace + matching Session + active Experiment/Run
+  -> ctx.workspaces.connectWorkspace(workspaceId)
+  -> ctx.sessions.open(matchingSessionId)
+  -> LabUiContext 选择 Project/Experiment/Run/destination
+  -> ctx.layout.openAppView('lab-project')
+  -> 左侧原生 sidebar + 中间原生 Conversation + 右侧 Project workspace
 ```
 
-LABWEAVE owns the visible application shell. Its Project desktop composition keeps the existing collapsible sidebar on the left, the full native Harness Agent conversation in the center and a collapsible, freely resizable Project workspace on the right. The global configuration destination uses a full-page replacement view without a conversation input. The LABWEAVE profile must not show a duplicate Conversation shell, second input, standalone context strip, bottom Agent dock or a second application shell.
+The matching Session order is fixed. A Run click prefers a Session linked to that Experiment that still belongs to the Workspace. A Project click prefers the Project's most recently active associated Session. If neither exists, call `connectWorkspace()` to obtain a reusable or new blank Session and let Host attach it idempotently. The browser must not infer a Session from array order.
 
-The final page has exactly one Session, one input DOM and one draft. The input must use the Harness input state machine so queueing, slash commands, references, attachments, access/model controls, ask-user and approval takeovers continue to work. Do not hide the old composer with CSS, mount another textarea or call a lower-level send method.
+## Public Types to Add or Converge
 
-## Ownership and data flow
+### Workspace/Project Entry Resolution
 
-- `ui-layout` owns root application-view selection and mounting.
-- `ui-sidebar` owns the navigation seat and sidebar behavior, not laboratory records.
-- `ui-conversation` owns reusable Session input, timeline and interaction presentation contracts. Its default composition must remain unchanged for non-laboratory profiles.
-- `ui-lab-workbench` owns LABWEAVE composition, Project workspace, Project file catalog presentation and lifecycle destinations.
-- `ui-lab-knowledge-workspace` continues to own Knowledge import, retrieval and SOP review. LABWEAVE only places its app view under Configuration.
-- `LabUiContext` owns presentation selection only. It may store active Project, destination, Experiment, Run, selected Session node and Agent pane state; it must not own domain records.
-- `LabWorkbenchAdapter` provides typed records and actions, including the Host-authorized Project file catalog, preview and download actions. Fixture and Host implementations must satisfy the same contract.
-- Host Project, Runtime, Knowledge, Session and Workspace services remain authoritative for identities and state.
-- The global monitor is a status and navigation projection. It does not schedule or control work across Projects.
-- People and permissions must show registered capability data, a read-only state or an unavailable state. Never fabricate users, roles or authorization.
+Define a Host-owned application service in `packages/experimental/lab-application/src/index.ts`. `resolveProjectEntry()` and `bootstrapExperiment()` are the sole shared write entries for the Web Facade and Agent tools.
 
-## Work order
+```ts
+import type { ExperimentId, LabExperimentRecord, LabProjectId, RunId, WorkspaceId } from '@deepseek-ai/dsh-experimental-lab-domain'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 
-### Step 1: Finish narrow adapter queries and reusable lifecycle cards
+export interface ResolveLabProjectEntryRequest {
+  readonly workspaceId?: WorkspaceId
+  readonly sessionId: SessionId
+  readonly projectId?: LabProjectId
+  readonly experimentId?: ExperimentId
+  readonly runId?: RunId
+}
 
-Complete 4.3, then 7.3 and 7.4.
+export interface LabProjectEntryResolution {
+  readonly workspaceId: WorkspaceId
+  readonly sessionId: SessionId
+  readonly projectId: LabProjectId
+  readonly experimentId?: ExperimentId
+  readonly runId?: RunId
+  readonly createdProject: boolean
+  readonly attachedSession: boolean
+}
 
-Remove production use of `snapshot(experimentId)`. Add the page-specific Project, Experiment, Workflow/Plan, Lab Skill, Run, Evidence/Artifact and result queries required by the new destinations. A Run detail query must accept a Run ID and must not infer a current Run from an Experiment.
+export interface BootstrapLabExperimentRequest {
+  readonly sessionId: SessionId
+  readonly requestId: string
+  readonly title: string
+  readonly objective: string
+  readonly expectedOutputs: readonly string[]
+}
 
-Implement command and durable-node cards as reusable renderers. They must render result-specific fields, invoke typed actions and carry record links. Verify them inside the assembled LABWEAVE timeline as well as the default conversation test composition.
+export interface BootstrapLabExperimentResult {
+  readonly resolution: LabProjectEntryResolution
+  readonly experiment: LabExperimentRecord
+  readonly createdExperiment: boolean
+  readonly registeredRuntime: boolean
+}
+```
 
-Exit criteria: the same Session event projection rebuilds cards in both presentations, and no card depends on the old page layout.
+For an Agent tool, `requestId` is always `${sessionId}:${rootCallId}`. `LabProjectService.createExperimentOnce()` persists that key. The same key and same input return the original Experiment; the same key with different input fails loud. Runtime `createExperiment()` becomes idempotent for the same ID and equal request while still rejecting conflicting content, so a retry is safe when Project commit succeeded but the Runtime response was lost.
 
-### Step 2: Re-establish a trustworthy running artifact
+### Lifecycle Progress Result
 
-Complete tasks 8.2–8.4 before judging or implementing the remaining visual tasks.
+Define the following in `packages/experimental/lab-domain/src/progress.ts` and export it from `index.ts`:
 
-Inspect `packages/client/ui-lab-workbench/package.json`, its client export, TypeScript compiler faces, `lib/client.js`, the Web dist and the `examples/lab-web` launch path. Fix the build dependency that prevents the current source from reaching the browser. Add a deterministic freshness check that either builds the required artifacts or fails with an actionable diagnostic.
+```ts
+import type { ExperimentId, LabPresentationView, LabProjectId, PlanId, RunId, WorkspaceId } from '@deepseek-ai/dsh-experimental-lab-domain'
+import type { JsonValue, SessionId } from '@deepseek-ai/dsh-session'
 
-Evidence must record source revision, client artifact revision, launch command and browser-visible LABWEAVE marker. A new process, HTTP 200 response or root HTML is insufficient. Stop here if the browser still serves an older bundle.
+export type LabNextActor = 'agent' | 'human' | 'runtime' | 'capability'
+export type LabProgressState = 'ready' | 'waiting' | 'blocked' | 'unavailable' | 'completed'
 
-### Step 3: Extract a reusable conversation presentation contract
+export interface LabScopedRecordIds {
+  readonly workspaceId: WorkspaceId
+  readonly sessionId: SessionId
+  readonly projectId: LabProjectId
+  readonly experimentId?: ExperimentId
+  readonly planId?: PlanId
+  readonly runId?: RunId
+}
 
-Implement task 8.5 before creating the new Agent dock.
+export type LabAllowedAction =
+  | { readonly kind: 'agent-tool'; readonly name: string }
+  | { readonly kind: 'workbench'; readonly destination: LabPresentationView; readonly targetId?: string }
+  | { readonly kind: 'wait-event'; readonly event: string }
+  | { readonly kind: 'stop' }
 
-Expose reusable, capability-backed pieces from `ui-conversation`: Session context, input state, submit path, draft, queue, slash/reference/attachment handling, access/model controls, interaction takeovers, timeline and node renderers. Prefer a small explicit service/component contract over copying private stores into `ui-lab-workbench`.
+export interface LabProgressResult<T = JsonValue> {
+  readonly state: LabProgressState
+  readonly records: LabScopedRecordIds
+  readonly value?: T
+  readonly reason?: string
+  readonly nextActor?: LabNextActor
+  readonly allowedActions: readonly LabAllowedAction[]
+}
+```
 
-Add assembled tests for:
+`completed` has no `nextActor`; every other state has exactly one `nextActor` and at least one `allowedActions` entry. A human gate includes a registered workbench destination. Capability unavailable includes the matching recovery event. A result never offers an Agent tool that policy denies.
 
-- one input DOM in LABWEAVE;
-- draft preservation across Project destination changes;
-- slash command, reference and attachment submission through the official input path;
-- ask-user and approval takeovers;
-- timeline expansion without Session remount;
-- unchanged default profile composition.
+## Implementation Batches
 
-Exit criteria: LABWEAVE can render the complete shared conversation, native composer and expanded timeline without mounting the default Conversation page composition.
+### Batch 1: Workspace Auto-Mapping and Project Entry Coordinator
 
-### Step 4: Replace the sidebar information architecture
+**Covers:** 2.9.
 
-Implement tasks 8.6 and 8.7.
+**Create:** The package, Service, invariant, tests, and bilingual README under `packages/experimental/lab-application/`.
 
-Replace flat Projects/Knowledge/Devices navigation with the three groups in the target composition. Render Projects from adapter records. Each Project expands to lifecycle destinations and displays only truthful status indicators derived from Run, failure and approval summaries.
+**Modify:** `lab-domain/src/{index,project}.ts`, `lab-project/src/index.ts` and tests, `lab-runtime/src/{index,types}.ts`, `lab-runtime-local/src/index.ts` and tests, `lab-mvp/src/index.ts` and composition tests, plus affected package/subsystem documentation.
 
-Extend the destination union in `LabUiContext`. Define one exhaustive mapping from presentation intent and record kind to destination. Unknown destinations fail loud. Conversations remain reachable as Session provenance but are not a primary Project tab.
+**Steps:**
 
-Default entry behavior:
+1. Add failing tests first: resolving one Workspace twice creates one LabProject; an unmapped Session creates the Project and attaches the Session; an explicit cross-Workspace Project/Session combination returns a conflict.
+2. Add an explicit Workspace query and `createExperimentOnce()` to `LabProjectService`. The idempotency key must enter persisted state and schema, not an in-memory Map.
+3. Make repeated Runtime registration of an equal Experiment request succeed while a conflicting request still fails. Update the Service Definition, local Provider, JSDoc, and tests together.
+4. Implement `resolveProjectEntry()`: resolve the Session Workspace, create/reuse LabProject, attach Session, and verify every explicit Project/Experiment/Run belongs to one chain.
+5. Implement `bootstrapExperiment()`: create/reuse the Project Experiment by requestId, idempotently register Runtime, and append `lab/project/experiment-created` and `lab/experiment/requested` only for first creation.
+6. Register the application service in `lab-mvp` after Project and Runtime readiness, with a load-time invariant for missing dependencies.
 
-1. restore the last valid Project and destination when available;
-2. otherwise open the first available Project Overview;
-3. otherwise show the Project empty/create state;
-4. never default to the original Conversation landing page in the LABWEAVE profile.
+**Verification:**
 
-### Step 5: Build the LABWEAVE three-pane surface
+```sh
+node node_modules/vitest/vitest.mjs run packages/experimental/lab-project/tests/service.spec.ts packages/experimental/lab-runtime-local/tests/provider.spec.ts packages/experimental/lab-application/tests/service.spec.ts packages/experimental/lab-mvp/tests/composition.spec.ts --reporter=verbose
+```
 
-Implement task 8.8 only after step 3 passes.
+**Exit:** Auto-mapping, attach, cross-scope rejection, and retry after a lost Runtime response pass; no browser-supplied business ID remains.
 
-The shared Agent conversation occupies the center column and uses the native Harness header, hero, composer, complete timeline, lifecycle cards and all interaction takeovers. The right Project workspace renders Project context, lifecycle destinations and a files destination. It uses the root details panel's collapse, restore and drag behavior and remains available without a current Session. The global configuration view replaces the Conversation for a full-page surface without an input.
+### Batch 2: Global Navigation, Monitor Replace View, and Three-Pane Composition
 
-Move Project/Workspace/Experiment/Run context from the old input-dock strip into the right Project workspace. Group Project files as configuration, conversation output and run artifacts. After each Host write, a Project/file/revision metadata event makes the active catalog reload; manual refresh uses that same authorized query. Keep the native Harness Conversation header, hero and composer in the center, while removing duplicate inputs, the standalone context strip, bottom dock and oversized custom composer from the LABWEAVE visible tree. Keep non-laboratory behavior unchanged.
+**Covers:** 8.6, 8.9, 8.16, and 8.17.
 
-Add DOM and behavior assertions, not CSS-only screenshots. The page fails acceptance if two editable message inputs exist, either side panel loses selection on collapse, a generated file does not refresh the active catalog, the browser derives a filesystem path, or a takeover cannot complete an approval.
+**Modify:** `index`, `LabGlobalNavigation`, `LabProjectsView`, `LabUiContext`, `LabProjectShellView`, adapter/Host adapter/API/locale/CSS, and corresponding tests under `ui-lab-workbench/src/client/`; modify `ui-layout` tests only when the generic layout contract needs an assertion.
 
-### Step 6: Add global monitoring and configuration
+**Steps:**
 
-Implement tasks 8.9 and 8.10.
+1. Change `lab-monitor` to `conversationMode: 'replace'` and test that monitor/configuration render no Conversation, composer, or details.
+2. Remove the Workspace selector, creation form, and button from `LabProjectsView`. Move Project status into monitor and stop registering an independent Projects navigation entry.
+3. Let `LabGlobalNavigation` contribute only global monitor, configuration, and seats required by the native Workspace/Session tree. Knowledge, Agent, Workflow/Lab Skill, Devices, and People/permissions belong under configuration.
+4. Add `resolveProjectEntry(input)` to the Host adapter. Implement one `openProjectEntry()`: await Host resolution→`connectWorkspace()`→Host attach when needed→`sessions.open()`→update `LabUiContext`→open `lab-project`. Project rows, Run rows, and Workspace/Session synchronization all use it.
+5. Keep `lab-project` at `conversationMode: 'lab-workspace'`. Reuse `AppFrame` columns, details drag handle, and `openDetails/closeDetails`; do not rebuild composer, resize, or a fixed right-pane maximum.
+6. Monitor/configuration switching changes app view only and does not clear `LabUiContext`, Session, draft, or details-width preference.
+7. Remove the normal initial no-Project-selected state. Host resolution failure renders typed unavailable; no Experiment tells the Agent it may create one and does not ask the user to create a Project.
 
-The monitor lists active Runs, current steps, failures and pending approvals across Projects. Every row links to an authorized Project destination and record. No monitor control may start, stop or reschedule several Projects unless a later capability explicitly provides that command.
+**Verification:**
 
-Configuration destinations resolve registered capabilities:
+```sh
+node node_modules/vitest/vitest.mjs run packages/client/ui-lab-workbench/tests packages/client/ui-layout/tests/app-frame.client.spec.tsx packages/client/ui-layout/tests/service.client.spec.ts --reporter=verbose
+```
 
-- Knowledge opens the independently owned Knowledge app view and preserves active Project scope.
-- Agent shows active Agent/preset/model capability and allowed configuration actions.
-- Workflow/Lab Skill shows registered revisions, validation and activation state.
-- Devices shows selectable capability records and availability.
-- People/permissions shows real data, read-only or unavailable.
+**Exit:** Initial monitor has no input; Project click opens the Host-selected Workspace/Session; Project mode has one input; both panes collapse, the right pane resizes, and full-page switching preserves draft/selection.
 
-Each unavailable state must explain which capability is absent and leave the rest of LABWEAVE usable.
+### Batch 3: LABWEAVE Agent Identity and Reconstructable Project Context
 
-### Step 7: Recompose the lifecycle workbench
+**Covers:** 10.3.
 
-Implement tasks 8.11–8.14.
+**Modify:** `tool-lab-project/src/index.ts`, tests, and bilingual README; `examples/lab-web/cordis.patch.yml`; add `examples/lab-web/tests/lab-agent-prompt.snapshot.ts` and its fixture.
 
-Make Overview lifecycle-first: current goal, evidence readiness, Workflow, approval, execution, QC, report, critical path, failures and pending human actions. Counts are secondary.
+**Steps:**
 
-Move existing Experiment, Workflow, Skill, Run, comparison, Evidence, Artifact and report components into their lifecycle destinations. Delete obsolete split-page wrappers, permanent Agent rail, flat navigation, old KPI-first Overview and generic cards superseded by command-specific cards.
+1. Register `systemPrompt.section({ name: 'labweave:role', order: 90, ... })` in every LABWEAVE Agent scope. Do not use `complete` or register `deployment:persona`.
+2. Fix identity and order: planner, coordinator, and explainer for the current laboratory Project; first action `lab_project_context`; Experiment→Knowledge/capability→Plan/Skill proposal→wait for human approval/Run start→monitor/replan→report.
+3. Fix authority: Agent only creates Experiment, reads context/Knowledge/capability, proposes Plan/Skill, and monitors/replans/reports; human adjusts and approves Plan/Skill, starts Run, confirms human steps, and publishes verdict; Runtime executes the approved graph.
+4. On `nextActor: human|runtime|capability`, explain the reason and call `exec.concludeTurn()`; do not poll or substitute a denied tool.
+5. Keep dynamic context in `lab/agent/context-read` rather than static prompt text; snapshots reconstruct it from Session events.
+6. Assert laboratory profile contains `labweave:role`, default profile does not, and Harness identity/persona/tool protocol order remains unchanged.
 
-Freeze bidirectional navigation through typed presentation intents. Agent cards open authorized records; workbench records locate their originating Session node. User navigation always overrides Agent selection.
+**Verification:**
 
-Use the central conversation scroll container and bounded right Project workspace scroll container. The center composer remains visible without covering its last timeline entry. Test desktop, narrow desktop and tablet dimensions, including collapse and restoration of both side panels.
+```sh
+node node_modules/vitest/vitest.mjs run packages/experimental/tool-lab-project/tests/tool-lab-project.spec.ts --reporter=verbose
+node node_modules/vitest/vitest.mjs run --config ./vitest.snapshot.config.ts examples/lab-web/tests/lab-agent-prompt.snapshot.ts --reporter=verbose
+```
 
-### Step 8: Complete detail content without changing architecture
+**Exit:** Agent prompt states identity, workflow, authority, and yield rules; default profile has no LABWEAVE copy; durable events reconstruct Project context.
 
-Implement phase 9.
+### Batch 4: Agent Experiment Creation and Typed Progress/No-Dead-End Behavior
 
-Planning/Workflow and approval own Experiment, Plan and Lab Skill detail. Execution monitoring and step orchestration own Run status, parameters, graph, logs and recovery. Results/Evidence and Archive own comparison, Artifacts, result assessment, report and provenance.
+**Covers:** 10.10, 10.11, and 10.12.
 
-Do not introduce new top-level tabs, a second shell or another input to fit detail content. If a detail does not fit, use list-detail navigation or a bounded details pane within the frozen destination.
+**Create:** `lab-domain/src/progress.ts` and `lab-application/tests/progress-matrix.spec.ts`.
 
-Complete assembled browser tests for every state listed in 9.7.
+**Modify:** `tool-lab/src/index.ts`, tests, and package; `lab-mvp-web/src/{index,project-protocol}.ts` and tests; `ui-lab-workbench` adapter/API/Host adapter/workbench projection; affected README and subsystem counterparts.
 
-### Step 9: Connect Host, Agent and Runtime
+**Steps:**
 
-Implement phase 10.
+1. Remove `lab_experiment_propose` registration, description, tests, and configuration references.
+2. Remove `lab_experiment_create` from `HUMAN_ACTION_TOOLS` while retaining human restrictions on approval and Run start/step/confirm. Keep read-only report separate from verdict publication instead of granting ambiguous authority.
+3. Let `lab_experiment_create` accept only `title`, `objective`, and `expected_outputs`; call `bootstrapExperiment()` with calling Session and `exec.rootCallId`.
+4. Return `LabProgressResult` from Agent tool, Facade action, and lifecycle projection; do not parse message strings.
+5. Fix the pending-request key as `projectId + experimentId + action kind + target revision/step`. One gate writes one event; an existing pending request returns its workbench action and calls `concludeTurn()`.
+6. Append durable approval/start/confirmation events after human action. The next Agent turn derives `nextActor: agent` from projection, not browser-memory continuation.
+7. Cover unmapped Workspace, Project without Experiment, lost bootstrap-result retry, missing input, unavailable Knowledge/device/planning/Runtime, pending Plan/Skill approval, revision after rejection, pending human Run start, human step confirmation, Workspace/Session switch recovery, and capability recovery in a table-driven matrix.
+8. Assert state, records, one nextActor, non-empty allowedActions, and a legal current-Project workbench destination per row; assert the Agent does not call policy-denied tools.
 
-Replace the production fixture adapter with the Host adapter while preserving the same component contract. Add narrow summary queries for the sidebar and global monitor. Bind the Agent surface to the real Harness Session/input path; no laboratory message transport is permitted.
+**Verification:**
 
-All Project, Experiment, Run, Artifact and verdict identities come from Host services. Runtime events update the workbench and Agent timeline through durable projections. Agent navigation is Host-validated and scoped. Workspace file writes use authorized Host file operations under the selected Project Workspace.
+```sh
+node node_modules/vitest/vitest.mjs run packages/experimental/tool-lab/tests/tool-lab.spec.ts packages/experimental/lab-application/tests packages/experimental/lab-mvp-web/tests/facade.spec.ts packages/experimental/lab-mvp-web/tests/project-protocol.spec.ts packages/client/ui-lab-workbench/tests/host-adapter.contract.client.spec.ts --reporter=verbose
+```
 
-The deterministic keyless profile and real-provider profile must use the same UI, records, actions and Session event path.
+**Exit:** Agent idempotently creates Experiment but cannot start Run; every non-terminal state has one next actor and at least one real action; a human gate emits one request and concludes the Agent turn.
 
-### Step 10: Run assembled acceptance and close the change
+### Batch 5: Composed/Keyless Acceptance Through Real Agent Tools
 
-Implement phase 11.
+**Covers:** 10.13.
 
-The browser journey starts with the central LABWEAVE Agent conversation and right Project workspace, moves through Knowledge, Skill/Workflow, approval, execution, replanning, Evidence, Project files and report, and proves shared Host identities after reload and Session changes.
+**Modify:** `examples/lab-web/tests/host-lifecycle.snapshot.ts`; add `agent-lifecycle.snapshot.ts` and snapshots; extend `apps/web/tests/lab-full-lifecycle.e2e.ts` only for fixture/bootstrap support.
 
-Acceptance must assert:
+**Steps:**
 
-- no independent default Conversation landing page, duplicate input or bottom Agent dock; Project uses the native Harness composer;
-- exactly one editable Agent input;
-- selected Workspace, Project, Experiment and Run stay synchronized;
-- global monitor and Project badges reflect Host state;
-- Agent presentation intents and manual navigation resolve the same records;
-- Knowledge scope updates through typed actions;
-- center conversation and right Project workspace remain fully scrollable and unobscured, and both side panels restore selection after collapse;
-- Host-created Project files refresh the authorized catalog without polling, while previews and downloads remain adapter actions;
-- unavailable capabilities remain truthful;
-- fixture and Host modes do not mix.
+1. Assemble the real `cordis.patch.yml` and use deterministic model responses to make the Agent execute real `lab_project_context`, `lab_experiment_create`, Knowledge, and planning tools.
+2. Assert one Host ID chain across Workspace, Session, Project, Experiment, Plan/Skill proposal, Run, Artifact, verdict, and report.
+3. Before Plan/Skill approval and Run start, assert one pending action, a tool result with `nextActor: human`, and a concluded Agent turn.
+4. Continue through a Host/UI human action and a new Agent turn; do not call private Runtime methods.
+5. Keep `/api/lab` scenarios as Host API integration tests and state in test names and README that they do not satisfy Agent acceptance.
 
-Run only the focused checks required by the changed surfaces during development. Before completion, run the exact OpenSpec, translation-pairing, typecheck, build, snapshot, browser, documentation and diff checks listed in task 11.7, then use `openspec-verify-change`.
+**Verification:**
 
-## Luna handoff checklist
+```sh
+node node_modules/vitest/vitest.mjs run --config ./vitest.snapshot.config.ts examples/lab-web/tests/host-lifecycle.snapshot.ts examples/lab-web/tests/agent-lifecycle.snapshot.ts --reporter=verbose
+```
 
-Before each implementation batch:
+**Exit:** At least one keyless snapshot executes real `lab_*` tools and proves Agent yield at a human gate and continuation in a later turn.
 
-1. identify the exact OpenSpec task numbers;
-2. inspect existing changes in every target file;
-3. state which completed foundation is reused and which provisional presentation is removed;
-4. add a failing focused or assembled test for the acceptance path;
-5. implement the smallest coherent change;
-6. run the focused checks;
-7. inspect the real `examples/lab-web` browser when the task changes visible behavior;
-8. update checkboxes only after all task-specific evidence exists.
+### Batch 6: Assembled Chromium, Responsive, and Accessibility Acceptance
 
-Do not mark phase 8 complete until the old bottom-dock composition is absent from the real browser and an Agent/Host file event refreshes the active Project catalog. Do not mark phase 10 complete while any production destination reads fixture state. Do not mark phase 11 complete from screenshots without behavioral assertions.
+**Covers:** 8.19, 11.2, 11.3, and 11.5.
+
+**Modify:** The three `apps/web/tests/lab-*.e2e.ts` files, the apps web test bilingual README, and stable screenshot/GIF assets.
+
+**Steps:**
+
+1. Start the real assembled app at 1440px, 1024px, and 768px. The first assertion is `[data-lab-monitor]` visible with no composer/input/details.
+2. Click a Project row, assert active Workspace, Session, and Project/Experiment/Run IDs match Host resolution, then assert three panes appear.
+3. Submit a goal through the sole native input. Clarification, Knowledge, Plan/Skill proposal, human adjustment/approval, Run start, exceptional replan, Evidence, and report all use UI actions.
+4. Verify manual destination navigation overrides Agent presentation and only a new valid presentation event may navigate again.
+5. Verify left/right restore, right resize, center timeline scrolling, automatic Project file revision refresh, manual refresh/preview/download, page reload, and Workspace/Session round trips.
+6. Cover sidebar, Project row, composer, pending action, workbench tabs, and close/restore with keyboard only. Check focus ring, accessible name, tab order, main scroll container, and return to monitor.
+7. Save stable desktop, narrow-desktop, and tablet evidence after behavioral assertions pass; screenshots do not replace assertions.
+
+**Verification:**
+
+```sh
+node node_modules/vitest/vitest.mjs run --config ./vitest.web.config.ts apps/web/tests/lab-showcase.e2e.ts apps/web/tests/lab-workbench.e2e.ts apps/web/tests/lab-full-lifecycle.e2e.ts --reporter=verbose
+```
+
+**Exit:** Three viewports and keyboard path pass; the page has one input; the same Host IDs are traceable across monitor, tree, timeline, and every workbench destination.
+
+### Batch 7: Showcase Documentation, Full Verification, and OpenSpec Closure
+
+**Covers:** 11.6, 11.7, and 11.8.
+
+**Modify:** The `examples/lab-web/SHOWCASE` bilingual pair, proposed Agent Note pair, and `tasks.md` only after evidence exists.
+
+**Steps:**
+
+1. SHOWCASE describes only a five-to-ten-minute user flow: monitor→Project→Agent goal→Experiment→Knowledge/Plan/Skill→human approval/Run start→replan→Evidence/report. Do not describe curl or direct `/api/lab` as user action.
+2. After repairing the local Rolldown macOS ARM optional dependency, run the following from repository root on Node 24. Use the user-specified proxy for installation and keep tests keyless except explicit real-provider scenarios.
+3. Record actual outcomes only. Separate existing failures from regressions and never mark completion from partial success.
+4. Use `openspec-verify-change` to map every requirement/scenario. Keep tasks open and do not archive when any CRITICAL/WARNING remains.
+
+**Full verification:**
+
+```sh
+node node_modules/vitest/vitest.mjs run packages/client/ui-lab-workbench/tests packages/experimental/lab-application/tests packages/experimental/lab-project/tests packages/experimental/tool-lab/tests packages/experimental/tool-lab-project/tests packages/experimental/lab-mvp-web/tests packages/experimental/lab-mvp/tests --reporter=verbose
+node node_modules/vitest/vitest.mjs run --config ./vitest.snapshot.config.ts examples/lab-web/tests --reporter=verbose
+node node_modules/vitest/vitest.mjs run --config ./vitest.web.config.ts apps/web/tests/lab-showcase.e2e.ts apps/web/tests/lab-workbench.e2e.ts apps/web/tests/lab-full-lifecycle.e2e.ts --reporter=verbose
+node node_modules/vitest/vitest.mjs run packages/sdk/client/tests packages/sdk/server/tests --reporter=verbose
+uv run --project python/sdk pytest python/sdk/tests
+npm run typecheck
+npm run build
+npm run hygiene
+npm run doc-sync
+npm run website:build
+rtk openspec validate lab-showcase-ready-workspace --strict
+git diff --check
+```
+
+**Exit:** OpenSpec verify has no CRITICAL/WARNING; all 17 remaining tasks have source plus automated or manual browser evidence; only then may `openspec-archive-change` run.
+
+## Dependencies and Checkpoints
+
+```text
+批次 1 -> 批次 2
+批次 1 -> 批次 4
+批次 3 -> 批次 4
+批次 1 + 3 + 4 -> 批次 5
+批次 2 + 5 -> 批次 6
+批次 6 -> 批次 7
+```
+
+After each batch, stop and report changed files, passing commands, failures, and corresponding OpenSpec tasks. Enter the next batch only after dependencies and focused verification pass. Visual inspection cannot replace Host/Agent path tests.
+
+## Explicitly Out of Scope
+
+- No multi-Workspace aggregate laboratory, cross-Workspace Project, or manual Project create/rename/delete UI.
+- No Agent auto-approval or auto-started Run, and no timeout-based automatic release.
+- No browser file upload, create, rename, delete, or absolute-path access.
+- No rewrite of default Harness Conversation, Workspace tree, input, or generic layout store.
+- No Qwen, DeepSeek, or other real-model call substitutes for keyless acceptance; real Providers only prove replaceability.

@@ -5,33 +5,33 @@ The system SHALL deliver the showcase through the existing `examples/lab-web` co
 
 #### Scenario: Launch the prototype
 - **WHEN** a demonstrator runs the documented prototype command after its prerequisites are available
-- **THEN** one application opens with cross-Project monitoring, a dynamic Project tree, the configuration center, the active Project lifecycle and the LABWEAVE Agent surface reachable from the same shell
+- **THEN** one application opens with full-page cross-Project monitoring, the native Workspace and Session browser, the configuration center, the active Project lifecycle and the LABWEAVE Agent surface reachable from the same shell
 
 #### Scenario: Continue across pages
 - **WHEN** a user imports Knowledge, creates an Experiment in conversation, starts a Run and opens its Evidence view
 - **THEN** every page reflects the same Project and record identities without browser-only state copies or manual re-entry
 
 ### Requirement: Global, Project and configuration navigation form one Harness-native sidebar
-The Harness client SHALL provide a root-scoped application-view registry and an additive primary-navigation region. The laboratory client SHALL use those contracts to render three stable groups in the Harness sidebar: cross-Project execution monitoring, a dynamic Project tree and a configuration center. It SHALL not use `sidebar.footer.action`, process-local browser events, hash fragments or a second application shell as the primary router.
+The Harness client SHALL provide a root-scoped application-view registry and an additive primary-navigation region. The laboratory client SHALL use those contracts for cross-Project execution monitoring and configuration destinations while retaining the native Workspace and Session browser as the persistent Project-entry tree. The global monitor SHALL contain the durable Project-status list instead of adding a separate Projects creation or selection layer to the sidebar. It SHALL not use `sidebar.footer.action`, process-local browser events, hash fragments or a second application shell as the primary router.
 
 #### Scenario: Navigate before a Session exists
-- **WHEN** no Harness Session is current and a user selects execution monitoring, Projects or a configuration destination
+- **WHEN** no Harness Session is current and a user selects execution monitoring or a configuration destination
 - **THEN** the selected root application view opens in the center workbench and the Harness sidebar remains available
 
 #### Scenario: Enter the application
 - **WHEN** the laboratory application is opened without a previously selected laboratory Project
-- **THEN** the global execution monitor is shown first, and no Project is selected until the user chooses one from the sidebar or Project list
+- **THEN** the full-page global execution monitor is shown first without a conversation input or Project workspace, and no Project is selected until the user chooses a Workspace, Session or Project-status row
 
 #### Scenario: Open a Project workspace
-- **WHEN** a user selects a Project in the sidebar
-- **THEN** the left Project tree keeps the Project selected with its status summary, while the right Project workspace exposes Overview, Planning and Workflow, Plan approval, Execution monitoring, Step orchestration, Results and Evidence, Files, and Archive; the workbench, active Experiment selection and Agent context use the same Project identity
+- **WHEN** a user selects a Workspace or Session in the sidebar, or selects a Project-status row in the global monitor
+- **THEN** the native Workspace tree reflects the linked Workspace, a matching Session becomes current, and the right Project workspace exposes Overview, Planning and Workflow, Plan approval, Execution monitoring, Step orchestration, Results and Evidence, Files, and Archive using the same Project and active Experiment identity as the Agent context
 
 #### Scenario: Return to a Project
 - **WHEN** a user reopens a previously visited Project
 - **THEN** the interface restores the last valid lifecycle destination and active Experiment when authorized records still exist and falls back to Overview otherwise
 
 ### Requirement: LABWEAVE owns the visible Agent surface and reuses Harness conversation capabilities
-In Project context the system SHALL place the LABWEAVE-owned Agent surface beside the Project workspace while retaining the native Harness Conversation chrome and composer. The Agent surface SHALL reuse the active Harness Session, input machine, draft, queue, slash commands, references, attachments, access and model controls, ask-user and approval takeovers, timeline state and registered message/node renderers. The global configuration destination SHALL use a full-page replacement view and SHALL not display a conversation input.
+In Project context the system SHALL place the LABWEAVE-owned Agent surface beside the Project workspace while retaining the native Harness Conversation chrome and composer. The Agent surface SHALL reuse the active Harness Session, input machine, draft, queue, slash commands, references, attachments, access and model controls, ask-user and approval takeovers, timeline state and registered message/node renderers. The global monitor and configuration destinations SHALL use full-page replacement views and SHALL not display a conversation input.
 
 #### Scenario: Enter a Project Session
 - **WHEN** a user opens or creates a Session for an active Project
@@ -52,6 +52,10 @@ In Project context the system SHALL place the LABWEAVE-owned Agent surface besid
 #### Scenario: Open global configuration
 - **WHEN** a user selects the LABWEAVE configuration destination
 - **THEN** the configuration surface occupies the main page, the Project workspace is not shown and no conversation input is displayed
+
+#### Scenario: Open global monitoring
+- **WHEN** a user opens the global execution monitor from any Project Session
+- **THEN** the monitor occupies the main page, the Project workspace is not shown and the existing Session and draft remain preserved without rendering a conversation input
 
 ### Requirement: Agent input and lifecycle output remain the primary orchestration path
 Users SHALL submit experimental goals through the LABWEAVE Agent input backed by the Harness conversation input machine. Agent clarification, cited Plan proposals, approval state and Run launch state SHALL appear as structured timeline content linked to full Project records. The workbench SHALL not provide a competing objective form or browser-owned execution controls.
@@ -76,11 +80,15 @@ The LABWEAVE application SHALL render its existing global/configuration sidebar 
 - **THEN** the layout may collapse or switch panes with explicit controls without creating another conversation, another input element or losing the current draft
 
 ### Requirement: The sidebar exposes cross-Project execution state
-The execution-monitor destination SHALL summarize active, waiting, failed and recently completed Runs across Projects using Host-style Project, Experiment and Run identities. It SHALL provide navigation to the owning Project and Run and SHALL not imply cross-Project scheduling or mutate Runtime state.
+The execution-monitor destination SHALL summarize active, waiting, failed and recently completed Runs across Projects and SHALL list durable Projects under Project status using Host-owned Project, Workspace, Experiment and Run identities. It SHALL provide navigation to the owning Project and Run and SHALL not imply cross-Project scheduling or mutate Runtime state.
 
 #### Scenario: Open a failed Run from global monitoring
 - **WHEN** the monitor shows a failed Run and the user selects it
-- **THEN** the sidebar activates the owning Project, the workbench opens its execution or result destination and the Agent context uses that Project and Run
+- **THEN** the client switches to the owning Workspace, connects or opens a matching Session, selects the owning Project and Experiment, opens the execution or result destination and updates the Agent context to that Project and Run
+
+#### Scenario: Open a Project from Project status
+- **WHEN** the user selects a Project row under Project status
+- **THEN** the client switches to the linked Workspace, connects or opens a matching Session and opens the Project workbench at its last authorized active Experiment or Overview
 
 #### Scenario: No Runs are active
 - **WHEN** no Project has an active or waiting Run

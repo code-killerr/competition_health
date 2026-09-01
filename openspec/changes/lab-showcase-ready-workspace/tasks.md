@@ -63,7 +63,7 @@
 - [x] 2.6 创建 Project Session 时通过现有 Workspace/Session Host 服务在 Project Workspace 下创建真实 Session；基线实现通过 `ui-layout.closeAppView()` 返回现有 Conversation。5.4 保留 Session 创建与打开语义，并在实验 composition 中用持续工作台取代关闭页面的产品行为。
 - [x] 2.7 更新 `project-create`、`project-session-attach`、`project-session-detach`、`project-archive` 协议和 Facade；解析器拒绝浏览器提交的 Project ID。
 - [x] 2.8 为创建、Workspace 缺失、cwd 冲突、attach、detach、归档但保留 Session 日志增加领域、协议和组合测试；同步 Session events 和两个 SDK 投影。
-- [x] 2.9 将 Workspace 确定为用户可见的实验项目入口，并在 Host 侧强制每个 Workspace 至多对应一个内部 LabProject；已有映射时复用并打开，未映射时按 Workspace 目录名创建，Workspace 切换时自动定位对应 Project。
+- [ ] 2.9 将 Workspace 确定为用户可见的实验项目入口，并在 Host 侧强制每个 Workspace 至多对应一个内部 LabProject；当前 Workspace 或 Session 变化时自动创建或复用映射并同步 Agent context。全局监控中的 Project 状态行必须按 Project→Workspace→Session→Project workbench 顺序切换，不保留独立 Project 创建页。
 
 ### 2 阶段检查点
 
@@ -154,7 +154,7 @@
 **文件：** `packages/client/ui-lab-workbench/src/client/conversation/*`、Session event/node projection、`ui-conversation` 公共 slots 的消费者测试。
 
 - [x] 7.1 在 `conversation.session.header.actions` 注册 Project/Experiment 标识与“查看工作台”动作并验证同一 Session。该默认 header 呈现只作为能力验证，第 8 阶段迁移到 LABWEAVE chrome。
-- [x] 7.2 在 `conversation.input.dock` 注册 Project scope context 并区分 approved 与 Session-local 内容。该独立 context strip 只作为数据投影基础，第 8 阶段迁入紧凑 Agent dock。
+- [x] 7.2 在 `conversation.input.dock` 注册 Project scope context 并区分 approved 与 Session-local 内容。该独立 context strip 只作为数据投影基础，第 8 阶段将其信息迁入右侧 Project workspace，并由中间完整共享 Conversation 保留输入能力。
 - [x] 7.3 为实验命令结果实现可复用的命令专属卡片：创建 Project/Experiment、Knowledge retrieval、capability gap、Workflow/Plan proposal、Lab Skill validate/approve/activate、Run start/stop/retry 和 Result decision。卡片可在默认 Conversation 和 LABWEAVE Agent timeline 中使用，展示命令类型、结果、来源事件和参数；禁止用只显示命令名、状态文本和统一“打开工作台”按钮的通用卡片替代命令结果字段。
 - [x] 7.4 为 durable Session nodes 实现可复用的 Workflow、Plan、Lab Skill、Run、Evidence、Replan、Result assessment 和 Report 卡片；卡片只渲染事件投影，需要审批或 Host 动作的按钮调用 typed adapter，详情和 citation 链接定位到对应工作台记录，并已通过生命周期节点组件与 Session slot 注册测试。LABWEAVE assembled timeline 的最终挂载由第 8 阶段验证。
 - [x] 7.5 删除 `RequestStage` 目标/样本/约束表单；实验目标由现有 composer 提交，Agent 缺少输入时使用现有 ask-user interaction。
@@ -175,22 +175,22 @@
 - [x] 8.3 为 laboratory 启动增加客户端产物新鲜度检查；启动前验证 `src/client`、`lib/client.js` 与 Web dist 对应当前来源，过期或缺失时执行所需构建或明确失败，并验证开发 watch/HMR 与一次性 build-and-start 路径。已通过源码指纹、一次性构建、watch 单测和内置浏览器 HMR 验证。
 - [x] 8.4 在 `examples/lab-web` assembled composition 中验证实际提供的 `ui-lab-workbench/client.js` 包含当前 LABWEAVE shell 和本阶段布局；浏览器必须显示对应内容，新进程、根 HTML 或 HTTP 200 不能单独完成验证。
 - [x] 8.5 为 `ui-conversation` 定义可复用 presentation contract，使默认 Harness composition 与 LABWEAVE composition 共享 Session、input state machine、draft、queue、slash/reference/attachment、access/model、ask-user/approval takeover、timeline 和 node renderers。增加默认 profile 不变、LABWEAVE 只有一个 input DOM、draft 跨页面保留和 takeover 可操作的组合测试；禁止复制输入状态机、CSS 隐藏旧 composer 或绕过正式 submit 路径。
-- [x] 8.6 将侧栏重构为三个 LABWEAVE 分组：顶部全局执行监控；动态 Projects tree；配置中心。Projects tree 必须从 adapter records 渲染并反映 active Project、Run、failure 和 pending approval 状态；无 Project、loading、unavailable 和 rail 模式均可操作。
-- [x] 8.7 将每个 Project 的生命周期目的地移动到右侧 Project workspace 内的垂直导航：Overview、Planning/Workflow、Plan approval、Execution monitoring、Step orchestration、Results/Evidence、Files 和 Archive。左侧 Projects tree 只负责 Project 选择与状态摘要，不得重复渲染生命周期导航；扩展 `LabUiContext` 的 destination union 并建立 record-to-destination 映射；Conversations 只作为 Session provenance 入口，不得继续作为一级项目标签。
+- [ ] 8.6 将侧栏重构为全局执行监控入口、配置中心和原生 Workspace/Session tree；删除独立 Projects 创建与选择入口。全局监控的 Project 状态区从 adapter records 渲染 Project、active Run、failure 和 pending approval，并覆盖无 Project、loading 与 unavailable 状态。
+- [x] 8.7 将每个 Project 的生命周期目的地移动到右侧 Project workspace 内的垂直导航：Overview、Planning/Workflow、Plan approval、Execution monitoring、Step orchestration、Results/Evidence、Files 和 Archive。全局 monitor 的 Project 状态区只负责 Project 选择与状态摘要，不得重复渲染生命周期导航；扩展 `LabUiContext` 的 destination union 并建立 record-to-destination 映射；Conversations 只作为 Session provenance 入口，不得继续作为一级项目标签。
 - [x] 8.8 建立可复用的 LABWEAVE Agent presentation：复用完整 Agent timeline、命令卡片、node 卡片、ask-user 和 approval takeover，并将 Project 模式接回原生 Harness Conversation chrome 与 composer；移除重复输入、独立 context strip 和底部 dock。该实现作为三栏中央对话区的迁移基础。
-- [x] 8.9 实现全局执行监控页和侧栏摘要，聚合各 Project 的 active Run、当前步骤、失败和 pending approval，并可跳转到授权 Project destination。该能力只做状态投影和导航，不实现跨 Project 调度、资源分配或批量执行。聚合复用 Host 已提供的 `project-list` 与 `run-list` 查询，未提供的细节保持明确 unavailable。
+- [ ] 8.9 将全局执行监控实现为不挂载 Conversation、composer 或右侧 Project workspace 的整页 replace view；在 Project 状态下列出已有 Project 与 active Run、当前步骤、失败和 pending approval。点击 Project 或 Run 时先切换对应 Workspace 和 Session，再选择 Project、Experiment 与目标 destination；该能力只做状态投影和导航。
 - [x] 8.10 实现配置中心目的地：Knowledge、Agent、Workflow/Lab Skill、Devices、People/permissions。Knowledge 保持独立 Provider 和 app view 所有权；其他目的地只消费真实注册能力。People/permissions 在无对应能力时显示明确 unavailable 或 read-only，不得创建样例用户、角色或授权结论。
 - [x] 8.11 将 Project Overview 改为实验生命周期与待处理动作优先的工作区，展示目标理解、资料确认、Workflow、批准、执行、QC 和报告状态；统计数据降为辅助信息，不得用通用 KPI 卡片网格代替当前阶段、关键路径、异常和人工确认。
 - [x] 8.12 冻结 Agent 与工作台的双向定位：Agent command/node card 可打开 Project、Knowledge、Workflow、approval、Run、step、Evidence、Result 或 citation；用户选择步骤、Artifact 或 verdict 可定位到产生该记录的 Session node。定位使用 typed presentation intent 和 `LabUiContext`，不得增加 DOM、任意 URL 或浏览器事件接口。
 - [x] 8.13 建立统一视觉系统和响应式规则，统一 sidebar、monitor、Project destinations、configuration、Agent presentation、timeline、Workflow、Run 和 Evidence 的色彩、排版、间距、状态、焦点和密度。三栏改版的具体收缩规则由 8.16–8.19 重新验证。
 - [x] 8.14 将保留组件迁入新的生命周期目的地，删除固定上下分屏、相邻 Agent rail、旧 Overview 卡片网格、平铺 Projects/Knowledge/Devices 导航和完成命令专属卡片后不再使用的通用实验卡片。不得伪造第 9 阶段尚未接通的字段或 Host 动作，并通过组件清单、无死入口和单输入断言。
 - [x] 8.15 在首次页面组合中完成真实 assembled 页面截图与交互审查；三栏布局和项目文件目录的最终浏览器验收由 8.19 取代。
-- [x] 8.16 将 LABWEAVE 根应用视图改为三栏 composition：保留左侧通用设置与 Project tree，中间使用完整共享原生 Harness Conversation，右侧承载 active Project workspace；扩展 root app-view 与 conversation presentation contract，保证默认 profile 不变、只有一个 input DOM、一个 draft 与一个 Session，并增加相应单元/组合测试。
-- [x] 8.17 将 Project lifecycle、监控和项目配置页面迁入可收起的右侧 Project workspace；通用配置保持整页 replace view，不显示对话输入，并由 root layout 的隐藏态规则确保输入不会视觉泄漏；复用现有 root details 宽度、拖拽和恢复机制，右栏保留可用下限但取消固定上限与中间列的强制让渡，确保无当前 Session 时仍可显示右栏，关闭或恢复任一侧栏不得丢失 Project selection、Session 或 draft。
+- [ ] 8.16 将 Project 模式实现为三栏 composition：左侧保留原生通用设置与 Workspace/Session tree，中间使用完整共享原生 Harness Conversation，右侧承载 active Project workspace；保证默认 profile 不变、只有一个 input DOM、一个 draft 与一个 Session，并增加 Workspace、Session、Project 同步测试。
+- [ ] 8.17 将全局监控和通用配置实现为整页 replace view，不显示对话输入或右侧 Project workspace；Project lifecycle 与 Project files 只在 Project 模式进入可收起右栏。复用现有 details 拖拽和恢复机制，关闭、恢复或切换全局页面不得丢失 Project selection、Session 或 draft。
 - [x] 8.18 定义 Project file adapter record 和 fixture：按“项目配置 / 对话输出 / 运行产物”展示右栏文件目录，提供已授权的预览与下载入口；新增仅含元数据的 Project file revision/event，并让当前 Project 的文件列表在事件到达时使用与手动刷新相同的查询重新加载。浏览器不得构造绝对路径、保存正文或提供创建、重命名、上传、删除操作。
-- [ ] 8.19 在桌面、窄桌面和平板完成真实 assembled 页面截图与交互审查，验证左右栏均可收起及恢复、中间对话可完整滚动、右栏项目/文件切换、Host/fixture 文件事件自动刷新、手动刷新、预览/下载、单一 input、审批、Run 状态和键盘焦点；保存证据并更新 proposed Agent Note。
+- [ ] 8.19 在桌面、窄桌面和平板完成真实 assembled 页面截图与交互审查，验证初始监控无输入、Project 状态列表、Project→Workspace→Session→工作台跳转、左右栏收起恢复、中间对话滚动、右栏文件刷新、单一 input、审批、Run 状态和键盘焦点；保存证据并更新 proposed Agent Note。
 
-**阶段验收：** 浏览器提供当前构建的 LABWEAVE 应用：Project 页面左侧为可收起的通用设置与 Project tree，中间为完整的原生共享 Agent Conversation，右侧为可收起且可自由扩展的 Project workspace 和 Project files；通用配置为不显示对话输入的整页视图。页面不显示重复输入框、独立默认 Conversation 页面、底部 Agent dock 或永久 Agent rail；Project 与 Agent context、Experiment、Run 和文件目录同步，Agent/Host 写入文件后当前目录自动刷新，手动刷新、预览和下载仍由已授权 adapter 动作完成。三栏滚动、收起恢复和键盘操作不遮挡内容。第 9 阶段可以在不改变布局、导航、文件授权或 Agent presentation contract 的情况下补全详情。
+**阶段验收：** 浏览器首次打开全局执行监控整页视图，不挂载 Conversation、输入框或右侧 Project workspace；左侧只保留全局监控、通用配置和原生 Workspace/Session tree。已有 Project 位于监控的 Project 状态区，点击后严格执行 Project→Workspace→matching Session→authorized active Experiment→Project workbench。进入 Project 后，左侧原生导航可收起，中间为完整共享 Agent Conversation，右侧为可收起且可自由拖拽的 Project workspace 和 Project files。页面不显示独立 Projects 创建/选择入口、重复输入框、底部 Agent dock 或永久 Agent rail；Project 与 Agent context、Experiment、Run 和文件目录同步，Agent/Host 写入文件后当前目录自动刷新，手动刷新、预览和下载仍由已授权 adapter 动作完成。
 
 ## 9. 完成 Workflow、Experiment、Run、Evidence、判定和报告工作台
 
@@ -202,7 +202,7 @@
 - [x] 9.4 在 Results/Evidence destination 和右侧 Project files 中补全 Evidence/Artifact 分组和安全文本、JSON、图片预览；页面保存并渲染 `artifact-open` 或 `project-file-open` 返回的授权预览，打开和下载只通过 adapter 动作，unsupported/unavailable 状态保留 metadata 和可执行动作，并通过预览状态测试。
 - [x] 9.5 在 Results/Evidence 和 Archive destinations 中补全结构化 Result assessment、报告和不可变溯源，在报告内部保留 criteria、method、verdict、Plan/Skill revision、Run、Observation、Artifact、actor、timestamp 和 citation 链接；模糊或高风险结果显示 human-QC 操作，并通过追溯链接和审批状态测试。
 - [x] 9.6 补全配置中心的 Agent、Workflow/Lab Skill 和 Devices 详情，只展示 adapter 提供的注册能力、版本、状态与允许动作；无写能力时保持 read-only，People/permissions 继续遵守第 8 阶段的真实性限制。
-- [ ] 9.7 增加 assembled browser tests，覆盖 Project lifecycle destinations、空态、失败态、等待态、重规划差异、并发冲突、Artifact 不支持预览、Run 比较、结果判定、报告引用跳转和配置能力 unavailable；独立 jsdom 组件测试只保留为组件覆盖，不能完成本任务。
+- [x] 9.7 增加 assembled browser tests，覆盖 Project lifecycle destinations、空态、失败态、等待态、重规划差异、并发冲突、Artifact 不支持预览、Run 比较、结果判定、报告引用跳转和配置能力 unavailable；独立 jsdom 组件测试只保留为组件覆盖，不能完成本任务。
 
 **阶段验收：** 前端 fixture journey 可从一句目标连续展示 Workflow/Skill 提案、步骤执行、异常重规划、两个 Run 比较、结果判定和报告；每条关键结果可返回 Run/Artifact 来源，Agent 在第 8 阶段冻结的布局中始终可交互。
 ## 10. 将完成的前端连接到 Host、Agent 与 Runtime
@@ -211,13 +211,16 @@
 
 - [x] 10.1 实现 `LabWorkbenchAdapter` 的 Host 版本，将第 5–9 阶段组件接到 typed Facade；删除生产 composition 中的 fixture adapter，运行同一套 adapter contract tests。LABWEAVE Agent surface 必须绑定真实 Harness Session 和输入状态机，不得增加专用消息传输。
 - [x] 10.2 完成 Project、Experiment、Workflow/Plan、Lab Skill、Run、Evidence、Result assessment、report、Project file catalog/open/download、全局 monitor summary 和配置 capability summary 的窄查询与动作命令；刷新后从 Host records 重建侧栏、工作台、Project files 和 Agent context。
-- [x] 10.3 将 Agent 工具改为先提出 Experiment、Plan 和 Lab Skill draft，再由人类确认创建、批准或激活；模型可见 Project scope、capability results 和 validation findings 全部写入 Session events。
+- [ ] 10.3 为 LABWEAVE Agent 注册 additive system-prompt contribution：明确其“当前实验 Project 的规划、协调与解释 Agent”身份、Project context 前置读取、Experiment→Knowledge/capability→Plan/Skill proposal→人工 approval/Run start→monitor/replan→report 顺序、Agent/人工/Runtime/capability 权限和等待时 yield 规则；不得替换 Harness identity、deployment persona、工具协议或权限提示。提示词和动态 Project context 必须可由 Session events 重建，并增加 laboratory/default profile prompt assembly snapshots。
 - [x] 10.4 接入 Runtime step、device receipt、approval、observation、Artifact、Project file revision 和 verdict 事件；事件同时更新 Agent 时间线、工作台与当前 Project files，Agent 不能直接推进步骤、提交设备命令或写入 verdict。
 - [x] 10.5 实现 Host-validated presentation intent Consumer，并验证 Agent 只能打开已注册且属于当前 Project 的视图；用户手动导航和拒绝状态进入 Session evidence。
 - [x] 10.6 通过 Host 授权文件操作把 Workflow/Skill 文档、配置快照、中间资产和报告写入 Project Workspace；将文件目录固定分类为 Project configuration、conversation output 与 run artifacts，写入后记录只含 Project/file/revision 元数据的 durable event，并支持授权 catalog/open/download；拒绝浏览器或模型提供的越界绝对路径、直接内容读取及浏览器侧文件写操作。
 - [x] 10.7 将浏览器 `createLocalPlan()` 移到 Host 侧 deterministic planning Provider；deterministic Knowledge、mock device、Runtime 和 result assessor 通过固定 Provider 配置走正常 Agent proposal、approval、Session event 和 Runtime 路径。
 - [x] 10.8 real profile 在配置 DeepSeek 和 Docling 时替换 Provider，不改变页面、按钮、adapter 或数据模型；缺失条件明确 skipped/unavailable，不回退到 fixture 或 demo 结果。
-- [x] 10.9 增加 Host composed tests 和 keyless snapshots，覆盖 goal→clarification→source/citation→capability→Workflow/Skill/Plan→approval→Run→replan→Artifact→verdict→report，并断言侧栏 Project 状态、monitor summary、workbench selection 和 Agent timeline 来自同一 Host identities 和 Session events。
+- [ ] 10.10 将 Agent Experiment bootstrap 统一为共享 Host application operation：从 calling Session 解析 Project，由 Host 生成 Experiment ID，在 Project service 与 Runtime 注册同一 identity，并以 tool-call identity 保证重试幂等；`lab_experiment_create` 对当前 Project 的 Agent 调用可用但不接收 Project/Experiment ID，删除 `lab_experiment_propose` 作为创建前置以及“Agent 永远不能 create Experiment”的冲突策略、描述和测试。Workspace/LabProject 创建继续禁止 Agent。
+- [ ] 10.11 为 Agent tools、Facade actions 和 lifecycle projections 定义 typed progress result，至少包含 state、scoped record IDs、reason、`nextActor: agent | human | runtime | capability`、`allowedActions` 和可选 registered workbench destination。人工门禁时只产生一次 pending request 并让 Agent yield；人工完成后追加 durable event，下一 Agent turn 从事件继续。任何 waiting/blocked/unavailable 状态不得要求被策略拒绝的 Agent 操作或工作台不存在的人工操作。
+- [ ] 10.12 增加无死路状态矩阵测试，覆盖未映射 Workspace 自动建 Project、Project 无 Experiment、Experiment 创建结果丢失后的重复调用、缺少输入、Knowledge/device/planning/Runtime unavailable、Plan/Skill 待审批、审批拒绝后修订、待人工 Run start、人工步骤确认、Workspace/Session 切换恢复和 capability 恢复；断言每个非终态状态都有唯一 next actor、至少一个允许的继续/停止动作、可打开的人工目标（如适用），且 Agent 不轮询或重试被拒绝工具。
+- [ ] 10.13 增加 Host composed tests 和 keyless snapshots，覆盖 Workspace/Session 自动绑定→LABWEAVE prompt/context→Agent 创建 Experiment→Knowledge/capability→Plan/Skill proposal→人工 approval 与 Run start→replan→Artifact→verdict→report；至少一条 Agent 验收必须执行真实 `lab_*` 工具并断言人工门禁前 Agent 已 yield，直接调用 `/api/lab` 的场景只作为 Host API 集成测试。
 
 **阶段验收：** 停用前端 fixture 后，同一界面可由 Host 数据完整驱动；清空本地 lab 数据后，无模型密钥仍能经过真实命令和事件完成流程，刷新后不丢失，配置真实 Provider 时无需修改前端。
 
@@ -226,12 +229,32 @@
 **文件：** `examples/lab-web/`、浏览器 e2e、用户文档、截图/GIF 资产；不把独立 HTML 加入产品导航。
 
 - [x] 11.1 增加仓库级 `demo:lab-web` 启动脚本，复用 8.3 的客户端产物新鲜度检查并处理构建前置和 profile patch；文档命令必须从仓库根目录在 Node 24 下成功，且不得在源码更新后继续提供旧 client bundle。
-- [ ] 11.2 增加真实浏览器 e2e：首次打开默认进入全局 Execution monitor；无 Session 时选择 Workspace、按当前 Workspace 目录名称创建 Project/Session；在中间唯一的原生 Harness Agent input 提交目标；Agent 补问；从配置中心导入/检索 Knowledge；选择或生成 Skill；创建/批准 Workflow/Plan；运行；触发一次异常重规划；确认 Result/Evidence 并打开报告。断言页面不存在默认 Conversation 大输入框或第二个 text area。
-- [ ] 11.3 e2e 在全局 monitor、Project tree、Knowledge、Agent timeline、Workflow、approval、Experiment、Run、Evidence 和 Result destinations 断言同一组 Host ID；验证 Agent presentation intent 驱动工作区，并在用户覆盖导航、刷新和 Session 切换后再次断言。
-- [ ] 11.4 增加模型不可用、Knowledge 失败、Workspace unavailable、Run 失败和 capability unload 恢复场景；不得以静态截图代替行为断言。
-- [ ] 11.5 在桌面、窄桌面/平板和纯键盘路径运行可访问性验证；修复 sidebar tree、Agent dock/timeline overlay、pane switch、主滚动容器、焦点、语义名称、返回路径和主操作裁剪问题。
-- [ ] 11.6 重写 `SHOWCASE.md`/`SHOWCASE.zh.md`，仅描述已经由 e2e 证明的五至十分钟流程；保存稳定截图或 GIF。
-- [ ] 11.7 运行聚焦测试、keyless snapshot、TS/Python SDK projections、typecheck、build、hygiene、doc-sync、website build、OpenSpec strict validation 和 `git diff --check`，记录实际命令。
-- [ ] 11.8 使用 `openspec-verify-change` 逐项映射当前全部 requirements 和 scenarios；重点核对 Agent 全生命周期、typed navigation、Workspace 文件根、前端 fixture 隔离和 Host reload，无 CRITICAL/WARNING 后才归档。
+- [ ] 11.2 增加真实浏览器 e2e：首次打开全局 Execution monitor 且不存在对话输入；点击 Project 状态行后切换对应 Workspace/Session 并唤起工作台；在唯一原生 Agent input 提交目标，断言 Agent 获得 LABWEAVE 身份与流程指导、读取 Project context、通过 Host 幂等创建 Experiment、补问、检索 Knowledge 并提出 Workflow/Plan/Skill；Agent 在人工门禁处只请求一次并 yield，用户从结构化 pending action 调整与批准后启动 Run，再完成异常重规划、Result/Evidence 和报告。
+- [ ] 11.3 e2e 在全局 monitor 的 Project 状态、Workspace/Session tree、Agent timeline、Knowledge、Workflow、approval、Experiment、Run、Evidence 和 Result destinations 断言同一组 Host ID；验证 Project→Workspace→Session→工作台跳转、Agent presentation intent、用户覆盖导航、刷新和 Workspace/Session 切换。
+- [x] 11.4 增加模型不可用、Knowledge 失败、Workspace unavailable、Run 失败和 capability unload 恢复场景；不得以静态截图代替行为断言。
+- [ ] 11.5 在桌面、窄桌面/平板和纯键盘路径重新运行可访问性验证；覆盖整页监控无 composer、Project 状态行、Workspace/Session 同步、Project 三栏、面板恢复、主滚动容器、焦点、语义名称和返回路径。
+- [ ] 11.6 重写 `SHOWCASE.md`/`SHOWCASE.zh.md`，仅描述由 Agent 工具和用户界面共同证明的五至十分钟流程；保存稳定截图或 GIF，不把直接 `/api/lab` 编排描述为用户验收。
+- [ ] 11.7 修复本机缺失的 Rolldown macOS ARM 可选依赖后，运行聚焦测试、Agent keyless snapshot、assembled Chromium、TS/Python SDK projections、typecheck、build、hygiene、doc-sync、website build、OpenSpec strict validation 和 `git diff --check`，记录实际命令与未通过项。
+- [ ] 11.8 使用 `openspec-verify-change` 重新映射全部 requirements 和 scenarios；重点核对初始监控无输入、Workspace/Project 自动绑定、LABWEAVE prompt、Agent 幂等创建 Experiment、typed progress/next actor、人工启动 Run、无死路状态矩阵、typed navigation、Workspace 文件根、前端 fixture 隔离和 Host reload，无 CRITICAL/WARNING 后才归档。
 
-**最终 DoD：** 一个命令启动一个 Harness 应用；默认进入 LABWEAVE Project Overview；侧栏提供全局执行监控、动态 Project tree 和配置中心；一个 Harness Agent 通过中间唯一的原生输入和可展开时间线贯穿目标补问、知识与能力检索、Workflow/Skill/Plan 生成、审批、执行监控、异常重规划、结果判定和报告；不显示默认 Conversation 大输入框、第二输入 DOM 或永久 Agent rail；工作台同步展示并允许配置与人工确认，Agent 可以受控驱动其导航；所有响应式模式使用同一 Session、draft 和上下文；Project/Experiment/Run/Evidence/verdict 由 Host 持久化，项目文件只写入授权 Workspace；无模型密钥与真实 Provider 使用同一界面和事件链路。
+**11.7 历史基线记录（2026-09-01，Node 24，SDK 测试使用 `http_proxy=http://127.0.0.1:7897`、`https_proxy=http://127.0.0.1:7897`、`all_proxy=socks5://127.0.0.1:7897`）：** 以下结果发生在导航、Agent 创建 Experiment 和人工启动 Run 的最终口径冻结之前，只作为回归基线，不完成 11.2、11.3、11.5、11.7 或 11.8。
+
+- `node node_modules/vitest/vitest.mjs run packages/client/ui-lab-workbench/tests packages/client/ui-lab-knowledge-workspace/tests packages/experimental/lab-mvp-web/tests packages/experimental/lab-mvp/tests --reporter=verbose`：37 个文件、114 个测试通过。
+- `node node_modules/vitest/vitest.mjs run --config ./vitest.snapshot.config.ts examples/lab-web/tests/host-lifecycle.snapshot.ts --reporter=verbose`：1 个文件、1 个测试通过。
+- `node node_modules/vitest/vitest.mjs run --config ./vitest.web.config.ts apps/web/tests/lab-showcase.e2e.ts apps/web/tests/lab-workbench.e2e.ts apps/web/tests/lab-full-lifecycle.e2e.ts --reporter=verbose`：当时三条 assembled Chromium 场景通过，覆盖旧视觉布局、生命周期状态和 Host API 集成；`lab-full-lifecycle.e2e.ts` 的主要实验流程直接调用 `/api/lab`，不能证明 Agent 使用真实 `lab_*` 工具创建 Experiment，也不能证明人工启动 Run。
+- `node node_modules/vitest/vitest.mjs run packages/sdk/client/tests packages/sdk/server/tests --reporter=verbose`：76 个测试通过、3 个固定超时失败；失败位于 SDK `plugin-apply` 和 `server` 的既有 5000/15000ms 测试，使用代理后结果未改变。
+- `uv run --project python/sdk pytest python/sdk/tests`：52 个通过、10 个跳过。
+- `npm run typecheck`、`npm run build`、`npm run website:build`、`npm run verify-client-catalog`、`npm run verify-export-jsdoc`、`rtk openspec validate lab-showcase-ready-workspace --strict` 和 `git diff --check`：当时通过；构建记录 204 个 client artifacts。当前本机测试还需先修复缺失的 Rolldown macOS ARM 可选依赖，再按 11.7 重跑。
+- `npm run hygiene`：10 个 gate 通过、3 个仓库既有问题失败（vendor rescope、knip、constraints）。`npm run doc-sync`：27 个 gate 通过、translation pairing 失败；失败均未修改本变更的产品实现。
+
+**11.8 历史规格映射（2026-09-01，使用 `openspec-verify-change` 方法）：** 以下映射针对旧需求，仅保留已核对的组件和 Host API 证据；最终核验必须按当前 delta specs 重做。
+
+- 完整性：旧任务清单曾记录 103/103；当前已撤回与新口径冲突的完成项，不能据此归档。
+- `lab-experiment-workbench`：9 条 requirement、17 条 scenario 映射到 `packages/experimental/lab-project/`、`packages/experimental/lab-runtime-local/`、`packages/experimental/lab-mvp/`、`packages/client/ui-lab-workbench/` 的领域/Runtime/Facade/组件测试，以及 `apps/web/tests/lab-full-lifecycle.e2e.ts` 的真实 Host 生命周期；覆盖 Experiment、Session link、多个 Run、Artifact、Workflow/Skill/Plan 审批、失败重规划、Result assessment 和报告。
+- `lab-project-entry`：5 条 requirement、14 条 scenario 映射到 `packages/experimental/lab-project/tests/service.spec.ts`、`packages/experimental/lab-mvp-web/tests/project-protocol.spec.ts`、`packages/client/ui-lab-workbench/tests/host-adapter.contract.client.spec.ts` 和三个 assembled browser e2e；覆盖 Workspace 切换、重复映射、attach 冲突、归档、继承上下文与授权 Project 文件根。
+- `lab-project-knowledge-workspace`：5 条 requirement、10 条 scenario 映射到 `packages/experimental/lab-mvp/tests/pdf-harness-smoke.spec.ts`、`packages/experimental/lab-mvp/tests/composition.spec.ts`、`packages/client/ui-lab-knowledge-workspace/tests/` 与 `apps/web/tests/lab-showcase.e2e.ts`；覆盖独立 Knowledge capability、ready source/citation、keyless flow、Docling/model unavailable、Skill/evidence gap。
+- `lab-showcase-navigation`：旧映射覆盖 typed navigation、共享原生 Conversation、三栏收起/拖拽/响应式、配置中心、文件目录刷新、键盘操作与 truthful failure states；尚未证明初始 monitor 无输入、Project 状态列表以及 Project→Workspace→Session→工作台的完整跳转。
+- 重点缺口：现有证据尚未证明 LAB Agent 读取工作台流程和当前 Project context、通过共享 Host operation 创建 Experiment，以及人类明确启动 Run。浏览器只保存 `LabUiContext`、不生成业务 ID、不写文件和不传越界路径的既有约束继续有效。
+- 正确性/一致性：旧基线未发现当时的 CRITICAL 或 WARNING，但该结论已被新需求取代。只有完成 8.6、8.9、8.16、8.17、8.19、10.3、10.10–10.13 和 11.2–11.8，并重新运行严格核验后，才能给出最终结论。
+
+**最终 DoD：** 一个命令启动一个 Harness 应用；默认进入不含 Conversation、输入框和右侧工作台的全局执行监控；左侧提供全局监控、通用配置和原生 Workspace/Session tree，监控的 Project 状态区保留已有 Project。点击 Project 严格切换到对应 Workspace 和 matching Session，再选择关联 Project、authorized active Experiment 并唤起右侧工作台。Project 模式只有一个 Harness Agent 原生输入；Agent 获得 LABWEAVE 实验身份与流程指导，读取当前 Project context，通过 Host 生成 ID 且幂等的共享操作创建 Experiment，并提出 Workflow/Skill/Plan。只有人类可以调整和批准 Plan/Skill、启动 Run 与确认人工步骤；每个非终态结果明确 next actor 和允许动作，Agent 在人工门禁处 yield，不存在需要禁用工具或不可见人工操作才能继续的状态。所有响应式模式使用同一 Session、draft 和上下文；Project/Experiment/Run/Evidence/verdict 由 Host 持久化，项目文件只写入授权 Workspace；无模型密钥与真实 Provider 使用同一界面和事件链路。

@@ -752,7 +752,7 @@ export function parseLabCommandResult(value: unknown): LabCommandResult {
     case 'plan-rejection': return { kind: 'plan-rejection', value: decodeObject<LabPlanReview>(object.value, 'result.value') }
     case 'skill-revision': return { kind: 'skill-revision', value: decodeObject<LabSkillRevision>(object.value, 'result.value') }
     case 'run': return { kind: 'run', value: decodeObject<LabRun>(object.value, 'result.value') }
-    case 'report': return { kind: 'report', value: decodeObject<LabReportView>(object.value, 'result.value') }
+    case 'report': return { kind: 'report', value: toReportView(object.value) }
     default: throw new LabApiError('INVALID_RESPONSE', '实验 API 返回未知结果类型')
   }
 }
@@ -774,7 +774,7 @@ export function parseLabProjectCommandResult(value: unknown): LabProjectCommandR
     case 'experiment-project': return { kind: 'experiment-project', value: toProjectView(object.value) }
     case 'run-list': return { kind: 'run-list', value: array(object.value).map(item => decodeObject<LabRun>(item, 'result.value')) }
     case 'run': return { kind: 'run', value: decodeObject<LabRun>(object.value, 'result.value') }
-    case 'run-report': return { kind: 'run-report', value: decodeObject<LabReportView>(object.value, 'result.value') }
+    case 'run-report': return { kind: 'run-report', value: toReportView(object.value) }
     case 'run-comparison': return { kind: 'run-comparison', value: decodeObject<LabRunComparisonView>(object.value, 'result.value') }
     case 'artifact-list': return { kind: 'artifact-list', value: array(object.value).map(item => decodeObject<LabArtifactRecord>(item, 'result.value')) }
     case 'artifact': return { kind: 'artifact', value: decodeObject<LabArtifactRecord>(object.value, 'result.value') }
@@ -784,6 +784,16 @@ export function parseLabProjectCommandResult(value: unknown): LabProjectCommandR
     case 'configuration-capabilities': return { kind: 'configuration-capabilities', value: array(object.value).map(item => decodeObject<LabConfigurationCapability>(item, 'result.value')) }
     case 'presentation': return { kind: 'presentation', value: parsePresentationValidation(object.value) }
     default: throw new LabApiError('INVALID_RESPONSE', '项目 API 返回未知结果类型')
+  }
+}
+
+/** Normalize the report arrays that older Host report providers omit. */
+function toReportView(value: unknown): LabReportView {
+  const report = decodeObject<LabReportView>(value, 'result.value')
+  return {
+    ...report,
+    observations: array(report.observations).map(item => decodeObject<LabObservationRecord>(item, 'result.value.observations')),
+    artifacts: array(report.artifacts).map(item => decodeObject<LabArtifactRecord>(item, 'result.value.artifacts')),
   }
 }
 

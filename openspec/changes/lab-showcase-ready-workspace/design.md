@@ -17,17 +17,17 @@ The target browser composition is:
 ```text
 AppFrame
 ├── SidebarRoot
-│   ├── global execution monitor current activity / failures / approvals
-│   ├── Projects                 dynamic Project tree
-│   │   └── active Project       selection and status summary
+│   ├── global execution monitor entry
 │   ├── Configuration            Knowledge / Agent / Workflow and Lab Skill
 │   │                            Devices / People and permissions
 │   ├── sidebar.workspaces       ordinary directory Workspaces and Sessions
 │   └── Settings
-├── LABWEAVE Agent conversation  complete Session timeline and one Harness-backed input
-└── Project workspace
-    ├── Project / Experiment / Run lifecycle navigation rail
-    └── Project files            configuration / conversation output / run artifacts
+├── Root replacement view        monitor with Project status / configuration
+└── Project mode
+    ├── LABWEAVE conversation    complete Session timeline and one Harness-backed input
+    └── Project workspace
+        ├── Project / Experiment / Run lifecycle navigation rail
+        └── Project files        configuration / conversation output / run artifacts
 
 Reusable Harness conversation capabilities
 ├── Session, draft, queue, slash commands, references and attachments
@@ -36,11 +36,11 @@ Reusable Harness conversation capabilities
 └── timeline, message, command and node renderers
 ```
 
-`ui-layout` owns the active root-scoped application view and exposes `openAppView(id)` and `closeAppView()`. `ui-sidebar` owns only the navigation render location. Laboratory packages register navigation controls and page components; they do not own a second shell or a second input state. In Project context LABWEAVE owns the visible three-pane composition: the existing collapsible sidebar stays left, the complete native Harness Conversation (including its original header, hero and composer behavior) stays center, and the root details panel becomes a collapsible Project workspace on the right. The global configuration destination uses a full-page replacement view and does not display a conversation input. Every mode preserves one input DOM, one draft, the same mounted Session and the active laboratory context.
+`ui-layout` owns the active root-scoped application view and exposes `openAppView(id)` and `closeAppView()`. `ui-sidebar` owns only the navigation render location. Laboratory packages register navigation controls and page components; they do not own a second shell or a second input state. The global monitor and configuration destinations use full-page replacement views and display neither the Project workspace nor a conversation input. In Project context LABWEAVE owns the visible three-pane composition: the existing collapsible sidebar stays left, the complete native Harness Conversation stays center, and the root details panel becomes a collapsible Project workspace on the right. Every Project mode preserves one input DOM, one draft, the same mounted Session and the active laboratory context.
 
 The Project workspace contains lifecycle context and a Project files destination. The Host classifies authorized file records as project configuration, conversation output or run artifacts. A successful Host write appends a durable Project-file event containing Project ID, file record ID, group and revision metadata only. The active Project files destination reloads its same authorized catalog when it receives an event for its Project; manual refresh uses that same query. Preview and download are explicit Host-authorized adapter actions. The browser receives neither arbitrary absolute paths nor file bodies in state and offers no create, rename, upload or delete action.
 
-The visual architecture is frozen before Experiment, Run, Evidence and report details are completed. The global monitor, Project tree, configuration destinations, lifecycle workbench, Agent dock, command cards and detail views use one typography, spacing, status, focus and density system. The Project first viewport prioritizes lifecycle position, current Agent activity, critical path, failures and pending human actions; aggregate counts remain secondary and do not replace Experiment state.
+The visual architecture is frozen before Experiment, Run, Evidence and report details are completed. The global monitor, Workspace and Session browser, configuration destinations, lifecycle workbench, Agent presentation, command cards and detail views use one typography, spacing, status, focus and density system. The global monitor groups the durable Project list under Project status. The Project first viewport prioritizes lifecycle position, current Agent activity, critical path, failures and pending human actions; aggregate counts remain secondary and do not replace Experiment state.
 ### Implementation audit and client artifact freshness
 
 The source-launched Web Host resolves each browser plugin through its package `./client` export. For `ui-lab-workbench`, that export is the built `lib/client.js`; starting a new Host process does not compile newer files under `src/client/`. A fresh process can therefore serve the old laboratory page when the client bundle or `apps/web/dist` predates the source. Process age and an HTTP 200 response are not evidence that the current client implementation is running.
@@ -55,7 +55,7 @@ Before phase 8 visual closure and every phase 9 acceptance run, verification rec
 
 **Goals:**
 
-- Deliver one truthful, coherent showcase from ordinary Agent conversation or manual Project creation through cited planning, human approval, controlled execution and evidence-backed report.
+- Deliver one truthful, coherent showcase from selecting a Workspace and describing a goal through Agent-created Experiment records, cited planning, human approval, controlled execution and an evidence-backed report.
 - Deliver the result as one runnable `examples/lab-web` prototype with one shell, one launch path and shared state across every page.
 - Reuse existing Workspace, Session, conversation state, layout, primitive, trajectory and attachment capabilities while allowing LABWEAVE to own their visible composition.
 - Keep the directory Workspace as the user-facing laboratory project entry; retain internal LabProject, Session, Experiment, Run and Artifact identities for their separate records and lifecycles.
@@ -82,6 +82,8 @@ A directory Workspace continues to own a normalized path, Workspace presentation
 
 Selecting a Workspace resolves its unique LabProject and opens the corresponding Project workspace. If no LabProject exists, the Host creates one using the Workspace directory basename; a repeated create request resolves the existing mapping instead of creating a duplicate. Creating a Project from the current Session defaults to that Session's Workspace. Attaching a Session whose cwd does not match the Project Workspace fails with an actionable option to create a new Session in the target Workspace; the client never silently changes the Session cwd.
 
+The global monitor may list every durable Project under Project status without introducing a second Project selector in the sidebar. Selecting a Project follows one ordered transition: resolve its linked Workspace, connect or open a Session in that Workspace, select the unique LabProject, restore an authorized active Experiment when one exists, and open the Project workbench. A Workspace or Session selection uses the same resolution path in the opposite direction, so Workspace, Session, Project and Agent context cannot diverge.
+
 **Alternative considered: remove LabProject from the domain entirely.** Rejected because directory membership and laboratory ownership have different lifecycle, persistence and record-ownership rules even though they are one-to-one in the user-facing model.
 
 **Alternative considered: allow several LabProjects to reference one Workspace.** Rejected for the current product because the Workspace-backed file root and Session context would not identify a unique laboratory project; multiple projects would create ambiguous selection and file ownership.
@@ -93,6 +95,8 @@ Selecting a Workspace resolves its unique LabProject and opens the corresponding
 The internal Project domain gains durable Experiment records with generated branded identifiers, title, objective, status, `createdInSessionId`, optional `derivedFromExperimentId` and timestamps. An explicit link records whether a Session `created`, `continued` or `reviewed` an Experiment. A Session remains associated with at most one Workspace-backed LabProject, while an Experiment can be discussed by many Sessions inside that project.
 
 The existing Experiment request, plan and cache records reference the durable Experiment identity instead of acting as the Experiment aggregate. Existing evidence projections provide the migration source for records that already have Project, Session and Experiment identifiers.
+
+An Agent associated with a Project Session may create a concrete Experiment under that Project after it has enough goal information. The Host resolves the Project from the calling Session, generates the Experiment identifier, creates the Project record and registers the same identity with Runtime through one application operation. The Agent cannot supply a foreign Project identity, create a Workspace or LabProject, approve a Plan or Skill revision, start a Run, confirm a human step or publish a verdict. Human review may adjust the Experiment and proposed Workflow before explicitly starting a Run.
 
 **Alternative considered: make Experiment a child of its creating Session.** Rejected because later Sessions must continue, compare and report the same Experiment after the original Session is archived.
 
@@ -118,19 +122,19 @@ The first client supports metadata, safe text/JSON/image previews supplied by ex
 
 ### 5. Compose a hierarchical LABWEAVE shell around one reusable Agent surface
 
-`ui-layout` gains an additive root-scoped `app.view` list and an `ILayout` application-view selection API. `ui-sidebar` gains an additive `sidebar.navigation` seat that can render the global execution monitor, dynamic Project tree and configuration center. Navigation must work with no current Session and must not use `window` events, hash fragments or browser-only route copies. The ordinary Workspace and Session browser remains available as Harness infrastructure and does not become a second laboratory navigation system.
+`ui-layout` gains an additive root-scoped `app.view` list and an `ILayout` application-view selection API. `ui-sidebar` gains an additive `sidebar.navigation` seat for global execution monitoring and configuration destinations. Navigation must work with no current Session and must not use `window` events, hash fragments or browser-only route copies. The ordinary Workspace and Session browser remains the only persistent Project-entry tree in the sidebar.
 
-Opening a Project selects its durable record, opens the Project application view and shows a lifecycle navigation rail inside the right Project workspace for `Overview`, `Planning and Workflow`, `Plan approval`, `Execution monitoring`, `Step orchestration`, `Results and evidence`, `Files` and `Archive`. The left Projects tree remains a global Project selector and status summary; it does not duplicate lifecycle destinations. Conversations are supporting provenance reached from the active Project or Agent timeline, not the primary Project taxonomy. Returning to a Project restores its last valid destination from presentation state and reloads authoritative records from the Host.
+Opening a Project from the global monitor first switches to its linked Workspace and a matching Session, then selects its durable record and shows a lifecycle navigation rail inside the right Project workspace for `Overview`, `Planning and Workflow`, `Plan approval`, `Execution monitoring`, `Step orchestration`, `Results and evidence`, `Files` and `Archive`. The monitor Project-status list remains available when the user returns to the full-page monitor, while the sidebar Workspace tree reflects the active directory. Returning to a Project restores its last valid destination and active Experiment from presentation state when those records remain authorized.
 
-The Agent remains the primary orchestration path, but LABWEAVE owns its visible surface. `ui-conversation` exposes a reusable presentation contract backed by the same Session, input state machine, draft, queue, slash and reference handling, attachments, access and model controls, ask-user and approval takeovers, timeline, command and node renderers. The Project profile renders the full native shared Conversation in the center column and the active Project workspace in the collapsible details column; the global configuration view replaces the Conversation for a full-page settings surface. The composition SHALL NOT keep a second Conversation page beside or above the workspace, create a second text area, call a lower-level send method that bypasses the input state machine, or hide the original composer with CSS while mounting another input.
+The Agent remains the primary orchestration path, but LABWEAVE owns its visible surface. `ui-conversation` exposes a reusable presentation contract backed by the same Session, input state machine, draft, queue, slash and reference handling, attachments, access and model controls, ask-user and approval takeovers, timeline, command and node renderers. The Project profile renders the full native shared Conversation in the center column and the active Project workspace in the collapsible details column; the global monitor and configuration views replace the Conversation. The composition SHALL NOT keep a second Conversation page beside or above the workspace, create a second text area, call a lower-level send method that bypasses the input state machine, or hide the original composer with CSS while mounting another input.
 
 The Project workspace shows active Project, Workspace, Experiment and Run context together with the authorized file catalog. Structured Knowledge retrieval, capability gap, Workflow, Lab Skill, Plan, approval, Run, replan and result-assessment cards register through the durable Session projection and link to Project workspace detail pages. The laboratory UI SHALL not render objective, sample and constraint forms as a replacement for Agent-led orchestration.
 
-The global execution monitor summarizes active Runs, failures and pending approvals across Projects and links to their authorized destinations. It is a status and navigation projection, not a cross-Project scheduler. The configuration center exposes Knowledge, Agent, Workflow and Lab Skill, Devices, and People and permissions. Every destination consumes a real capability contribution and shows a truthful read-only or unavailable state when the capability is absent; People and permissions SHALL NOT fabricate identities, memberships or authorization.
+The global execution monitor is the initial full-page destination. It summarizes active Runs, failures and pending approvals and lists durable Projects under Project status. Selecting a Project executes the Host-authorized Project-to-Workspace-to-Session transition before opening that Project's workbench and active Experiment. The monitor is a status and navigation projection, not a cross-Project scheduler. The configuration center exposes Knowledge, Agent, Workflow and Lab Skill, Devices, and People and permissions. Every destination consumes a real capability contribution and shows a truthful read-only or unavailable state when the capability is absent; People and permissions SHALL NOT fabricate identities, memberships or authorization.
 
 The Agent may emit a typed presentation intent containing a registered view kind and authorized record identity. The Host validates Project scope and records the user-visible intent before the client changes selection. The model never receives a DOM, arbitrary URL or generic script interface. User navigation always remains available and can override the Agent-selected view.
 
-The visual direction uses dark ink-green navigation and workbench framing, warm neutral reading surfaces and amber attention states through shared client tokens. Global monitor, Project tree, configuration destinations, Workflow, Run, Evidence and Agent views use the same density, hierarchy and focus treatment. Lifecycle position, current work, critical path, failures and human actions lead the page; generic KPI cards remain secondary. Visible strings live in locale dictionaries.
+The visual direction uses dark ink-green navigation and workbench framing, warm neutral reading surfaces and amber attention states through shared client tokens. Global monitor, native Workspace/Session tree, configuration destinations, Workflow, Run, Evidence and Agent views use the same density, hierarchy and focus treatment. Lifecycle position, current work, critical path, failures and human actions lead the page; generic KPI cards remain secondary. Visible strings live in locale dictionaries.
 
 **Alternative considered: retain the seven-stage workbench as primary navigation.** Rejected because it exposes implementation order, duplicates global pages and makes returning users restart a wizard mentally.
 
@@ -138,9 +142,15 @@ The visual direction uses dark ink-green navigation and workbench framing, warm 
 
 ### 6. Make the Agent lifecycle the product orchestration path
 
-The Agent starts from the user's goal, asks for missing inputs, retrieves confirmed Knowledge, queries device and operation capabilities, and then proposes an Experiment Plan. Each Plan step references an active Lab Skill revision; when no suitable revision exists, the Agent may propose a declarative Lab Skill draft with citations, inputs, outputs, operation bindings, completion criteria and failure policy.
+The laboratory composition registers an additive LABWEAVE system-prompt contribution in the active Agent scope. It identifies the Agent as the planning, coordination and explanation agent for the current laboratory Project; defines the ordered lifecycle from Project context through Experiment creation, Knowledge and capability discovery, Plan and Skill proposal, human approval and Run start, monitoring, replanning and reporting; and states which operations belong to the Agent, human, Runtime or another capability. It preserves the Harness identity, deployment persona, tool protocol and permission instructions instead of replacing the assembled system prompt. The contributed prompt and every dynamic Project context exposed to the model remain reconstructable from Session events.
+
+The Agent starts inside the Project resolved from the current Workspace and Session. It reads the current Project scope, asks for missing inputs and creates a Host-identified Experiment under that Project. The creation operation resolves Project scope from the calling Session, requires no caller-supplied Project or Experiment identifier, registers the same Experiment with the Project service and Runtime, and is idempotent for one retried tool call. The existing proposal-only path does not remain as a prerequisite that requires a separate human Experiment-creation action. The Agent then retrieves confirmed Knowledge, queries device and operation capabilities, and proposes an Experiment Plan. Each Plan step references an active Lab Skill revision; when no suitable revision exists, the Agent may propose a declarative Lab Skill draft with citations, inputs, outputs, operation bindings, completion criteria and failure policy.
 
 The product-facing Experiment Workflow is a projection of the proposed or approved Plan, its locked Lab Skill revisions and the ExecutionGraph compiled by deterministic services. Harness Skills remain model instructions, and `dsh-workflow` remains available for short Agent collaboration; neither owns durable laboratory execution state.
+
+Creating an Experiment does not authorize execution. The user reviews and may adjust the Experiment, Plan and Skill revisions, approves the exact validated revisions and explicitly starts the Run. The Agent may request those actions and present their pending state, but it cannot invoke the Run-start operation or satisfy a human confirmation itself.
+
+Every laboratory operation that cannot proceed returns a typed progress result containing its state, scoped Project and record identities, reason, `nextActor`, `allowedActions` and a registered workbench destination when a user action exists. `nextActor` distinguishes Agent, human, Runtime and capability work. At a human gate the Agent emits one review request, presents the pending action and yields; it does not poll, repeatedly invoke the rejected tool or claim that execution continued. The human action appends a durable event that becomes model-visible when the Session continues. A capability failure or missing input produces an explicit retry, configuration, clarification or stop path. No state may require the Agent to perform an operation its policy denies or require a user action that the workbench cannot expose.
 
 During a Run, the Agent consumes logged step, observation, device, approval and Artifact events. It explains progress and may propose a new Plan or Skill revision after failure, but Runtime remains the only owner of step progression. Result assessment combines deterministic validation, configured algorithm outputs, Agent synthesis and required human QC. Only the service-owned verdict and approvals can complete or release an Experiment.
 
@@ -163,14 +173,15 @@ The keyless showcase uses deterministic Knowledge, model and device test Provide
 The acceptance journey is:
 
 ```text
-ordinary conversation or New Project
-  -> choose Workspace
-  -> create/attach Project Session
+open global monitor or choose Workspace/Session
+  -> resolve or create the Workspace's unique LabProject
+  -> connect a matching Project Session
   -> import source in Knowledge workspace
   -> select source and device scope
-  -> create cited Experiment and Plan in conversation
-  -> validate and approve exact Plan revision
-  -> start and confirm Run steps
+  -> Agent creates a Project-owned Experiment
+  -> Agent proposes a cited Plan and Skill revisions
+  -> user adjusts, validates and approves exact revisions
+  -> user starts the Run and confirms gated steps
   -> inspect Run evidence and Project report
 ```
 
@@ -195,6 +206,7 @@ Implementation first reconciles `pdf-knowledge-parser-mvp`, `pdf-docling-ingesti
 - [The hierarchical sidebar can imply unavailable administration] -> Resolve every configuration destination from registered capability state and render explicit read-only or unavailable states instead of sample identities or permissions.
 - [Frontend completion can be mistaken for product completion] -> Mark the fixture adapter as deterministic demonstration infrastructure, keep its records typed and require Host-adapter and event-reload acceptance before completing the change.
 - [Agent-driven navigation can surprise users or cross scope] -> Validate registered destinations and record ownership on the Host, log the presentation intent and preserve direct user navigation.
+- [Agent and human permissions can form an unresolvable wait] -> Make every non-terminal result name the next actor and available action, expose human actions in the workbench, yield instead of retrying denied tools and test every bootstrap and approval transition.
 - [Plugin absence can break the live demonstration] -> Every optional capability exposes loading, unavailable and retry states; the keyless showcase profile pins the required deterministic Providers.
 - [Open-source inspiration can create incompatible vocabulary] -> Keep Harness terms `Workspace` and `Session` and laboratory terms `Project`, `Experiment`, `Run` and `Artifact`; do not import Folder, Thread or Task as domain aliases.
 

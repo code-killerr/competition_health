@@ -46,6 +46,16 @@ describe('lab workbench browser API', () => {
       },
     })
     expect(context).toMatchObject({ kind: 'project-context', value: { project: { projectId: 'project-1', sources: [{ documentId: 'doc-1' }], devices: [{ deviceId: 'device-1' }] }, knowledgeCapability: { state: 'available' } } })
+
+    const report = parseLabProjectCommandResult({
+      kind: 'run-report',
+      value: {
+        runId: 'run-1', experimentId: 'experiment-1', planId: 'plan-1', status: 'BLOCKED',
+        feedback: { status: 'BLOCKED', valid: false, summary: 'Review required', issues: [], replanRequested: true },
+        observations: [],
+      },
+    })
+    expect(report).toMatchObject({ kind: 'run-report', value: { runId: 'run-1', observations: [], artifacts: [] } })
   })
 
   it('rejects an unknown result variant before it reaches page state', () => {

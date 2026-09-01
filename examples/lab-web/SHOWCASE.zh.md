@@ -1,4 +1,4 @@
-本手册对应 Stage 8 的 Harness 原生 LABWEAVE 组合。它使用真实的 Workspace 与 Project Facade 记录、共享 Conversation 展示契约和 LABWEAVE 生命周期工作台，不把 Stage 9 的 Knowledge 到报告业务流程写成已完成能力。
+本手册对应 Harness 原生 LABWEAVE 组合及其由 Host 驱动的生命周期验收。视觉 walkthrough 使用真实的 Workspace 与 Project Facade 记录、共享 Conversation 展示契约和 LABWEAVE 生命周期工作台；生命周期验收只对补问使用确定性模型 replay，Knowledge、Experiment、Plan、Run、报告和 Project 文件均通过真实 Host 命令完成。
 
 ## 准备
 
@@ -20,7 +20,7 @@ pnpm run demo:lab-web
 6. 打开配置中心；Knowledge 和 Devices 展示已注册的 Host 能力，没有对应能力时 Agent、Workflow/Lab Skill 和人员/权限显示明确的 unavailable 状态。
 7. 将页面调整为桌面、平板和窄桌面宽度；确认工作台可滚动，dock 始终可访问，侧栏 rail 模式仍可操作。
 
-可重复执行的 assembled 浏览器流程位于 `apps/web/tests/lab-showcase.e2e.ts`。浏览器可用时，它会在 `.artifacts/lab-showcase/` 保存桌面、平板和窄桌面截图；本机暂不进行浏览器复核的内容，应在换回可验证设备后补做。
+可重复执行的视觉浏览器流程位于 `apps/web/tests/lab-showcase.e2e.ts`。浏览器可用时，它会在 `.artifacts/lab-showcase/` 保存桌面、平板和窄桌面截图。Host 生命周期流程位于 `apps/web/tests/lab-full-lifecycle.e2e.ts`；assembled fixture 状态流程位于 `apps/web/tests/lab-workbench.e2e.ts`。
 
 ## 预期状态
 
@@ -28,6 +28,6 @@ pnpm run demo:lab-web
 
 ## 展示边界
 
-配置卡片用于验证目的地和能力状态，不代表 Stage 9 Knowledge provider 流程已完成。完整的 Experiment→Plan→审批→Run→Artifact→报告链路不属于本次 Stage 8 walkthrough，不要使用旧 JSON fixture 或截图证明这些动作已经通过当前 Host Facade 接通。
+配置卡片用于验证目的地和能力状态。完整的 Experiment→Plan→审批→Run→Artifact→报告链路由 Host 生命周期浏览器流程通过当前 Host Facade 验证；视觉 walkthrough 不执行这些写操作。不要使用旧 JSON fixture 或截图证明 Host 生命周期已经接通。
 
-模型规划是可选检查，需要配置 `DEEPSEEK_API_KEY`。Provider 不可用时应报告为 unavailable 或 skipped，不应把确定性的开发数据展示为生产结果。
+生命周期浏览器流程不需要配置 `DEEPSEEK_API_KEY`，其中的模型补问使用确定性 replay。实时模型规划是可选检查，需要配置 `DEEPSEEK_API_KEY`。Provider 不可用时应报告为 unavailable 或 skipped，不应把确定性的开发数据展示为生产结果。

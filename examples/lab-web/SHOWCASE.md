@@ -1,6 +1,6 @@
 # Lab showcase verification guide
 
-This guide verifies the Stage 8 Harness-native LABWEAVE composition. It uses the assembled Web profile, real Workspace and Project Facade records, the shared Conversation presentation contract, and the LABWEAVE lifecycle shell. It does not claim the Stage 9 Knowledge-to-report business flow.
+This guide verifies the assembled Harness-native LABWEAVE composition and its Host-backed lifecycle lane. The visual walkthrough uses real Workspace and Project Facade records, the shared Conversation presentation contract, and the LABWEAVE lifecycle shell. The lifecycle lane uses deterministic model replay only for clarification and real Host commands for Knowledge, Experiment, Plan, Run, report, and Project files.
 
 ## Prepare
 
@@ -22,7 +22,7 @@ Open the local URL printed by the command. The command starts the opt-in composi
 6. Open Configuration. Knowledge and Devices show registered Host capabilities; Agent, Workflow/Lab Skill, and People/permissions show explicit unavailable states when no corresponding capability is registered.
 7. Resize the assembled page to desktop, tablet, and narrow desktop widths. Confirm that the workbench remains scrollable, the dock stays reachable, and sidebar rail mode remains operable.
 
-The repeatable assembled browser lane is `apps/web/tests/lab-showcase.e2e.ts`. It records desktop, tablet, and narrow screenshots under `.artifacts/lab-showcase/` when Playwright Chromium is available.
+The repeatable visual browser lane is `apps/web/tests/lab-showcase.e2e.ts`. It records desktop, tablet, and narrow screenshots under `.artifacts/lab-showcase/` when Playwright Chromium is available. The Host lifecycle lane is `apps/web/tests/lab-full-lifecycle.e2e.ts`; the assembled fixture-state lane is `apps/web/tests/lab-workbench.e2e.ts`.
 
 ## Expected states
 
@@ -30,6 +30,6 @@ An empty Project list means that the current Host has no Project records. An una
 
 ## Showcase boundary
 
-The configuration cards are destination and capability-status checks; they are not the Stage 9 Knowledge provider flow. The complete Experiment→Plan→approval→Run→Artifact→report path is not part of this verified Stage 8 walkthrough. Do not use the old JSON fixture or a screenshot as evidence that those actions are wired through the current Host Facade.
+The configuration cards are destination and capability-status checks. The complete Experiment→Plan→approval→Run→Artifact→report path is verified by the Host lifecycle browser lane through the current Host Facade; the visual walkthrough does not claim that it performs those mutations. Do not use the old JSON fixture or a screenshot as evidence for the Host lifecycle.
 
-Model-backed planning is an optional check and requires `DEEPSEEK_API_KEY`. If a provider is unavailable, report that capability as unavailable or skipped instead of presenting deterministic development data as a production result.
+The lifecycle browser lane does not require `DEEPSEEK_API_KEY`; its model clarification is deterministic replay. A live model-backed planning check is optional and requires `DEEPSEEK_API_KEY`. If a provider is unavailable, report that capability as unavailable or skipped instead of presenting deterministic development data as a production result.

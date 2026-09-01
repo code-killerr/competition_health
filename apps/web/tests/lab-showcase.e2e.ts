@@ -71,6 +71,8 @@ describe('web e2e: LABWEAVE showcase composition', () => {
     await page.getByRole('heading', { name: projectName, exact: true }).waitFor({ state: 'visible' })
     await page.locator('[data-lab-lifecycle-overview]').waitFor({ state: 'visible' })
     await page.locator('[data-lab-pending-action]').waitFor({ state: 'visible' })
+    expect(await page.locator('[data-lab-pending-action]').textContent()).toContain('Plan approval')
+    expect(await page.locator('[data-lab-agent-context]').textContent()).toContain('Status:')
     await page.getByRole('button', { name: 'Configuration center', exact: true }).click()
     await page.getByRole('main', { name: 'Configuration center', exact: true }).waitFor({ state: 'visible' })
     await page.getByText('Workflow registry', { exact: false }).waitFor({ state: 'visible' })
@@ -86,17 +88,35 @@ describe('web e2e: LABWEAVE showcase composition', () => {
     expect(await page.locator('[data-presentation="lab-workspace"]').count()).toBe(1)
     expect(await page.locator('[data-presentation="default"]').count()).toBe(0)
     expect(await page.locator('textarea').count()).toBe(1)
-    await page.getByRole('button', { name: 'Close project workspace', exact: true }).waitFor({ state: 'visible' })
-    await page.getByRole('button', { name: 'Close project workspace', exact: true }).click()
+    const projectWorkspaceToggle = page.getByRole('button', { name: 'Close project workspace', exact: true })
+    await projectWorkspaceToggle.waitFor({ state: 'visible' })
+    await projectWorkspaceToggle.focus()
+    expect(await projectWorkspaceToggle.evaluate(element => element === document.activeElement)).toBe(true)
+    await projectWorkspaceToggle.press('Enter')
     await page.getByRole('button', { name: 'Open project workspace', exact: true }).waitFor({ state: 'visible' })
-    await page.getByRole('button', { name: 'Open project workspace', exact: true }).click()
+    const openProjectWorkspace = page.getByRole('button', { name: 'Open project workspace', exact: true })
+    await openProjectWorkspace.focus()
+    await openProjectWorkspace.press('Enter')
     await page.locator('[data-lab-project-shell]').waitFor({ state: 'visible' })
     await page.screenshot({ path: join(EVIDENCE_DIR, '02-three-pane-project-workspace.png'), fullPage: true })
+
+    const detailsHandle = page.locator('[data-side="details"]')
+    const detailsBefore = await detailsHandle.evaluate(element => window.innerWidth - element.getBoundingClientRect().left)
+    const detailsBox = await detailsHandle.boundingBox()
+    if (detailsBox === null) throw new Error('details resize handle is not laid out')
+    await page.mouse.move(detailsBox.x + detailsBox.width / 2, detailsBox.y + 120)
+    await page.mouse.down()
+    await page.mouse.move(detailsBox.x - 120, detailsBox.y + 120)
+    await page.mouse.up()
+    await expect.poll(() => detailsHandle.evaluate(element => window.innerWidth - element.getBoundingClientRect().left)).toBeGreaterThan(detailsBefore + 80)
 
     const draft = page.locator('textarea')
     await draft.fill('keep this draft while changing destinations')
     for (const destination of ['Planning and Workflow', 'Plan approval', 'Execution monitoring', 'Step orchestration', 'Evidence and reports', 'Archive']) {
-      await page.getByRole('button', { name: destination, exact: true }).click()
+      const destinationButton = page.getByRole('button', { name: destination, exact: true })
+      expect(await destinationButton.getAttribute('title')).toBe(destination)
+      await destinationButton.focus()
+      await destinationButton.press('Enter')
       await expect.poll(() => page.locator('[data-lab-project-shell]').count()).toBe(1)
       expect(await draft.evaluate(element => (element as HTMLTextAreaElement).value)).toBe('keep this draft while changing destinations')
     }
@@ -105,6 +125,13 @@ describe('web e2e: LABWEAVE showcase composition', () => {
     await projectNavigation.getByRole('button', { name: 'Project files', exact: true }).click()
     const projectFiles = page.locator('[data-lab-project-file-id]')
     await projectFiles.first().waitFor({ state: 'visible', timeout: 20_000 })
+    const conversationScroll = page.locator('[data-conversation-scroll]')
+    const scrollMetrics = await conversationScroll.evaluate(element => ({
+      clientHeight: element.clientHeight,
+      overflowY: getComputedStyle(element).overflowY,
+    }))
+    expect(scrollMetrics.clientHeight).toBeGreaterThan(0)
+    expect(['auto', 'scroll']).toContain(scrollMetrics.overflowY)
     expect(await page.locator('[data-lab-project-file-group="configuration"]').count()).toBe(1)
     const configurationFile = page.locator('[data-lab-project-file-group="configuration"]').first()
     await configurationFile.getByRole('button', { name: 'Preview', exact: true }).click()
@@ -113,6 +140,9 @@ describe('web e2e: LABWEAVE showcase composition', () => {
     await configurationFile.getByRole('button', { name: 'Download ready', exact: true }).waitFor({ state: 'visible', timeout: 15_000 })
     await writeFile(join(scaffold.workspaceCwd, 'workspace', 'conversation-output', 'goal.md'), '# assembled output\n', 'utf8')
     await expect.poll(() => page.locator('[data-lab-project-file-id]').count(), { timeout: 20_000 }).toBe(2)
+    await writeFile(join(scaffold.workspaceCwd, 'workspace', 'run-artifacts', 'manual-refresh.json'), '{"source":"manual-refresh"}\n', 'utf8')
+    await page.locator('[data-lab-project-files]').getByRole('button', { name: 'Refresh files', exact: true }).click()
+    await expect.poll(() => page.locator('[data-lab-project-file-id]').count(), { timeout: 20_000 }).toBe(3)
 
     expect(await page.locator('textarea').count()).toBe(1)
     await page.locator('[data-conversation-scroll]').waitFor({ state: 'visible' })
@@ -121,11 +151,17 @@ describe('web e2e: LABWEAVE showcase composition', () => {
     await page.setViewportSize({ width: 1024, height: 900 })
     await page.locator('[data-lab-agent-context]').waitFor({ state: 'visible' })
     await page.locator('[data-lab-project-shell]').waitFor({ state: 'visible' })
+    expect(await page.locator('[data-side="details"]').count()).toBe(1)
+    await assertVisibleWithinViewport(page, '[data-lab-agent-context]')
+    await assertVisibleWithinViewport(page, '[data-lab-project-shell]')
     await page.screenshot({ path: join(EVIDENCE_DIR, '05-tablet.png'), fullPage: true })
 
     await page.setViewportSize({ width: 700, height: 900 })
     await page.locator('[data-lab-agent-context]').waitFor({ state: 'visible' })
     await page.locator('[data-lab-project-shell]').waitFor({ state: 'visible' })
+    expect(await page.locator('[data-side="details"]').count()).toBe(1)
+    await assertVisibleWithinViewport(page, '[data-lab-agent-context]')
+    await assertVisibleWithinViewport(page, '[data-lab-project-shell]')
     await page.screenshot({ path: join(EVIDENCE_DIR, '06-narrow.png'), fullPage: true })
     await page.setViewportSize({ width: 1680, height: 1000 })
 
@@ -133,3 +169,16 @@ describe('web e2e: LABWEAVE showcase composition', () => {
     expect(tripwire.warnings).toEqual([])
   }, 180_000)
 })
+
+async function assertVisibleWithinViewport(page: Page, selector: string): Promise<void> {
+  const viewport = page.viewportSize()
+  if (viewport === null) throw new Error('browser viewport is unavailable')
+  await expect.poll(async () => {
+    const box = await page.locator(selector).boundingBox()
+    return box !== null && box.x >= 0 && box.x + box.width <= viewport.width
+  }, { timeout: 10_000 }).toBe(true)
+  const box = await page.locator(selector).boundingBox()
+  if (box === null) throw new Error(`${selector} is not laid out`)
+  expect(box.x).toBeGreaterThanOrEqual(0)
+  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width)
+}

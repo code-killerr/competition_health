@@ -101,7 +101,9 @@
     "tests/pwsh-terminal.e2e.ts",
     "tests/workflow-run.e2e.ts",
     "tests/lab-showcase.e2e.ts",
-    "tests/lab-showcase-hold.e2e.ts"
+    "tests/lab-showcase-hold.e2e.ts",
+    "tests/lab-workbench.e2e.ts",
+    "tests/lab-full-lifecycle.e2e.ts"
   ],
   "references": [
     {
