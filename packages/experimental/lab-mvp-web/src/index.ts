@@ -1,7 +1,7 @@
 /** 实验自动化平台 Web Facade；浏览器只能通过本服务访问实验能力。 */
 
 import { Context, Service } from '@deepseek-ai/cordis'
-import { brandId, type ArtifactManifest, type DeviceId, type ExperimentId, type ExperimentPlan, type ExperimentRequest, type LabOperationId, type KnowledgeConflict, type KnowledgeSearchRequest, type KnowledgeSearchResult, type LabExperimentRecord, type LabProjectEvidenceProjection, type LabProjectId, type PlanParameter } from '@deepseek-ai/dsh-experimental-lab-domain'
+import { brandId, type ArtifactManifest, type DeviceId, type ExperimentId, type ExperimentPlan, type ExperimentRequest, type LabOperationId, type KnowledgeConflict, type KnowledgeSearchRequest, type KnowledgeSearchResult, type LabExperimentRecord, type LabProjectEvidenceProjection, type LabProjectId, type PlanParameter, type LabProgressResult, type LabScopedRecordIds, type LabWorkbenchDestination } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { DeviceView } from '@deepseek-ai/dsh-experimental-lab-device'
 import type { LabExperimentCacheService } from '@deepseek-ai/dsh-experimental-lab-cache'
 import type { ImportStatusResult } from '@deepseek-ai/dsh-experimental-lab-knowledge'
@@ -44,15 +44,13 @@ export interface LabAgentExperimentCreateRequest {
 }
 
 /** Agent 实验创建后的可重放进度结果。 */
-export interface LabAgentExperimentProgress {
+export interface LabAgentExperimentProgress extends LabProgressResult {
   readonly state: 'registered' | 'already-registered' | 'blocked'
   readonly sessionId: SessionId
+  readonly scopedIds: LabScopedRecordIds
   readonly projectId?: LabProjectId
-  readonly reason: string
-  readonly nextActor: 'agent' | 'human' | 'runtime' | 'capability'
-  readonly allowedActions: readonly string[]
   readonly registeredDestination?: { readonly projectId: LabProjectId; readonly experimentId: ExperimentId }
-  readonly workbenchDestination?: { readonly view: 'lab-monitor' | 'lab-project'; readonly projectId?: LabProjectId; readonly experimentId?: ExperimentId }
+  readonly workbenchDestination?: LabWorkbenchDestination
 }
 
 /** Web Consumer Facade 服务。 */
@@ -84,6 +82,7 @@ export class LabMvpWebService extends Service {
       return {
         state: 'blocked',
         sessionId: request.sessionId,
+        scopedIds: {},
         reason: 'The current Session is not associated with a laboratory Project. Select or open a Workspace before creating an Experiment.',
         nextActor: 'human',
         allowedActions: ['select_workspace'],
@@ -129,6 +128,7 @@ export class LabMvpWebService extends Service {
     return {
       state: result.created ? 'registered' : 'already-registered',
       sessionId: request.sessionId,
+      scopedIds: { projectId: result.experiment.projectId, experimentId: result.experiment.experimentId },
       projectId: result.experiment.projectId,
       reason: result.created ? 'The Host registered the Project Experiment and Runtime record with one Experiment ID.' : 'The Host replayed the same operation and returned the existing Project Experiment and Runtime identity.',
       nextActor: 'agent',
@@ -208,6 +208,7 @@ export class LabMvpWebService extends Service {
     const { knowledge, knowledgeCapability } = knowledgeSnapshot
     const devices = this.ctx.labDevices.listDevices().map(device => ({
       ...device,
+      source: deviceSource(this.ctx.labDevices),
       capabilities: device.capabilities.map(capability => ({ ...capability, parameters: { ...capability.parameters } })),
     }))
     const planReviews = this.ctx.labPlanning.listProposals(experimentId)
@@ -243,7 +244,7 @@ export class LabMvpWebService extends Service {
       case 'knowledge-snapshot':
         return { kind: 'knowledge-snapshot', value: await this.knowledgeSnapshot() }
       case 'device-list':
-        return { kind: 'device-list', value: this.ctx.labDevices.listDevices().map(device => ({ ...device, capabilities: device.capabilities.map(capability => ({ ...capability, parameters: { ...capability.parameters } })) })) }
+        return { kind: 'device-list', value: this.ctx.labDevices.listDevices().map(device => ({ ...device, source: deviceSource(this.ctx.labDevices), capabilities: device.capabilities.map(capability => ({ ...capability, parameters: { ...capability.parameters } })) })) }
       case 'knowledge-import':
         return {
           kind: 'knowledge-import',
@@ -646,7 +647,7 @@ export class LabMvpWebService extends Service {
     }
     try {
       const devices = this.ctx.labDevices.listDevices()
-      capabilities.splice(2, 0, { kind: 'devices', name: 'Device registry', status: 'available', allowedActions: ['inspect'], recordCount: devices.length })
+      capabilities.splice(2, 0, { kind: 'devices', name: 'Device registry', status: 'read-only', allowedActions: ['inspect', 'select-project-scope'], recordCount: devices.length, detail: 'Runtime configure/connect is not provided by the mounted device Provider.' })
     } catch {
       capabilities.splice(2, 0, { kind: 'devices', name: 'Device registry', status: 'unavailable', allowedActions: [] })
     }
@@ -1198,6 +1199,10 @@ function toRuntimeRequest(request: ExperimentRequest): import('@deepseek-ai/dsh-
     objective: request.objective,
     expectedOutputs: request.expectedOutputs,
   }
+}
+
+function deviceSource(devices: { readonly providerName?: () => string }): 'mock' | 'real' {
+  return devices.providerName?.() === 'mock' ? 'mock' : 'real'
 }
 
 declare module '@deepseek-ai/cordis' {

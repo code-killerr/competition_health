@@ -119,6 +119,38 @@ describe('LabProjectShellView', () => {
     expect(listProjectFiles).toHaveBeenCalledTimes(2)
   })
 
+  it('reloads Project records when the Host publishes an Agent laboratory event', async () => {
+    const ui = new LabUiContext()
+    ui.selectProject('project-1')
+    const listeners = new Set<() => void>()
+    const loadProject = vi.fn(async () => ({ state: 'ready' as const, value: {
+      project: { projectId: 'project-1', workspaceId: 'workspace-1', name: 'Calibration', description: 'Demo', status: 'ACTIVE' as const },
+      sources: [], devices: [], sessions: [], sharedFacts: [], evidence: [], experiments: loadProject.mock.calls.length > 1 ? [{ experimentId: 'experiment-agent', projectId: 'project-1', title: 'Agent experiment', objective: 'Test', status: 'ACTIVE' as const, createdInSessionId: 'session-1', createdAt: 1, updatedAt: 1 }] : [], experimentSessions: [],
+    } }))
+    const view = render(<LabProjectShellView {...{
+      ui,
+      t: (key: string) => key,
+      loadProject,
+      listRuns: async () => ({ state: 'empty' as const, code: 'NO_RECORDS' as const, message: '' }),
+      loadRunReport: async () => ({ state: 'empty' as const, code: 'NO_RECORDS' as const, message: '' }),
+      listArtifacts: async () => ({ state: 'empty' as const, code: 'NO_RECORDS' as const, message: '' }),
+      openArtifact: async () => ({ artifactId: 'artifact-1', runId: 'run-1', kind: 'json' as const, displayName: 'result.json', uri: 'lab-artifact://result.json', mediaType: 'application/json', size: 1, digest: 'sha256:test', createdAt: 1 }),
+      loadExperimentReviews: async () => ({ state: 'empty' as const, code: 'NO_RECORDS' as const, message: '' }),
+      compareRuns: async () => ({ state: 'empty' as const, code: 'NO_RECORDS' as const, message: '' }),
+      retryRun: async () => ({ runId: 'run-1' }),
+      openSession: () => {},
+      subscribeProjectEvents: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } },
+    } as unknown as Parameters<typeof LabProjectShellView>[0]} />)
+
+    await waitFor(() => { expect(view.getByRole('heading', { name: 'Calibration' })).toBeTruthy() })
+    await waitFor(() => { expect(listeners.size).toBe(1) })
+    await act(async () => { for (const listener of listeners) listener(); await new Promise(resolve => { setTimeout(resolve, 0) }) })
+    await waitFor(() => { expect(loadProject).toHaveBeenCalledTimes(2) })
+    fireEvent.click(view.getByRole('button', { name: 'planning' }))
+    await waitFor(() => { expect(view.getByRole('button', { name: /Agent experiment/ })).toBeTruthy() })
+    expect(loadProject).toHaveBeenCalledTimes(2)
+  })
+
   it('emits Host review actions and refreshes the next Skill state', async () => {
     const ui = new LabUiContext()
     ui.selectProject('project-1')
@@ -139,6 +171,7 @@ describe('LabProjectShellView', () => {
       review = { ...review, skillRevisions: [{ ...review.skillRevisions![0]!, status: 'ACTIVE' }] }
       return review.skillRevisions![0]!
     })
+    const startRun = vi.fn(async () => ({ runId: 'run-1', experimentId: 'experiment-1', planId: 'plan-1', runStatus: 'CREATED' as const }))
     const props = {
       ui,
       t: (key: string) => key,
@@ -157,6 +190,7 @@ describe('LabProjectShellView', () => {
       validateSkill,
       approveSkill,
       activateSkill,
+      startRun,
       retryRun: async () => ({ runId: 'run-1' }),
       openSession: () => {},
     } as unknown as Parameters<typeof LabProjectShellView>[0]
@@ -165,6 +199,11 @@ describe('LabProjectShellView', () => {
     await waitFor(() => { expect(view.getByRole('heading', { name: 'Calibration' })).toBeTruthy() })
     fireEvent.click(view.getByRole('button', { name: 'planning' }))
     await waitFor(() => { expect(view.getByRole('button', { name: 'skillValidate' })).toHaveProperty('disabled', false) })
+    expect(view.getByRole('button', { name: 'startRun' })).toHaveProperty('disabled', false)
+    fireEvent.click(view.getByRole('button', { name: 'startRun' }))
+    await waitFor(() => { expect(startRun).toHaveBeenCalledWith({ experimentId: 'experiment-1', planId: 'plan-1' }) })
+    expect(ui.snapshot()).toMatchObject({ projectPage: 'execution', activeRunId: 'run-1' })
+    fireEvent.click(view.getByRole('button', { name: 'planning' }))
     fireEvent.click(view.getByRole('button', { name: 'skillValidate' }))
     await waitFor(() => { expect(validateSkill).toHaveBeenCalledWith('skill-rev-1') })
     await waitFor(() => { expect(view.getByRole('button', { name: 'skillApprove' })).toHaveProperty('disabled', false) })

@@ -39,6 +39,7 @@ async function mount(): Promise<Bench> {
       call: () => Promise.reject(new Error('unexpected generic RPC call')),
     },
     subscribeHostEvents: () => () => {},
+    subscribeMuxEvents: () => () => {},
     start: (sinks) => {
       bench.sinks = sinks
       return { stop: () => { bench.stopped += 1 } }

@@ -21,6 +21,8 @@ import { en, zh, type LabWorkbenchKey } from './locales.ts'
 import type { LabQueryState, LabWorkbenchAdapter } from './adapter.ts'
 import { LabConversationHeaderAction } from './LabConversationHeaderAction.tsx'
 import type { LabConversationHeaderInjected } from './LabConversationHeaderAction.tsx'
+import { LabConversationContextDock } from './LabConversationContextDock.tsx'
+import type { LabConversationContextInjected } from './LabConversationContextDock.tsx'
 import { LabCommandCard, LAB_COMMAND_NAMES } from './LabCommandCard.tsx'
 import type { LabCommandCardInjected } from './LabCommandCard.tsx'
 import { LabLifecycleNodeView } from './LabLifecycleNodeView.tsx'
@@ -32,7 +34,7 @@ import type { LabOperationsInjected } from './LabOperationsView.tsx'
 import { createLabHostAdapter } from './host-adapter.ts'
 
 export { LabWorkbenchError } from './adapter.ts'
-export type { LabAdapterErrorCode, LabProjectFileAdapter, LabProjectFileEventListener, LabQueryState, LabWorkbenchAdapter, LabWorkbenchActions, LabWorkbenchQueries, LabKnowledgeScopeView } from './adapter.ts'
+export type { LabAdapterErrorCode, LabProjectEventListener, LabProjectFileAdapter, LabProjectFileEventListener, LabQueryState, LabWorkbenchAdapter, LabWorkbenchActions, LabWorkbenchQueries, LabKnowledgeScopeView } from './adapter.ts'
 export { createLabHostAdapter } from './host-adapter.ts'
 export type { LabHostAdapterDependencies } from './host-adapter.ts'
 export type { LabProjectFileDownload, LabProjectFileGroup, LabProjectFilePreview, LabProjectFileRecord, LabProjectFileRevisionEvent } from './api.ts'
@@ -93,6 +95,8 @@ export interface LabProjectActions {
   readonly toggleDevice: (projectId: string, deviceId: string) => Promise<void>
   /** Toggle one Knowledge source in a Project's Host-owned source scope. */
   readonly toggleSource: (projectId: string, source: { readonly documentId: string; readonly versionId: string }) => Promise<void>
+  /** Load the Knowledge source selections owned by one Project. */
+  readonly loadSources: (projectId: string) => Promise<readonly { readonly documentId: string; readonly versionId: string }[]>
 }
 
 /** Typed navigation service for Agent and conversation presentation consumers. */
@@ -117,15 +121,29 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-lab-workbench: dictionaries')
 
   const ui = new LabUiContext()
-  const connection = ctx.get('connection') as { readonly subscribeHostEvents?: LabHostEventSubscription } | undefined
+  const connection = ctx.get('connection') as {
+    readonly subscribeHostEvents?: LabHostEventSubscription
+    readonly subscribeMuxEvents?: LabHostEventSubscription
+  } | undefined
   const adapter = createLabHostAdapter({
     ...connection?.subscribeHostEvents === undefined ? {} : { subscribeHostEvents: connection.subscribeHostEvents as LabHostEventSubscription },
+    ...connection?.subscribeMuxEvents === undefined ? {} : { subscribeMuxEvents: connection.subscribeMuxEvents as LabHostEventSubscription },
   })
   ctx.effect(() => ctx.reflect.provide('labUi', ui), 'ui-lab-workbench: presentation selection')
   ctx.effect(() => ctx.reflect.provide('labAdapter', adapter), 'ui-lab-workbench: Host adapter')
   const projectActions: LabProjectActions = {
     toggleSource: (projectId, source) => toggleProjectSource(adapter, projectId, source, currentSessionId(ctx)),
     toggleDevice: (projectId, deviceId) => toggleProjectDevice(adapter, projectId, deviceId, currentSessionId(ctx)),
+    loadSources: async (projectId) => {
+      const context = await adapter.getProjectContext(projectId)
+      if (context.state !== 'ready') throw new Error(context.message)
+      return context.value.project.sources.map((source) => {
+        if (source.documentId === undefined || source.versionId === undefined) {
+          throw new Error('Project Knowledge source is missing documentId or versionId')
+        }
+        return { documentId: source.documentId, versionId: source.versionId }
+      })
+    },
   }
   ctx.effect(() => ctx.reflect.provide('labProjectActions', projectActions), 'ui-lab-workbench: project scope actions')
   const presentation: LabPresentationController = {
@@ -169,6 +187,7 @@ export function apply(ctx: ClientContext): void {
       validatePlan: async planId => requireReady(await adapter.validatePlan(planId, currentSessionId(ctx))),
       validateSkill: async revisionId => requireReady(await adapter.validateSkill(revisionId, currentSessionId(ctx))),
       approvePlan: input => adapter.approvePlan({ ...input, approvedBy: currentActor(ctx), ...sessionArgument(ctx) }),
+      startRun: input => adapter.startRun({ ...input, ...sessionArgument(ctx) }),
       approveSkill: input => adapter.approveSkill({ ...input, approvedBy: currentActor(ctx), ...sessionArgument(ctx) }),
       activateSkill: revisionId => adapter.activateSkill({ revisionId, ...sessionArgument(ctx) }),
       retryRun: async runId => adapter.retryRun({ runId, actor: currentActor(ctx), ...sessionArgument(ctx) }),
@@ -178,6 +197,7 @@ export function apply(ctx: ClientContext): void {
       openProjectFile: adapter.openProjectFile,
       downloadProjectFile: adapter.downloadProjectFile,
       subscribeProjectFileEvents: adapter.subscribeProjectFileEvents,
+      ...adapter.subscribeProjectEvents === undefined ? {} : { subscribeProjectEvents: adapter.subscribeProjectEvents },
       openCitation: citation => { presentation.openCitation(citation) },
       openSession: (sessionId) => { ctx.sessions.open(sessionId as SessionId) },
     }),
@@ -229,6 +249,23 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     inject: (): LabConversationHeaderInjected => ({ ui, openWorkbench: () => { ctx.layout.openAppView('lab-project') } }),
   }, LabConversationHeaderAction))
+  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+    name: 'conversation.input.dock',
+    id: 'lab-context-dock',
+    order: 20,
+    locale: NS,
+    inject: (): LabConversationContextInjected => ({
+      ui,
+      context: () => currentConversationContext(ctx),
+      loadProjectContext: adapter.getProjectContext,
+      loadRunContext: async (experimentId, runId) => {
+        const result = await adapter.listRuns(experimentId)
+        if (result.state !== 'ready') return {}
+        const run = result.value.find(item => item.runId === runId)
+        return run === undefined ? {} : { ...run.runStatus === undefined ? {} : { runStatus: run.runStatus }, ...run.currentStepId === undefined ? {} : { currentStepId: run.currentStepId } }
+      },
+    }),
+  }, LabConversationContextDock))
   for (const commandName of LAB_COMMAND_NAMES) {
     ctx.slots.inject('conversation.chat.commandview', () => ctx.slots.register({
       name: 'conversation.chat.commandview',
@@ -341,6 +378,13 @@ function currentActor(ctx: ClientContext): string {
 function currentSessionId(ctx: ClientContext): string | undefined {
   const current = ctx.sessions.list.getSnapshot().current
   return current === undefined ? undefined : String(current)
+}
+
+function currentConversationContext(ctx: ClientContext): { readonly workspaceName?: string; readonly workspaceDirectory?: string } {
+  const sessionId = ctx.sessions.list.getSnapshot().current
+  if (sessionId === undefined) return {}
+  const workspace = ctx.workspaces.list.getSnapshot().items.find(item => item.sessionIds.includes(sessionId))
+  return workspace === undefined ? {} : { workspaceName: workspace.title, workspaceDirectory: workspace.path }
 }
 
 function sessionArgument(ctx: ClientContext): { readonly sessionId: string } | Record<never, never> {

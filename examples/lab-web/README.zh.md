@@ -12,7 +12,9 @@
 pnpm run demo:lab-web
 ```
 
-打开命令打印的本地地址。默认 LABWEAVE 视图从全局执行监控开始，不要求已有 Session。可以从 Project 树选择 Workspace 或创建该 Workspace 的 Project；Host 会创建或复用项目 Session，中间的原生 Harness Conversation 与右侧 Project 工作台会保持同一 Project 关联。
+如果仓库根目录存在 `.venv` Docling 环境，启动器会自动把其中的 Python 可执行文件传给 Host；否则请先运行 `pnpm run docling:setup`，或者在启动服务前设置部署侧的 `DOCLING_PYTHON` 可执行文件。
+
+打开命令打印的本地地址。默认 LABWEAVE 视图从全局执行监控开始，不要求已有 Session。选择 Workspace 后，Host 会自动创建或复用该 Workspace 唯一的 Project 和项目 Session；中间的原生 Harness Conversation 与右侧 Project 工作台会保持同一 Project 关联。
 
 loopback Facade 使用两个明确的命令命名空间。通用 Knowledge、规划、Skill、设备和 Runtime 命令使用 `namespace: "lab"`；Project、Experiment、Run 和 Artifact 页面命令使用 `namespace: "project"`。浏览器只提交记录和动作参数，业务 ID 与持久化由 Host 负责。
 

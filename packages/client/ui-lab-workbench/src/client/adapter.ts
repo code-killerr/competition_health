@@ -69,6 +69,9 @@ export interface LabConfigurationQueries {
 /** Project 文件 revision 到达时调用的监听器。 */
 export type LabProjectFileEventListener = (event: LabProjectFileRevisionEvent) => void
 
+/** Host-owned 实验记录发生变化时调用的监听器。 */
+export type LabProjectEventListener = () => void
+
 /** Project 文件目录的查询、授权动作和 revision 事件能力。 */
 export interface LabProjectFileAdapter {
   listProjectFiles(projectId: string): Promise<LabQueryState<readonly LabProjectFileRecord[]>>
@@ -122,4 +125,7 @@ export interface LabWorkbenchActions {
  * The only data seam used by the laboratory pages and Agent presentation cards.
  * Queries are read-only and actions retain Host ownership of durable records.
  */
-export interface LabWorkbenchAdapter extends LabWorkbenchQueries, LabWorkbenchActions, Partial<LabProjectFileAdapter & LabConfigurationQueries> {}
+export interface LabWorkbenchAdapter extends LabWorkbenchQueries, LabWorkbenchActions, Partial<LabProjectFileAdapter & LabConfigurationQueries & {
+  /** 订阅持久化实验事件，使已打开的 Project 工作台可以重新加载记录。 */
+  readonly subscribeProjectEvents: (listener: LabProjectEventListener) => () => void
+}> {}

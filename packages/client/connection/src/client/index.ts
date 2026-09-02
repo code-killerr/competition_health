@@ -93,6 +93,8 @@ export interface ConnectionHandle {
   readonly rpc: ClientConnectionRpc
   /** 订阅已解码的 Host 流事件，不接管流循环的所有权。 */
   readonly subscribeHostEvents: (listener: (envelope: import('./api.ts').RpcRequest<import('./api.ts').HostFrame>) => void) => () => void
+  /** 订阅已解码的 Mux 流事件，不接管流循环的所有权。 */
+  readonly subscribeMuxEvents: (listener: (envelope: import('./api.ts').RpcRequest<import('./api.ts').MuxFrame>) => void) => () => void
   /**
    * Start the connect/pump/reconnect loop with the consumer's frame sinks.
    * One consumer owns the streams (the runtime object layer); a second call
@@ -117,6 +119,7 @@ export function apply(ctx: Context): void {
   const rpc = fixtureClient?.rpc ?? createWebConnectionRpc(transport?.fetch)
   let started = false
   const hostEventListeners = new Set<(envelope: import('./api.ts').RpcRequest<import('./api.ts').HostFrame>) => void>()
+  const muxEventListeners = new Set<(envelope: import('./api.ts').RpcRequest<import('./api.ts').MuxFrame>) => void>()
   let description: HostDescription | undefined
   const descriptionListeners = new Set<() => void>()
   const publishDescription = (next: HostDescription | undefined): void => {
@@ -145,11 +148,25 @@ export function apply(ctx: Context): void {
       hostEventListeners.add(listener)
       return () => { hostEventListeners.delete(listener) }
     },
+    subscribeMuxEvents: listener => {
+      muxEventListeners.add(listener)
+      return () => { muxEventListeners.delete(listener) }
+    },
     start(sinks, config) {
       if (started) throw new Error('connection: the stream loop is already owned by another consumer')
       started = true
       const controller = new ConnectionController(api, {
         ...sinks,
+        onMuxEnvelope: envelope => {
+          sinks.onMuxEnvelope?.(envelope)
+          for (const listener of [...muxEventListeners]) {
+            try {
+              listener(envelope)
+            } catch (error) {
+              console.error('[web-runtime] Mux event listener threw:', error)
+            }
+          }
+        },
         onHostEnvelope: envelope => {
           sinks.onHostEnvelope?.(envelope)
           for (const listener of [...hostEventListeners]) {

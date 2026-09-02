@@ -35,6 +35,7 @@ export const KNOWN_SESSION_EVENT_TYPES: ReadonlySet<string> = new Set([
   'hook/invoked',
   'hook/result',
   'lab/agent/context-read',
+  'lab/agent/pending',
   'lab/cache/projected',
   'lab/experiment/requested',
   'lab/knowledge/confirmed',

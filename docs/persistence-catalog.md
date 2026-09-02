@@ -499,7 +499,40 @@ Source: [`packages/hooks/hook-protocol/src/types.ts:31`](../packages/hooks/hook-
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:303`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:305`](../packages/experimental/lab-domain/src/types.ts)
+
+<a id="labagentpending--log-only"></a>
+
+#### `lab/agent/pending` — log-only
+
+```ts persistence-catalog
+/** Agent 被人工门禁暂停时的可恢复进度。 */
+'lab/agent/pending': {
+  version: 1
+  callId: LabAgentCallId
+  sessionId: SessionId
+  state: 'waiting'
+  nextActor: 'human'
+  reason: string
+  allowedActions: readonly string[]
+  scopedIds: Readonly<Record<string, string>>
+  projectId?: LabProjectId
+  experimentId?: ExperimentId
+  planId?: PlanId
+  skillRevisionId?: SkillRevisionId
+  runId?: RunId
+  stepId?: PlanStepId
+  operationId?: OperationId
+  workbenchDestination?: {
+    view: 'lab-project' | 'lab-monitor'
+    page?: 'approval' | 'execution' | 'evidence' | 'overview'
+    projectId?: LabProjectId
+    experimentId?: ExperimentId
+  }
+}
+```
+
+Source: [`packages/experimental/lab-domain/src/types.ts:321`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labcacheprojected--log-only"></a>
 
@@ -513,7 +546,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:303`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:479`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:505`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labexperimentrequested--log-only"></a>
 
@@ -530,7 +563,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:479`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:295`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:297`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labknowledgeconfirmed--log-only"></a>
 
@@ -546,7 +579,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:295`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:381`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:407`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labplanapproved--log-only"></a>
 
@@ -563,7 +596,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:381`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:345`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:371`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labplanproposed--log-only"></a>
 
@@ -583,7 +616,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:345`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:334`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:360`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labplanrejected--log-only"></a>
 
@@ -601,7 +634,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:334`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:353`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:379`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labpresentationaccepted--log-only"></a>
 
@@ -618,7 +651,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:353`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:319`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:345`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labpresentationrejected--log-only"></a>
 
@@ -634,7 +667,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:319`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:327`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:353`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labprojectarchived--log-only"></a>
 
@@ -836,7 +869,7 @@ Source: [`packages/experimental/lab-domain/src/project.ts:258`](../packages/expe
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:421`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:447`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labrunartifact--log-only"></a>
 
@@ -858,7 +891,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:421`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:431`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:457`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labrundevice-receipt--log-only"></a>
 
@@ -877,7 +910,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:431`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:411`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:437`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labrunfeedback--log-only"></a>
 
@@ -898,7 +931,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:411`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:444`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:470`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labrunobservation--log-only"></a>
 
@@ -920,7 +953,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:444`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:388`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:414`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labrunstate--log-only"></a>
 
@@ -939,7 +972,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:388`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:469`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:495`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labrunstep--log-only"></a>
 
@@ -958,7 +991,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:469`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:401`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:427`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labrunverdict--log-only"></a>
 
@@ -980,7 +1013,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:401`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:456`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:482`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labskillactivated--log-only"></a>
 
@@ -995,7 +1028,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:456`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:375`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:401`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labskillapproved--log-only"></a>
 
@@ -1010,7 +1043,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:375`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:369`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:395`](../packages/experimental/lab-domain/src/types.ts)
 
 <a id="labskillvalidated--log-only"></a>
 
@@ -1026,7 +1059,7 @@ Source: [`packages/experimental/lab-domain/src/types.ts:369`](../packages/experi
 }
 ```
 
-Source: [`packages/experimental/lab-domain/src/types.ts:362`](../packages/experimental/lab-domain/src/types.ts)
+Source: [`packages/experimental/lab-domain/src/types.ts:388`](../packages/experimental/lab-domain/src/types.ts)
 
 ### `llm/*`
 

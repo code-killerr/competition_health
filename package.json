@@ -144,7 +144,7 @@
     "demo:code-mode": "node scripts/demo-code-mode.mjs",
     "demo:cordis": "node scripts/demo-cordis.mjs",
     "demo:acp": "node --import tsx packages/examples/acp-demo/src/bin.ts --config examples/acp-agent/cordis.yml",
-    "demo:lab-web": "pnpm run build && pnpm dsh --profile web --patch examples/lab-web/cordis.patch.yml --no-open",
+    "demo:lab-web": "pnpm run build && node scripts/demo-lab-web.mjs",
     "mock:llm": "node --import tsx packages/test-support/llm-mock-server/src/bin.ts",
     "dev:web": "tsx scripts/dev-web.ts --poll"
   },

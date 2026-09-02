@@ -766,13 +766,19 @@ function ensureColumn(db: DatabaseSync, table: string, column: string, definitio
 function searchFilter(request: KnowledgeSearchRequest): { sql: string; params: SqlParam[] } {
   const clauses: string[] = []
   const params: SqlParam[] = []
-  if (request.documentIds !== undefined && request.documentIds.length > 0) {
-    clauses.push(`b.document_id IN (${request.documentIds.map(() => '?').join(', ')})`)
-    params.push(...request.documentIds)
+  if (request.documentIds !== undefined) {
+    if (request.documentIds.length === 0) clauses.push('1 = 0')
+    else {
+      clauses.push(`b.document_id IN (${request.documentIds.map(() => '?').join(', ')})`)
+      params.push(...request.documentIds)
+    }
   }
-  if (request.versionIds !== undefined && request.versionIds.length > 0) {
-    clauses.push(`b.version_id IN (${request.versionIds.map(() => '?').join(', ')})`)
-    params.push(...request.versionIds)
+  if (request.versionIds !== undefined) {
+    if (request.versionIds.length === 0) clauses.push('1 = 0')
+    else {
+      clauses.push(`b.version_id IN (${request.versionIds.map(() => '?').join(', ')})`)
+      params.push(...request.versionIds)
+    }
   }
   if (request.confirmed !== undefined) {
     clauses.push(request.confirmed ? `b.confirmed = 1 AND NOT (${OPEN_CONFLICT_SQL})` : `(b.confirmed = 0 OR ${OPEN_CONFLICT_SQL})`)

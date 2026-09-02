@@ -48,14 +48,14 @@ describe('web e2e: LABWEAVE Host capability recovery', () => {
     onTestFailed(() => saveFailureShot(page, 'lab-workbench-failure'))
 
     fault = 'workspace'
-    await page.getByRole('button', { name: 'Projects', exact: true }).click()
-    await page.locator('[data-lab-projects]').waitFor({ state: 'visible', timeout: 20_000 })
-    expect(await page.locator('[data-lab-projects] [role="status"]').textContent()).toContain('workspace is unavailable')
+    await page.getByRole('button', { name: 'Configuration center', exact: true }).click()
+    await page.getByRole('main', { name: 'Configuration center', exact: true }).waitFor({ state: 'visible', timeout: 20_000 })
+    await page.getByRole('button', { name: 'Execution monitor', exact: true }).click()
+    await page.getByRole('main', { name: 'Execution monitor', exact: true }).waitFor({ state: 'visible', timeout: 20_000 })
+    expect(await page.getByRole('main', { name: 'Execution monitor', exact: true }).getByRole('status').textContent()).toContain('workspace is unavailable')
 
     fault = 'none'
-    await page.getByRole('button', { name: 'Refresh list', exact: true }).click()
     await connectFreshWorkspace(page, scaffold.workspaceCwd)
-    await page.getByRole('button', { name: 'Create and select', exact: true }).click()
     await page.locator('[data-lab-project-shell]').waitFor({ state: 'visible', timeout: 20_000 })
     const projectList = await request(page, 'project', { command: 'project-list' })
     const projectView = array(projectList.value).map(object).find(value => object(value.project).name === 'workspace')
@@ -73,14 +73,13 @@ describe('web e2e: LABWEAVE Host capability recovery', () => {
     expect(await page.locator('[data-lab-knowledge-workspace] [role="status"]').textContent()).toContain('Operation failed')
 
     fault = 'none'
-    await page.getByRole('button', { name: 'Projects', exact: true }).click()
-    await page.locator('[data-lab-projects]').getByRole('button', { name: 'workspace', exact: false }).click()
+    await page.getByRole('button', { name: 'Execution monitor', exact: true }).click()
+    await page.getByRole('main', { name: 'Execution monitor', exact: true }).getByRole('button', { name: 'workspace', exact: false }).click()
     await page.locator('[data-lab-project-shell]').waitFor({ state: 'visible', timeout: 20_000 })
 
     fault = 'run'
-    await page.getByRole('button', { name: 'Projects', exact: true }).click()
-    await page.locator('[data-lab-projects]').waitFor({ state: 'visible', timeout: 20_000 })
-    await page.locator('[data-lab-projects]').getByRole('button', { name: 'workspace', exact: false }).click()
+    await page.getByRole('button', { name: 'Execution monitor', exact: true }).click()
+    await page.getByRole('main', { name: 'Execution monitor', exact: true }).getByRole('button', { name: 'workspace', exact: false }).click()
     await page.locator('[data-lab-project-shell]').waitFor({ state: 'visible', timeout: 20_000 })
     await page.getByRole('button', { name: 'Execution monitoring', exact: true }).click()
     await expect.poll(() => page.locator('[data-lab-project-shell] [role="status"]').count()).toBeGreaterThan(0)
@@ -90,11 +89,11 @@ describe('web e2e: LABWEAVE Host capability recovery', () => {
     await page.getByRole('button', { name: 'Configuration center', exact: true }).click()
     await page.getByRole('main', { name: 'Configuration center', exact: true }).waitFor({ state: 'visible', timeout: 20_000 })
     await expect.poll(() => capabilityRequests).toBeGreaterThan(0)
-    expect(await page.locator('[data-lab-configuration]').textContent()).toContain('Host capability is currently unavailable')
+    await expect.poll(async () => await page.locator('[data-lab-configuration]').textContent(), { timeout: 20_000 }).toContain('Host capability is currently unavailable')
 
     fault = 'none'
-    await page.getByRole('button', { name: 'Projects', exact: true }).click()
-    await page.locator('[data-lab-projects]').getByRole('button', { name: 'workspace', exact: false }).click()
+    await page.getByRole('button', { name: 'Execution monitor', exact: true }).click()
+    await page.getByRole('main', { name: 'Execution monitor', exact: true }).getByRole('button', { name: 'workspace', exact: false }).click()
     await page.locator('[data-lab-project-shell]').waitFor({ state: 'visible', timeout: 20_000 })
     await page.getByRole('button', { name: 'Configuration center', exact: true }).click()
     await page.getByRole('main', { name: 'Configuration center', exact: true }).waitFor({ state: 'visible', timeout: 20_000 })

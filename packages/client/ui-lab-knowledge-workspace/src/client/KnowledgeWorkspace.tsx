@@ -1,4 +1,4 @@
-/** Knowledge workspace body; all persistence goes through the current MVP public Web Facade. */
+/** Knowledge workspace 主体；所有持久化操作都通过当前 MVP 公开 Web Facade。 */
 
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
@@ -55,6 +55,8 @@ type KnowledgeWorkspaceOwnerProps = {
   readonly experimentId?: string
   readonly selectedSources?: readonly { readonly documentId: string; readonly versionId: string }[]
   readonly onSourceToggle?: ((source: { readonly documentId: string; readonly versionId: string }) => void | Promise<void>) | undefined
+  /** 加载当前 Project 的权威 Knowledge 来源范围。 */
+  readonly loadProjectSources?: ((projectId: string) => Promise<readonly { readonly documentId: string; readonly versionId: string }[]>) | undefined
   readonly onCitationAvailable?: (citation: {
     readonly citationId: string
     readonly documentId: string
@@ -93,10 +95,10 @@ type Translate = KnowledgeWorkspaceProps['t']
 const EMPTY_SELECTION: KnowledgeUiSelection = {}
 const EMPTY_UNSUBSCRIBE = (): void => {}
 
-/** Create a root Knowledge view with optional Workbench presentation services. */
-export function createKnowledgeWorkspaceView(injected: Pick<KnowledgeWorkspaceOwnerProps, 'ui' | 'openProjects' | 'onSourceToggle'>): (props: KnowledgeWorkspaceProps) => JSX.Element {
+/** 创建根级 Knowledge 视图，并按需注入 Workbench 展示服务。 */
+export function createKnowledgeWorkspaceView(injected: Pick<KnowledgeWorkspaceOwnerProps, 'ui' | 'openProjects' | 'onSourceToggle' | 'loadProjectSources'>): (props: KnowledgeWorkspaceProps) => JSX.Element {
   return function KnowledgeWorkspaceView(props: KnowledgeWorkspaceProps): JSX.Element {
-    return <KnowledgeWorkspace {...props} ui={injected.ui} openProjects={injected.openProjects} onSourceToggle={injected.onSourceToggle} />
+    return <KnowledgeWorkspace {...props} ui={injected.ui} openProjects={injected.openProjects} onSourceToggle={injected.onSourceToggle} loadProjectSources={injected.loadProjectSources} />
   }
 }
 
@@ -124,8 +126,34 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
   const canAttachSources = selectedProjectId !== undefined && props.onSourceToggle !== undefined
   const [attachedSources, setAttachedSources] = useState(props.selectedSources ?? [])
   const selectedSources = props.selectedSources ?? attachedSources
+  const sourceScope = selectedProjectId === undefined
+    ? {}
+    : {
+        documentIds: selectedSources.map(source => source.documentId),
+        versionIds: selectedSources.map(source => source.versionId),
+      }
   const citationTarget = selection.activeCitation
   const request = (command: Record<string, unknown>): Promise<unknown> => callLab(command, props.t('requestFailed'))
+
+  useEffect(() => {
+    if (props.selectedSources !== undefined) {
+      setAttachedSources(props.selectedSources)
+      return
+    }
+    const projectId = selectedProjectId
+    const loadSources = props.loadProjectSources
+    if (projectId === undefined || loadSources === undefined) {
+      setAttachedSources([])
+      return
+    }
+    let current = true
+    void loadSources(projectId).then(sources => {
+      if (current) setAttachedSources(sources)
+    }).catch((reason: unknown) => {
+      if (current) setError(errorMessage(reason))
+    })
+    return () => { current = false }
+  }, [props.loadProjectSources, props.selectedSources, selectedProjectId])
 
   const refresh = useCallback(async (): Promise<void> => {
     const value = await request({
@@ -176,6 +204,7 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
       })
       const imported = parseImportStatus(value)
       setImports(current => [imported, ...current.filter(item => item.versionId !== imported.versionId)])
+      await refresh()
       setSelectedFile(undefined)
       setNotice(props.t('imported'))
     })
@@ -194,7 +223,7 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
       const value = await request({
         command: 'knowledge-search',
         sessionId,
-        request: { query: query.trim(), limit: 10, ...experimentScope },
+        request: { query: query.trim(), limit: 10, ...experimentScope, ...sourceScope },
       })
       const result = record(value)
       const nextCitations = array(result.results).map(item => parseCitation(item, props.t))
@@ -297,6 +326,7 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
               <li key={item.versionId} className={css.row}>
                 <span className={css.rowText}>
                   <strong>{item.sourceName ?? props.t('unknownDocument')}</strong>
+                  {item.error !== undefined && <span className={css.muted}>{item.error}</span>}
                 </span>
                 <span className={css.actions}>
                   <span className={css.badge}>{item.status}</span>

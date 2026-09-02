@@ -26,13 +26,13 @@ Host 继续作为注册目录 Workspace、实验 Project、Experiment、Run、Ar
 
 ## 当前验证
 
-当前 assembled LABWEAVE Web profile 已证明共享 Conversation presentation、Host Project/Session identity、Workflow/Skill/Plan 记录、Runtime 执行、重规划、Project 文件、verdict 和报告持久化的部分能力，但尚未满足最终 composition：monitor 仍使用 Conversation mode，仍有独立 Project 创建页面，Agent 也缺少完整的 LABWEAVE prompt、当前 Project Experiment 创建操作和 typed continuation result。当前工具拒绝 Agent 调用 `lab_experiment_create`，同时只暴露不会创建 Project 或 Runtime record 的 proposal 工具，因此无 Experiment 的 Project 没有可接受的 Agent bootstrap 路径。
+当前 assembled LABWEAVE Web profile 已证明最终 monitor/workbench composition、Host Project/Session identity、Workflow/Skill/Plan 记录、Runtime 执行、重规划、Project 文件、verdict 和报告持久化。monitor 是不含对话框的 replace view；Project 行遵循 Host-owned Project→Workspace→Session 路径；Project 模式复用一个原生 Conversation input，并提供可收起、可调整宽度的 Project workspace。Host 为每个 Workspace 至多映射一个内部 Project，Agent 只能通过当前 Session 所属 Project 登记 Experiment。
 
-现有浏览器场景仍可作为生命周期目的地、状态展示、配置能力状态、typed Project 与 Artifact 选择、draft 保留、timeline 展开、面板行为、响应式布局，以及 Project 文件刷新、preview 和 download 的回归基线，但不能完成新验收。特别是 `apps/web/tests/lab-full-lifecycle.e2e.ts` 虽然提交了 Agent 消息和补问，主要实验流程却通过直接 `/api/lab` 调用驱动，因此只能证明 Host API 集成，不能证明 Agent 使用真实 `lab_*` 工具、Host-owned Experiment 创建或人类启动 Run。最终浏览器证据必须从无 composer 的 monitor 开始，点击 Project 状态行，切换关联 Workspace 和 matching Session，打开已授权 Experiment 工作台，再通过 assembled 应用完成 Agent 与人工协作流程。
+assembled 浏览器场景现在覆盖修订后的验收。`apps/web/tests/lab-full-lifecycle.e2e.ts` 从无 composer 的 monitor 开始，点击 Project 状态行，在 Project scope 中配置已注册的 mock device，导入真实 PDF fixture，等待 `READY`，使用 document/version filter 检索并确认 citation，然后通过原生 Agent 执行 `lab_project_context`、Knowledge/catalog、`lab_experiment_create`、Plan/Skill proposal 和一次人工审批门禁。同一场景继续执行 Host human action、Runtime failure/replan、report、Project files、reload 和 destination 恢复；`lab-showcase` 与 `lab-workbench` 场景覆盖面板收起/恢复、右栏拖拽、键盘焦点、capability recovery 和文件刷新/preview/download。
 
-客户端 fixture 覆盖了分组的 Project file metadata、授权 preview 和 download action，以及能够触发当前 catalog 重载的仅含 metadata 的 revision event。生产组合已经通过 typed Host adapter 接入 Project、Run、报告、Run action、Project-file command 与 event、capability summary 以及 Agent/Runtime event projection。第 8 阶段导航与布局、LAB Agent context 和创建操作、assembled identity flow、无障碍以及仓库级验证仍是待完成的验收工作。
+客户端 fixture 覆盖了分组的 Project file metadata、授权 preview 和 download action，以及能够触发当前 catalog 重载的仅含 metadata 的 revision event。生产组合通过 typed Host adapter 接入 Project、Run、报告、Run action、Project-file command 与 event、capability summary 以及 Agent/Runtime event projection。LABWEAVE prompt 是 additive 的，keyless Agent lifecycle test 覆盖 Experiment 创建、一次性 pending human gate、失败 replan 和 report。真实设备的运行时配置与物理接入仍明确为只读：当前 mock/registered device Provider 提供 listing、health 和 Project scope selection，但没有 `configure` 或 `connect` operation。真实设备 adapter 需要另行批准设备型号、协议、凭据和 HIL contract。
 
-只有在新页面完成验证后删除被替代的 `conversation.view` 工作台、实验 profile 中的默认 Conversation composition、平铺导航、`sidebar.footer.action`、`lab:navigate`、浏览器生成的业务 ID、阶段映射、固定 split layout 和重复 composer，迁移才算完成。相关基础变更仍保留各自的最终验证任务；本变更不得替它们标记完成，也不得重新实现它们负责的内部能力。
+剩余验收工作是仓库级完整验证、最终截图/SHOWCASE 文档更新和 OpenSpec requirement mapping。相关基础变更仍保留各自的最终验证任务；本变更不得替它们标记完成，也不得重新实现它们负责的内部能力。
 
 ## 曾考虑的替代方案
 

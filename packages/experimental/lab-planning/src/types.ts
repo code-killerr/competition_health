@@ -4,6 +4,8 @@ import type {
   ExperimentPlan,
   ExperimentRequest,
   KnowledgeConflict,
+  KnowledgeDocumentId,
+  KnowledgeDocumentVersionId,
   KnowledgeSearchResult,
   PlanValidationResult,
 } from '@deepseek-ai/dsh-experimental-lab-domain'
@@ -22,11 +24,20 @@ export interface PlanningContext {
   readonly unresolved: readonly string[]
 }
 
+/** Project-approved Knowledge source scope used for Agent plan proposals. */
+export interface PlanningKnowledgeScope {
+  readonly documentIds: readonly KnowledgeDocumentId[]
+  readonly versionIds: readonly KnowledgeDocumentVersionId[]
+  readonly confirmed: true
+}
+
 /** Agent 提交的声明式计划和待审 Skill 草案。 */
 export interface PlanProposalInput {
   readonly request: ExperimentRequest
   readonly plan: ExperimentPlan
   readonly skillDrafts: readonly LabSkillDraft[]
+  /** Project-scoped, confirmed Knowledge context read immediately before proposal. */
+  readonly knowledgeScope?: PlanningKnowledgeScope
 }
 
 /** Planner 返回的提案结果；结果仍可能因为待审批而不可执行。 */

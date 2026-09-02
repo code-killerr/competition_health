@@ -124,4 +124,18 @@ describe('Host-backed LabWorkbenchAdapter', () => {
     dispose()
     expect(events).toEqual([{ type: 'project-file-revision', projectId: 'project-1', projectFileId: 'file-1', group: 'configuration', revision: 3 }, { type: 'project-file-revision', projectId: 'other', projectFileId: 'file-1', group: 'configuration', revision: 4 }])
   })
+
+  it('notifies the open Project view only for durable laboratory Session events', () => {
+    let muxListener: ((envelope: { readonly payload: unknown }) => void) | undefined
+    const adapter = createLabHostAdapter({ subscribeMuxEvents: listener => { muxListener = listener; return () => { muxListener = undefined } } })
+    const changed = vi.fn()
+    const dispose = adapter.subscribeProjectEvents?.(changed)
+
+    muxListener?.({ payload: { type: 'session/event', sessionId: 'session-1', event: { type: 'lab/plan/proposed' } } })
+    muxListener?.({ payload: { type: 'session/event', sessionId: 'session-1', event: { type: 'assistant/chunk' } } })
+    muxListener?.({ payload: { type: 'host/session-status', sessionId: 'session-1', running: true } })
+
+    expect(changed).toHaveBeenCalledTimes(1)
+    dispose?.()
+  })
 })

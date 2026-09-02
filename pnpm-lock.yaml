@@ -4660,6 +4660,9 @@ importers:
       '@deepseek-ai/dsh-experimental-lab-cache':
         specifier: workspace:^
         version: link:../lab-cache
+      '@deepseek-ai/dsh-experimental-lab-project':
+        specifier: workspace:^
+        version: link:../lab-project
       '@deepseek-ai/dsh-experimental-tool-lab-knowledge':
         specifier: workspace:^
         version: link:../tool-lab-knowledge
@@ -4765,6 +4768,9 @@ importers:
       '@deepseek-ai/dsh-experimental-lab-planning':
         specifier: workspace:^
         version: link:../lab-planning
+      '@deepseek-ai/dsh-experimental-lab-project':
+        specifier: workspace:^
+        version: link:../lab-project
       '@deepseek-ai/dsh-invariants':
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants

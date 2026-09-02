@@ -79,7 +79,9 @@ describe('tool-lab runtime events', () => {
   })
 
   it('rejects Agent attempts to perform human-gated laboratory actions', async () => {
-    const { ctx, agent } = await setup()
+    const { ctx, agent, workspace } = await setup()
+    const project = await ctx.labProjects.create({ workspaceId: workspace.id, createdBy: agent.session.id })
+    await ctx.labProjects.attachSession({ projectId: project.project.projectId, sessionId: agent.session.id, attachedBy: agent.session.id })
     const attempts: readonly [string, unknown][] = [
       ['lab_plan_approve', { experiment_id: 'experiment-1', plan_id: 'plan-1', approved_by: 'reviewer-1', skill_revision_ids: [] }],
       ['lab_plan_reject', { experiment_id: 'experiment-1', plan_id: 'plan-1', reason: 'needs revision' }],
@@ -95,8 +97,11 @@ describe('tool-lab runtime events', () => {
     for (const [name, arguments_] of attempts) {
       const result = await execute(ctx, agent, name, arguments_)
       expect(result.isError, name + ': ' + text(result)).toBe(true)
-      expect(text(result)).toContain('explicit human action in the project workspace')
+      const progress = JSON.parse(text(result).replace(/^Error: /, '')) as { state: string; sessionId: string; nextActor: string; scopedIds: Record<string, string>; allowedActions: readonly string[]; workbenchDestination: { view: string; page?: string } }
+      expect(progress).toMatchObject({ state: 'waiting', sessionId: agent.session.id, nextActor: 'human', scopedIds: { projectId: project.project.projectId }, workbenchDestination: { view: 'lab-project' } })
+      expect(progress.allowedActions.length).toBeGreaterThan(0)
     }
+    expect(agent.session.events.filter(event => event.type === 'lab/agent/pending')).toHaveLength(attempts.length)
   })
 
   it('injects the LABWEAVE Agent role into the assembled system prompt', async () => {
@@ -113,6 +118,11 @@ describe('tool-lab runtime events', () => {
     const { ctx, agent, workspace } = await setup()
     const project = await ctx.labProjects.create({ workspaceId: workspace.id, createdBy: agent.session.id })
     await ctx.labProjects.attachSession({ projectId: project.project.projectId, sessionId: agent.session.id, attachedBy: agent.session.id })
+    const scope = scopeOf(agent.ctx)
+    if (scope === undefined) throw new Error('expected Agent scope')
+    const assembly = await ctx.systemPrompt.assemble({ scope })
+    expect(assembly.contexts.find(context => context.name === 'labweave:project-context')?.text).toContain(String(project.project.projectId))
+    expect(agent.session.events.some(event => event.type === 'lab/agent/context-read' && event.data.projectId === project.project.projectId)).toBe(true)
     const arguments_ = { title: 'Tool-created experiment', objective: 'prepare sample', expected_outputs: ['prepared sample'] }
     const first = await execute(ctx, agent, 'lab_experiment_create', arguments_, 'agent-operation-1')
     expect(first.isError, text(first)).toBe(false)
@@ -125,11 +135,83 @@ describe('tool-lab runtime events', () => {
     expect(agent.session.events.filter(event => event.type === 'lab/experiment/requested')).toHaveLength(1)
   })
 
+  it('returns one resumable pending record for each denied human gate', async () => {
+    const { ctx, agent, workspace } = await setup()
+    const project = await ctx.labProjects.create({ workspaceId: workspace.id, createdBy: agent.session.id })
+    await ctx.labProjects.attachSession({ projectId: project.project.projectId, sessionId: agent.session.id, attachedBy: agent.session.id })
+    const arguments_ = { experiment_id: 'experiment-1', plan_id: 'plan-1' }
+    const first = await execute(ctx, agent, 'lab_run_start', arguments_, 'pending-run-start')
+    const second = await execute(ctx, agent, 'lab_run_start', arguments_, 'pending-run-start')
+    expect(first.isError).toBe(true)
+    const progress = JSON.parse(text(first).replace(/^Error: /, '')) as { state: string; callId: string; nextActor: string; scopedIds: Record<string, string>; allowedActions: readonly string[]; workbenchDestination: { view: string; page?: string } }
+    expect(progress).toMatchObject({ state: 'waiting', callId: 'pending-run-start', nextActor: 'human', scopedIds: { projectId: project.project.projectId, experimentId: 'experiment-1', planId: 'plan-1' }, workbenchDestination: { view: 'lab-project', page: 'execution' } })
+    expect(progress.allowedActions.length).toBeGreaterThan(0)
+    expect(JSON.parse(text(second).replace(/^Error: /, ''))).toEqual(progress)
+    expect(agent.session.events.filter(event => event.type === 'lab/agent/pending')).toMatchObject([{ data: { callId: 'pending-run-start', scopedIds: { projectId: project.project.projectId, experimentId: 'experiment-1', planId: 'plan-1' } } }])
+  })
+
   it('returns a typed blocked progress result when the current Session has no Project', async () => {
     const { ctx, agent } = await setup()
     const result = await execute(ctx, agent, 'lab_experiment_create', { title: 'Blocked experiment', objective: 'prepare sample', expected_outputs: ['sample'] })
     expect(result.isError, text(result)).toBe(false)
     expect(JSON.parse(text(result))).toMatchObject({ state: 'blocked', sessionId: agent.session.id, nextActor: 'human', allowedActions: ['select_workspace'] })
+  })
+
+  it('keeps every Agent bootstrap and human gate in a resumable progress state', async () => {
+    const { ctx, agent, workspace } = await setup()
+    const bootstrap = await execute(ctx, agent, 'lab_experiment_create', {
+      title: 'Unmapped experiment',
+      objective: 'select the correct workspace first',
+      expected_outputs: ['workspace selected'],
+    }, 'matrix-unmapped')
+    const project = await ctx.labProjects.create({ workspaceId: workspace.id, createdBy: agent.session.id })
+    await ctx.labProjects.attachSession({ projectId: project.project.projectId, sessionId: agent.session.id, attachedBy: agent.session.id })
+    const created = await execute(ctx, agent, 'lab_experiment_create', {
+      title: 'Matrix experiment',
+      objective: 'verify a resumable lifecycle',
+      expected_outputs: ['lifecycle verified'],
+    }, 'matrix-create')
+    const replayed = await execute(ctx, agent, 'lab_experiment_create', {
+      title: 'Matrix experiment',
+      objective: 'verify a resumable lifecycle',
+      expected_outputs: ['lifecycle verified'],
+    }, 'matrix-create')
+    const approval = await execute(ctx, agent, 'lab_plan_approve', {
+      experiment_id: 'experiment-matrix',
+      plan_id: 'plan-matrix',
+      approved_by: 'reviewer',
+      skill_revision_ids: [],
+    }, 'matrix-plan-approval')
+    const runStart = await execute(ctx, agent, 'lab_run_start', {
+      experiment_id: 'experiment-matrix',
+      plan_id: 'plan-matrix',
+    }, 'matrix-run-start')
+
+    const states = [
+      { label: 'unmapped Workspace', result: bootstrap, state: 'blocked', nextActor: 'human', destination: 'lab-monitor' },
+      { label: 'new Experiment', result: created, state: 'registered', nextActor: 'agent', destination: 'lab-project' },
+      { label: 'replayed Experiment', result: replayed, state: 'already-registered', nextActor: 'agent', destination: 'lab-project' },
+      { label: 'Plan approval', result: approval, state: 'waiting', nextActor: 'human', destination: 'lab-project' },
+      { label: 'Run start', result: runStart, state: 'waiting', nextActor: 'human', destination: 'lab-project' },
+    ] as const
+    for (const item of states) {
+      const progress = JSON.parse(text(item.result).replace(/^Error: /, '')) as {
+        readonly state: string
+        readonly nextActor: string
+        readonly allowedActions: readonly string[]
+        readonly workbenchDestination?: { readonly view: string }
+      }
+      expect(progress.state, item.label).toBe(item.state)
+      expect(progress.nextActor, item.label).toBe(item.nextActor)
+      expect(progress.allowedActions.length, item.label).toBeGreaterThan(0)
+      expect(progress.workbenchDestination?.view, item.label).toBe(item.destination)
+    }
+    expect(JSON.parse(text(replayed))).toMatchObject({
+      state: 'already-registered',
+      scopedIds: JSON.parse(text(created)).scopedIds,
+      registeredDestination: JSON.parse(text(created)).registeredDestination,
+    })
+    expect(agent.session.events.filter(event => event.type === 'lab/agent/pending')).toHaveLength(2)
   })
 
   it('routes a clarification through the current Harness Agent and user-question provider', async () => {

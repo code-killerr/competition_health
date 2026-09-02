@@ -12,6 +12,7 @@ afterEach(() => {
 describe('Knowledge workspace browser flow', () => {
   it('imports a PDF, retrieves a citation, confirms an SOP and publishes it', async () => {
     const commands: string[] = []
+    let imported: unknown | undefined
     vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const body = init?.body
       if (typeof body !== 'string') throw new Error('test request body is not a string')
@@ -20,9 +21,10 @@ describe('Knowledge workspace browser flow', () => {
       const value = (() => {
         switch (payload.command) {
           case 'snapshot':
-            return { knowledgeCapability: { state: 'available' }, knowledge: [] }
+            return { knowledgeCapability: { state: 'available' }, knowledge: imported === undefined ? [] : [imported] }
           case 'knowledge-import':
-            return { documentId: 'document-1', versionId: 'version-1', status: 'READY', metadata: { sourceName: 'fixture.pdf' } }
+            imported = { documentId: 'document-1', versionId: 'version-1', status: 'READY', metadata: { sourceName: 'fixture.pdf' } }
+            return imported
           case 'knowledge-search':
             return { results: [{ citationId: 'citation-1', documentId: 'document-1', versionId: 'version-1', location: 'page:1/block:1', excerpt: 'Use the cited source.', confirmed: true }] }
           case 'knowledge-sop-create':
@@ -65,6 +67,8 @@ describe('Knowledge workspace browser flow', () => {
     fireEvent.click(screen.getByRole('button', { name: zh.searchAction }))
     await waitFor(() => { expect(screen.getByText(/page:1\/block:1/)).toBeTruthy() })
     expect(onCitationAvailable).toHaveBeenCalledWith(expect.objectContaining({ citationId: 'citation-1' }))
+    const searchRequest = (vi.mocked(fetch).mock.calls.find(([, init]) => typeof init?.body === 'string' && JSON.parse(init.body).command === 'knowledge-search')?.[1] as RequestInit | undefined)
+    expect(JSON.parse(String(searchRequest?.body)).request).toMatchObject({ documentIds: ['document-1'], versionIds: ['version-1'] })
 
     fireEvent.click(screen.getByRole('button', { name: zh.createSop }))
     await waitFor(() => { expect(screen.getByText(/DRAFT/)).toBeTruthy() })
@@ -77,6 +81,7 @@ describe('Knowledge workspace browser flow', () => {
     expect(commands).toEqual([
       'snapshot',
       'knowledge-import',
+      'snapshot',
       'knowledge-search',
       'knowledge-sop-create',
       'knowledge-fact-confirm',
@@ -87,14 +92,15 @@ describe('Knowledge workspace browser flow', () => {
 
   it('loads and imports global Knowledge without an Experiment', async () => {
     const commands: string[] = []
+    let imported: unknown | undefined
     vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const body = init?.body
       if (typeof body !== 'string') throw new Error('test request body is not a string')
       const payload = JSON.parse(body) as { readonly command: string }
       commands.push(payload.command)
       const value = payload.command === 'knowledge-snapshot'
-        ? { knowledgeCapability: { state: 'available' }, knowledge: [] }
-        : { documentId: 'global-document', versionId: 'global-version', status: 'READY', metadata: { sourceName: 'global.pdf' } }
+        ? { knowledgeCapability: { state: 'available' }, knowledge: imported === undefined ? [] : [imported] }
+        : (imported = { documentId: 'global-document', versionId: 'global-version', status: 'READY', metadata: { sourceName: 'global.pdf' } })
       return { ok: true, json: async () => ({ ok: true, result: { kind: payload.command, value } }) }
     }))
     const openProjects = vi.fn()
@@ -107,7 +113,7 @@ describe('Knowledge workspace browser flow', () => {
     await waitFor(() => { expect(screen.getByText('READY')).toBeTruthy() })
     fireEvent.click(screen.getByRole('button', { name: zh.openProjects }))
     expect(openProjects).toHaveBeenCalledOnce()
-    expect(commands).toEqual(['knowledge-snapshot', 'knowledge-import'])
+    expect(commands).toEqual(['knowledge-snapshot', 'knowledge-import', 'knowledge-snapshot'])
   })
 
   it('follows the active Project from the observable selection', async () => {

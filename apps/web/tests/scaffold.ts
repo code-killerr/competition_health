@@ -361,10 +361,17 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
   // the resolved harness home so a scaffold sharing another's home — the
   // cross-port persistence scenario — pins the same roots the settings and
   // credentials rows were configured with.
+  const doclingPython = process.env.DOCLING_PYTHON ?? (process.platform === 'win32'
+    ? join(REPO_ROOT, '.venv/Scripts/python.exe')
+    : join(REPO_ROOT, '.venv/bin/python'))
+  const runtimeEnvironment = existsSync(doclingPython)
+    ? { DOCLING_PYTHON: doclingPython }
+    : {}
   const skillRootEnvironment = {
     DSH_HOME: harnessHome,
     DSH_AGENTS_HOME: join(workspaceCwd, '.agents-home'),
     DSH_BUNDLED_SKILL_DIR: join(workspaceCwd, '.bundled-skills'),
+    ...runtimeEnvironment,
   }
   const originalSkillRootEnvironment = Object.fromEntries(
     Object.keys(skillRootEnvironment).map(key => [key, process.env[key]]),
@@ -401,6 +408,30 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
     ? []
     : loadOverlayPatches('web e2e scaffold', options.extraOverlayPath)
   const composedRows = composeEntries([basePatches, surfacePatches, extraOverlayPatches])
+  const labMvpConfig = composedRows.find(row => row.id === 'lab-mvp')?.config
+  const labMvpDoclingConfig = labMvpConfig === undefined || typeof labMvpConfig !== 'object' || labMvpConfig === null
+    ? undefined
+    : (labMvpConfig as Record<string, unknown>).docling
+  const doclingConfigPatch = labMvpConfig !== undefined && typeof labMvpConfig === 'object' && labMvpConfig !== null
+    ? [{
+      id: 'lab-mvp',
+      config: {
+        ...(labMvpConfig as Record<string, unknown>),
+        knowledgePath: join(workspaceCwd, '.lab-data/knowledge.sqlite'),
+        storagePath: join(workspaceCwd, '.lab-data/lab-storage.sqlite'),
+        runtime: {
+          ...((labMvpConfig as Record<string, unknown>).runtime !== null && typeof (labMvpConfig as Record<string, unknown>).runtime === 'object'
+            ? (labMvpConfig as Record<string, unknown>).runtime as Record<string, unknown>
+            : {}),
+          statePath: join(workspaceCwd, '.lab-data/runtime.sqlite'),
+        },
+        docling: {
+          ...(labMvpDoclingConfig !== null && typeof labMvpDoclingConfig === 'object' ? labMvpDoclingConfig as Record<string, unknown> : {}),
+          ...existsSync(doclingPython) ? { pythonCommand: doclingPython } : {},
+        },
+      },
+    }]
+    : []
   const webRuntimeConfig = composedRows.find(row => row.id === 'web-runtime')?.config as {
     surfaceContext?: boolean
   } | undefined
@@ -409,6 +440,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
     ...basePatches,
     ...surfacePatches,
     ...extraOverlayPatches,
+    ...doclingConfigPatch,
     // The roster's `roots` is an assembly fact AppCLIEntry resolves and patches
     // in, exactly like `distIndex` on the webserver row — the shipped preset
     // directory sits beside the composition that names it, and no config author

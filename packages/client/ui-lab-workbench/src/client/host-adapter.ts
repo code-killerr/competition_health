@@ -21,6 +21,7 @@ export interface LabHostAdapterDependencies {
   readonly sendCommand?: (command: LabCommand) => ReturnType<typeof sendLabCommand>
   readonly sendProjectCommand?: (command: LabProjectCommand) => ReturnType<typeof sendLabProjectCommand>
   readonly subscribeHostEvents?: (listener: (envelope: HostEventEnvelope) => void) => () => void
+  readonly subscribeMuxEvents?: (listener: (envelope: HostEventEnvelope) => void) => () => void
 }
 
 /** Build the Host-backed adapter used by the LABWEAVE production composition.
@@ -31,6 +32,7 @@ export function createLabHostAdapter(dependencies: LabHostAdapterDependencies = 
   const sendCommand = dependencies.sendCommand ?? sendLabCommand
   const sendProjectCommand = dependencies.sendProjectCommand ?? sendLabProjectCommand
   const subscribeHostEvents = dependencies.subscribeHostEvents ?? (() => () => {})
+  const subscribeMuxEvents = dependencies.subscribeMuxEvents ?? (() => () => {})
 
   const adapter: LabWorkbenchAdapter & LabProjectFileAdapter = {
     listProjects: () => query(async () => {
@@ -163,8 +165,22 @@ export function createLabHostAdapter(dependencies: LabHostAdapterDependencies = 
           revision: frame.revision,
         })
       }),
+    subscribeProjectEvents: listener => subscribeMuxEvents(envelope => {
+      if (isLabSessionEventFrame(envelope.payload)) listener()
+    }),
   }
   return adapter
+}
+
+function isLabSessionEventFrame(value: unknown): value is {
+  readonly type: 'session/event'
+  readonly event: { readonly type: string }
+} {
+  if (typeof value !== 'object' || value === null) return false
+  const frame = value as Record<string, unknown>
+  if (frame.type !== 'session/event' || typeof frame.event !== 'object' || frame.event === null) return false
+  const event = frame.event as Record<string, unknown>
+  return typeof event.type === 'string' && event.type.startsWith('lab/')
 }
 
 function presentationPayload(value: unknown): Record<string, unknown> {

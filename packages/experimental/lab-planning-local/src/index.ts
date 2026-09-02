@@ -10,7 +10,7 @@ import {
 } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { LabDeviceService, DeviceView } from '@deepseek-ai/dsh-experimental-lab-device'
 import type { KnowledgeService } from '@deepseek-ai/dsh-experimental-lab-knowledge'
-import type { LabPlanningProvider, PlanProposalInput, PlanProposalResult, PlanningContext } from '@deepseek-ai/dsh-experimental-lab-planning'
+import type { LabPlanningProvider, PlanProposalInput, PlanProposalResult, PlanningContext, PlanningKnowledgeScope } from '@deepseek-ai/dsh-experimental-lab-planning'
 import type { LabSkillRevision } from '@deepseek-ai/dsh-experimental-lab-skill'
 import type { LabSkillService } from '@deepseek-ai/dsh-experimental-lab-skill'
 
@@ -57,14 +57,24 @@ export class LocalLabPlanningProvider implements LabPlanningProvider {
 
   /** 根据目标和约束检索带引用上下文，并读取当前只读设备台账。 */
   async buildContext(request: ExperimentRequest): Promise<PlanningContext> {
+    return this.buildContextForScope(request)
+  }
+
+  private async buildContextForScope(request: ExperimentRequest, scope?: PlanningKnowledgeScope): Promise<PlanningContext> {
     const queries = unique([request.objective, ...request.constraints.map(constraint => constraint.value)])
     const citations = new Map<string, PlanningContext['citations'][number]>()
     for (const query of queries) {
-      for (const citation of await this.knowledge.search({
+      const searchRequest = {
         query,
         experimentId: request.experimentId,
         limit: this.contextLimit,
-      })) citations.set(citation.citationId, citation)
+        ...scope === undefined ? {} : {
+          documentIds: scope.documentIds,
+          versionIds: scope.versionIds,
+          confirmed: scope.confirmed,
+        },
+      }
+      for (const citation of await this.knowledge.search(searchRequest)) citations.set(citation.citationId, citation)
     }
     const conflicts = await this.knowledge.listConflicts(request.experimentId)
     const devices = this.devices.listDevices()
@@ -96,7 +106,7 @@ export class LocalLabPlanningProvider implements LabPlanningProvider {
       if (previous.plan.status !== 'REJECTED') throw new Error('replacement plan must supersede a REJECTED plan')
       if (input.plan.revision !== previous.plan.revision + 1) throw new Error('replacement plan revision must increment the rejected plan revision')
     }
-    const context = await this.buildContext(input.request)
+    const context = await this.buildContextForScope(input.request, input.knowledgeScope)
     const contextCitationIds = new Set(context.citations.map(citation => citation.citationId))
     const unresolved = [...context.unresolved, ...input.plan.unresolved]
     for (const citationId of input.plan.citations) {

@@ -249,6 +249,7 @@ export interface LabDevice {
   readonly id?: string
   readonly name?: string
   readonly status?: string
+  readonly source?: 'deterministic' | 'mock' | 'real'
   readonly capabilities?: readonly {
     readonly name?: string
     readonly parameters?: Readonly<Record<string, LabJsonValue>>

@@ -2,13 +2,16 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { brandId, type ExperimentPlan } from '@deepseek-ai/dsh-experimental-lab-domain'
+import { brandId, type ExperimentId, type ExperimentPlan, type LabAgentCallId, type LabProjectId, type LabProgressResult, type LabScopedRecordIds } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { ExecutionStepSpec, LabRuntimeService, RunView } from '@deepseek-ai/dsh-experimental-lab-runtime'
 import type { OperationKind, PlanParameter, SkillSnapshot } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { LabPlanningService } from '@deepseek-ai/dsh-experimental-lab-planning'
+import type { LabProjectService } from '@deepseek-ai/dsh-experimental-lab-project'
+import type { KnowledgeService } from '@deepseek-ai/dsh-experimental-lab-knowledge'
 import type { LabSkillService } from '@deepseek-ai/dsh-experimental-lab-skill'
-import type { JsonValue } from '@deepseek-ai/dsh-session'
-import { defineTool, type InferValue, type PreToolDecision, type ValueSchemaSpec } from '@deepseek-ai/dsh-tools'
+import type { JsonValue, SessionEvent } from '@deepseek-ai/dsh-session'
+import type { PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
+import { defineTool, type InferValue, type PreToolDecision, type ToolExecution, type ValueSchemaSpec } from '@deepseek-ai/dsh-tools'
 import * as ToolLabKnowledge from '@deepseek-ai/dsh-experimental-tool-lab-knowledge'
 import * as ToolLabPlanning from '@deepseek-ai/dsh-experimental-tool-lab-planning'
 import LabExperimentCache from '@deepseek-ai/dsh-experimental-lab-cache'
@@ -17,7 +20,7 @@ import type { LabExperimentCacheService } from '@deepseek-ai/dsh-experimental-la
 /** Cordis 插件名称。 */
 export const name = 'tool-lab'
 /** 复用 Harness Agent、工具注册表与 Runtime Service。 */
-export const inject = ['agents', 'tools', 'labRuntime', 'labPlanning', 'labSkills', 'labMvpWeb']
+export const inject = ['agents', 'tools', 'labRuntime', 'labPlanning', 'labSkills', 'labProjects', 'labKnowledge', 'labMvpWeb']
 
 const JSON_SCHEMA = { type: 'json' } as const
 const HUMAN_ACTION_TOOLS = new Set([
@@ -36,6 +39,7 @@ const HUMAN_ACTION_TOOLS = new Set([
 interface LabAgentExperimentProgress {
   readonly state: 'registered' | 'already-registered' | 'blocked'
   readonly sessionId: string
+  readonly scopedIds: Readonly<Record<string, string>>
   readonly projectId?: string
   readonly reason: string
   readonly nextActor: 'agent' | 'human' | 'runtime' | 'capability'
@@ -48,13 +52,24 @@ interface LabAgentExperimentHost {
   createAgentExperiment(request: { readonly operationId: string; readonly sessionId: string; readonly title: string; readonly objective: string; readonly expectedOutputs: readonly string[] }): Promise<LabAgentExperimentProgress>
 }
 
+interface LabAgentPendingProgress extends LabProgressResult {
+  readonly state: 'waiting'
+  readonly callId: LabAgentCallId
+  readonly nextActor: 'human'
+  readonly allowedActions: readonly string[]
+  readonly workbenchDestination: { readonly view: 'lab-project' | 'lab-monitor'; readonly page?: 'approval' | 'execution' | 'evidence' | 'overview'; readonly projectId?: LabProjectId; readonly experimentId?: ExperimentId }
+}
+
 const LABWEAVE_SYSTEM_PROMPT = [
   'You are the LABWEAVE laboratory Agent inside DeepSeek Harness.',
-  'Own the end-to-end experiment lifecycle: clarify the goal, inspect Knowledge and available capabilities, generate the workflow and executable plan, request human approval at required gates, monitor execution, assess evidence, and state the final result.',
-  'Use lab_project_context, lab_knowledge_catalog, and lab_device_catalog before planning so imported Knowledge status and configured/selected device capabilities are visible to you; then use lab_project_plan_context for confirmed, Project-scoped evidence.',
-  'Use lab_experiment_create to register a new Experiment from the current Session; never invent Project or Experiment IDs and never create a Workspace or Project from an Agent tool.',
-  'Keep every action scoped to the current Project and Session. Treat device operations, approvals, plan changes, and final assessment as Host-controlled or human-gated operations.',
-  'When a Host result returns blocked or requires a human, stop at that gate and explain the exact next action. When work is complete, summarize evidence, failures, unresolved items, and the result judgment.',
+  'Own the end-to-end experiment lifecycle from goal clarification through evidence-backed result reporting.',
+  'The current Harness Conversation is the Agent working surface. The current Workspace and its one laboratory Project are the scope; a Project may contain multiple Sessions, Experiments, plans, runs, Knowledge sources, devices, and files.',
+  'Follow this order: understand the goal; read the current Project context; inspect Knowledge import status and selected devices; retrieve Project-scoped evidence; create or continue the current Project Experiment; generate and validate the workflow and plan; request human approval; wait for the human-controlled run; inspect evidence; then report the result.',
+  'Use lab_project_context, lab_knowledge_catalog, and lab_device_catalog before planning. Use lab_project_plan_context for confirmed, Project-scoped evidence. A PDF is usable only after its import status is READY and it is selected in the current Project source scope.',
+  'Use lab_experiment_create only to register an Experiment inside the current Session Project. Never create a Workspace or Project from an Agent tool, invent identifiers, or use another Project or Session as a substitute for the current scope.',
+  'Agent permissions are limited to reading scoped context, searching Knowledge, drafting and validating plans, registering an Experiment, and recording observations. Project scope changes, plan/Skill approval or activation, Run start/step/confirmation/stop, and final human review are Host-controlled or explicitly human-gated.',
+  'When a Host result is blocked or requires a human, return the structured pending progress, stop tool execution at that gate, and tell the human which Workbench page and action resume the flow. Never retry a denied human action as a workaround.',
+  'At every yield point state the current state, scoped identifiers, reason, next actor, allowed actions, and Workbench destination. When complete, summarize cited evidence, failures, unresolved items, and the result judgment.',
 ].join('\n');
 
 function jsonOutput<const S extends ValueSchemaSpec>(schema: S): {
@@ -78,21 +93,183 @@ function callingAgent(agent: Agent | undefined, toolName: string): Agent {
   return agent
 }
 
+function pendingHumanAction(
+  agent: Agent,
+  exec: ToolExecution,
+  projects: LabProjectService,
+  pending: Map<string, LabAgentPendingProgress>,
+): Promise<PreToolDecision> {
+  const callId = String(exec.callId)
+  const existing = pending.get(callId) ?? pendingFromSession(agent, callId)
+  if (existing !== undefined) return Promise.resolve({ kind: 'deny', reason: JSON.stringify(existing) })
+  return projects.projectForSession(agent.session.id).then(project => {
+    const args = exec.arguments !== null && typeof exec.arguments === 'object' && !Array.isArray(exec.arguments)
+      ? exec.arguments as Record<string, unknown>
+      : {}
+    const projectId = project?.projectId
+    const experimentId = optionalArgumentId(args.experiment_id)
+    const page = exec.name === 'lab_run_report' ? 'evidence' : exec.name.startsWith('lab_run_') ? 'execution' : 'approval'
+    const scopedIds = scopedIdsFromArguments(projectId, experimentId, args)
+    const progress: LabAgentPendingProgress = {
+      state: 'waiting',
+      callId: brandId<'LabAgentCallId'>(callId),
+      sessionId: agent.session.id,
+      scopedIds,
+      reason: 'This laboratory action requires an explicit human action in the project workspace.',
+      nextActor: 'human',
+      allowedActions: project === undefined ? ['select_workspace', 'stop'] : pendingActions(exec.name),
+      workbenchDestination: project === undefined
+        ? { view: 'lab-monitor' }
+        : { view: 'lab-project', page, projectId: project.projectId, ...experimentId === undefined ? {} : { experimentId: brandId<'ExperimentId'>(experimentId) } },
+    }
+    pending.set(callId, progress)
+    agent.session.append('lab/agent/pending', {
+      version: 1,
+      callId: progress.callId,
+      sessionId: agent.session.id,
+      state: progress.state,
+      nextActor: progress.nextActor,
+      reason: progress.reason,
+      allowedActions: progress.allowedActions,
+      scopedIds: progress.scopedIds,
+      ...projectId === undefined ? {} : { projectId },
+      ...experimentId === undefined ? {} : { experimentId: brandId<'ExperimentId'>(experimentId) },
+      ...optionalEventId(args.plan_id, 'planId'),
+      ...optionalEventId(args.skill_revision_id, 'skillRevisionId'),
+      ...optionalEventId(args.run_id, 'runId'),
+      ...optionalEventId(args.step_id, 'stepId'),
+      ...optionalEventId(args.operation_id, 'operationId'),
+      workbenchDestination: progress.workbenchDestination,
+    })
+    return { kind: 'deny', reason: JSON.stringify(progress) }
+  })
+}
+
+function pendingActions(toolName: string): readonly string[] {
+  if (toolName === 'lab_plan_approve' || toolName === 'lab_plan_reject') return ['open_workbench', 'review_plan', 'approve_plan', 'reject_plan', 'stop']
+  if (toolName === 'lab_skill_approve' || toolName === 'lab_skill_activate') return ['open_workbench', 'review_skill', 'approve_skill', 'activate_skill', 'stop']
+  if (toolName === 'lab_run_start') return ['open_workbench', 'review_plan', 'start_run', 'stop']
+  if (toolName === 'lab_run_report') return ['open_workbench', 'open_evidence', 'stop']
+  return ['open_workbench', 'confirm_step', 'stop']
+}
+
+function optionalArgumentId(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined
+}
+
+function scopedIdsFromArguments(projectId: LabProjectId | undefined, experimentId: string | undefined, args: Record<string, unknown>): LabScopedRecordIds {
+  const planId = optionalArgumentId(args.plan_id)
+  const skillRevisionId = optionalArgumentId(args.skill_revision_id)
+  const runId = optionalArgumentId(args.run_id)
+  const stepId = optionalArgumentId(args.step_id)
+  const operationId = optionalArgumentId(args.operation_id)
+  return {
+    ...projectId === undefined ? {} : { projectId },
+    ...experimentId === undefined ? {} : { experimentId: brandId<'ExperimentId'>(experimentId) },
+    ...planId === undefined ? {} : { planId: brandId<'PlanId'>(planId) },
+    ...skillRevisionId === undefined ? {} : { skillRevisionId: brandId<'SkillRevisionId'>(skillRevisionId) },
+    ...runId === undefined ? {} : { runId: brandId<'RunId'>(runId) },
+    ...stepId === undefined ? {} : { stepId: brandId<'PlanStepId'>(stepId) },
+    ...operationId === undefined ? {} : { operationId: brandId<'OperationId'>(operationId) },
+  }
+}
+
+function pendingFromSession(agent: Agent, callId: string): LabAgentPendingProgress | undefined {
+  const event = [...agent.session.events].findLast((item): item is Extract<SessionEvent, { readonly type: 'lab/agent/pending' }> => item.type === 'lab/agent/pending' && String(item.data.callId) === callId)
+  const destination = event?.data.workbenchDestination
+  if (event === undefined || destination === undefined) return undefined
+  const data = event.data
+  return {
+    state: data.state,
+    callId: data.callId,
+    sessionId: data.sessionId,
+    scopedIds: data.scopedIds,
+    reason: data.reason,
+    nextActor: data.nextActor,
+    allowedActions: data.allowedActions,
+    workbenchDestination: destination,
+  }
+}
+
+function optionalEventId(value: unknown, name: 'planId' | 'skillRevisionId' | 'runId' | 'stepId' | 'operationId'): Record<string, unknown> {
+  const id = optionalArgumentId(value)
+  if (id === undefined) return {}
+  if (name === 'planId') return { planId: brandId<'PlanId'>(id) }
+  if (name === 'skillRevisionId') return { skillRevisionId: brandId<'SkillRevisionId'>(id) }
+  if (name === 'runId') return { runId: brandId<'RunId'>(id) }
+  if (name === 'stepId') return { stepId: brandId<'PlanStepId'>(id) }
+  return { operationId: brandId<'OperationId'>(id) }
+}
+
+async function projectPrompt(agent: Agent, projects: LabProjectService, knowledge: KnowledgeService): Promise<string> {
+  const project = await projects.projectForSession(agent.session.id)
+  if (project === undefined) return [
+    'LABWEAVE current Project context: unavailable.',
+    `Current Session: ${String(agent.session.id)}.`,
+    'The Session is not attached to a Workspace laboratory Project. Do not plan, search, scope, or run an Experiment until a human selects or opens the correct Workspace.',
+  ].join('\n')
+  const context = await projects.context(project.projectId, agent.session.id)
+  let knowledgeState: 'available' | 'unavailable' = 'available'
+  let knowledgeReason: string | undefined
+  try {
+    await knowledge.listImportStatuses()
+  } catch (reason) {
+    knowledgeState = 'unavailable'
+    knowledgeReason = reason instanceof Error ? reason.message : String(reason)
+  }
+  const sourceIds = context.sources.map(source => `${String(source.documentId)}@${String(source.versionId)}`)
+  const deviceIds = context.devices.map(device => String(device.deviceId))
+  const sharedFactIds = context.sharedFacts.map(fact => String(fact.factId))
+  const event = {
+    version: 1 as const,
+    sessionId: agent.session.id,
+    kind: 'project' as const,
+    projectId: project.projectId,
+    sourceIds: context.sources.map(source => ({ documentId: source.documentId, versionId: source.versionId })),
+    deviceIds: context.devices.map(device => device.deviceId),
+    sharedFactIds: context.sharedFacts.map(fact => fact.factId),
+    citationIds: [],
+    knowledgeState,
+    ...knowledgeReason === undefined ? {} : { knowledgeReason },
+    unresolved: [],
+  }
+  const previous = [...agent.session.events].findLast(item => item.type === 'lab/agent/context-read' && item.data.kind === 'project')
+  if (previous === undefined || JSON.stringify(previous.data) !== JSON.stringify(event)) agent.session.append('lab/agent/context-read', event)
+  return [
+    'LABWEAVE current Project context:',
+    `Workspace: ${String(project.workspaceId)}; Project: ${String(project.projectId)}; Session: ${String(agent.session.id)}.`,
+    `Project Knowledge source scope: ${sourceIds.length === 0 ? 'none selected' : sourceIds.join(', ')}.`,
+    `Project device scope: ${deviceIds.length === 0 ? 'none selected' : deviceIds.join(', ')}.`,
+    `Project shared facts: ${sharedFactIds.length === 0 ? 'none published' : sharedFactIds.join(', ')}.`,
+    `Knowledge capability: ${knowledgeState}${knowledgeReason === undefined ? '' : ` (${knowledgeReason})`}.`,
+    'Use only these Project-scoped records. A source must be READY before it can be used; if the source scope is empty, report that no Project source is selected instead of searching globally.',
+  ].join('\n')
+}
+
 function install(
   agent: Agent,
   runtime: LabRuntimeService,
   planning: LabPlanningService,
   skills: LabSkillService,
+  projects: LabProjectService,
   cache: LabExperimentCacheService,
   web: LabAgentExperimentHost,
+  knowledge: KnowledgeService,
 ): () => void {
   const disposers: Array<() => unknown> = []
+  const pending = new Map<string, LabAgentPendingProgress>()
   const register = (disposer: () => unknown): void => { disposers.push(disposer) }
   try {
     register(agent.ctx.systemPrompt.section({ name: 'labweave:agent-role', order: 60, text: LABWEAVE_SYSTEM_PROMPT }))
+    register(agent.ctx.on('system-prompt/assemble', async (_assembly, context, next): Promise<PromptAssembly> => {
+      const transformed = await next()
+      if (context.scope === undefined) return transformed
+      const current = await projectPrompt(agent, projects, knowledge)
+      return { ...transformed, contexts: [...transformed.contexts, { name: 'labweave:project-context', text: current }] }
+    }))
     register(agent.ctx.on('tools/pre-execute', (exec, next): Promise<PreToolDecision> => {
       if (!HUMAN_ACTION_TOOLS.has(exec.name)) return next()
-      return Promise.resolve({ kind: 'deny', reason: 'This laboratory action requires an explicit human action in the project workspace.' })
+      return pendingHumanAction(agent, exec, projects, pending)
     }))
     register(agent.ctx.tools.register(defineTool({
       name: 'lab_experiment_create',
@@ -530,7 +707,7 @@ export async function apply(ctx: Context): Promise<void> {
   const installed = new Map<Agent, () => void>()
   const maybeInstall = (agent: Agent): void => {
     if (installed.has(agent)) return
-    installed.set(agent, install(agent, ctx.labRuntime, ctx.labPlanning, ctx.labSkills, cache, web))
+    installed.set(agent, install(agent, ctx.labRuntime, ctx.labPlanning, ctx.labSkills, ctx.labProjects, cache, web, ctx.labKnowledge))
   }
   for (const agent of ctx.agents.list()) maybeInstall(agent)
   ctx.on('agent/created', ({ agent }) => { maybeInstall(agent) })

@@ -18,6 +18,7 @@ const NS = 'labKnowledgeWorkspace'
 
 interface KnowledgeProjectActions {
   readonly toggleSource: (projectId: string, source: { readonly documentId: string; readonly versionId: string }) => void | Promise<void>
+  readonly loadSources: (projectId: string) => Promise<readonly { readonly documentId: string; readonly versionId: string }[]>
 }
 
 /** 独立 Knowledge workspace 需要的客户端 Service。 */
@@ -42,6 +43,10 @@ export function apply(ctx: ClientContext): void {
   }, createKnowledgeWorkspaceView({
     ui,
     openProjects: () => { ctx.get('layout')?.openAppView('lab-monitor') },
+    loadProjectSources: projectId => {
+      const projectActions = ctx.get('labProjectActions') as KnowledgeProjectActions | undefined
+      return projectActions?.loadSources(projectId) ?? Promise.resolve([])
+    },
     onSourceToggle: (source: { readonly documentId: string; readonly versionId: string }) => {
       const projectId = ui.snapshot().activeProjectId
       const projectActions = ctx.get('labProjectActions') as KnowledgeProjectActions | undefined

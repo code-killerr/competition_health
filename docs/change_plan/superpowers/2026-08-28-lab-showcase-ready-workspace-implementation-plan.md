@@ -4,7 +4,7 @@ English | [中文](2026-08-28-lab-showcase-ready-workspace-implementation-plan.z
 
 > **Execution requirement:** Use `superpowers:executing-plans` to implement one batch at a time and check [tasks.md](../../../openspec/changes/lab-showcase-ready-workspace/tasks.md) at every checkpoint. This document fixes the implementation order and technical locations; `tasks.md` is the sole authority for completion state.
 
-**Goal:** Complete the 17 remaining items in `lab-showcase-ready-workspace`: LABWEAVE opens on a conversation-free global monitor, a Project click selects the corresponding Workspace/Session and opens the three-pane workbench, and a laboratory-aware Agent can create and plan an Experiment before yielding at human gates.
+**Goal:** Complete the 11 remaining items in `lab-showcase-ready-workspace`: LABWEAVE opens on a conversation-free global monitor, a Project click selects the corresponding Workspace/Session and opens the three-pane workbench, and a laboratory-aware Agent can create and plan an Experiment before yielding at human gates.
 
 **Architecture:** Workspace is the user-visible laboratory project entry and maps to at most one internal LabProject; a LabProject owns multiple Sessions, Experiments, and Runs. The browser retains presentation selection only. A Host application operation owns identity resolution, persistence, and cross-service consistency, and both Agent tools and the Web Facade reuse that operation.
 
@@ -44,7 +44,7 @@ The matching Session order is fixed. A Run click prefers a Session linked to tha
 
 ### Workspace/Project Entry Resolution
 
-Define a Host-owned application service in `packages/experimental/lab-application/src/index.ts`. `resolveProjectEntry()` and `bootstrapExperiment()` are the sole shared write entries for the Web Facade and Agent tools.
+Use the existing Host-owned services as the application boundary. `LabProjectService.create()` and `projectForSession()` own Workspace-to-Project mapping, `LabProjectService.createExperiment()` owns generated Experiment identity and operation replay, and `LabMvpWebService.createAgentExperiment()` is the sole Agent/Web entry that binds the Project record to the Runtime record. Do not create a parallel application package unless a later change proves that these responsibilities must evolve independently.
 
 ```ts
 import type { ExperimentId, LabExperimentRecord, LabProjectId, RunId, WorkspaceId } from '@deepseek-ai/dsh-experimental-lab-domain'
@@ -84,45 +84,40 @@ export interface BootstrapLabExperimentResult {
 }
 ```
 
-For an Agent tool, `requestId` is always `${sessionId}:${rootCallId}`. `LabProjectService.createExperimentOnce()` persists that key. The same key and same input return the original Experiment; the same key with different input fails loud. Runtime `createExperiment()` becomes idempotent for the same ID and equal request while still rejecting conflicting content, so a retry is safe when Project commit succeeded but the Runtime response was lost.
+For an Agent tool, `operationId` is the opaque tool-call identity. `LabProjectService.createExperiment()` persists that key in the Project audit/state path. The same key and same input return the original Experiment; the same key with different input fails loud. Runtime `createExperiment()` is idempotent for the same ID and equal request while still rejecting conflicting content, so a retry is safe when Project commit succeeded but the Runtime response was lost.
 
 ### Lifecycle Progress Result
 
-Define the following in `packages/experimental/lab-domain/src/progress.ts` and export it from `index.ts`:
+Define and export the following from `packages/experimental/lab-domain/src/types.ts`:
 
 ```ts
-import type { ExperimentId, LabPresentationView, LabProjectId, PlanId, RunId, WorkspaceId } from '@deepseek-ai/dsh-experimental-lab-domain'
-import type { JsonValue, SessionId } from '@deepseek-ai/dsh-session'
+import type { ExperimentId, LabProjectId, PlanId, RunId, WorkspaceId } from '@deepseek-ai/dsh-experimental-lab-domain'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 
-export type LabNextActor = 'agent' | 'human' | 'runtime' | 'capability'
-export type LabProgressState = 'ready' | 'waiting' | 'blocked' | 'unavailable' | 'completed'
+export type LabProgressActor = 'agent' | 'human' | 'runtime' | 'capability'
+export type LabProgressState = 'registered' | 'already-registered' | 'blocked' | 'waiting' | 'unavailable' | 'failed' | 'completed'
 
 export interface LabScopedRecordIds {
-  readonly workspaceId: WorkspaceId
-  readonly sessionId: SessionId
-  readonly projectId: LabProjectId
+  readonly workspaceId?: WorkspaceId
+  readonly sessionId?: SessionId
+  readonly projectId?: LabProjectId
   readonly experimentId?: ExperimentId
   readonly planId?: PlanId
   readonly runId?: RunId
 }
 
-export type LabAllowedAction =
-  | { readonly kind: 'agent-tool'; readonly name: string }
-  | { readonly kind: 'workbench'; readonly destination: LabPresentationView; readonly targetId?: string }
-  | { readonly kind: 'wait-event'; readonly event: string }
-  | { readonly kind: 'stop' }
-
-export interface LabProgressResult<T = JsonValue> {
+export interface LabProgressResult {
   readonly state: LabProgressState
-  readonly records: LabScopedRecordIds
-  readonly value?: T
-  readonly reason?: string
-  readonly nextActor?: LabNextActor
-  readonly allowedActions: readonly LabAllowedAction[]
+  readonly sessionId: SessionId
+  readonly scopedIds: LabScopedRecordIds
+  readonly reason: string
+  readonly nextActor: LabProgressActor
+  readonly allowedActions: readonly string[]
+  readonly workbenchDestination?: { readonly view: 'lab-project' | 'lab-monitor'; readonly page?: 'approval' | 'execution' | 'evidence' | 'overview'; readonly projectId?: LabProjectId; readonly experimentId?: ExperimentId }
 }
 ```
 
-`completed` has no `nextActor`; every other state has exactly one `nextActor` and at least one `allowedActions` entry. A human gate includes a registered workbench destination. Capability unavailable includes the matching recovery event. A result never offers an Agent tool that policy denies.
+`completed` is terminal in a lifecycle projection; every non-terminal result has exactly one `nextActor` and at least one `allowedActions` entry. A human gate includes a registered workbench destination. Capability unavailable includes a matching recovery action. A result never offers an Agent tool that policy denies. Session events carry the same scoped IDs and destination so a pending result can be reconstructed after the in-memory tool registry is recreated.
 
 ## Implementation Batches
 
@@ -130,26 +125,25 @@ export interface LabProgressResult<T = JsonValue> {
 
 **Covers:** 2.9.
 
-**Create:** The package, Service, invariant, tests, and bilingual README under `packages/experimental/lab-application/`.
+**Use:** The existing `LabProjectService`, `LabMvpWebService`, Runtime service, and Workspace registry. Add tests and documentation beside those owners; do not add a second application package.
 
 **Modify:** `lab-domain/src/{index,project}.ts`, `lab-project/src/index.ts` and tests, `lab-runtime/src/{index,types}.ts`, `lab-runtime-local/src/index.ts` and tests, `lab-mvp/src/index.ts` and composition tests, plus affected package/subsystem documentation.
 
 **Steps:**
 
-1. Add failing tests first: resolving one Workspace twice creates one LabProject; an unmapped Session creates the Project and attaches the Session; an explicit cross-Workspace Project/Session combination returns a conflict.
-2. Add an explicit Workspace query and `createExperimentOnce()` to `LabProjectService`. The idempotency key must enter persisted state and schema, not an in-memory Map.
-3. Make repeated Runtime registration of an equal Experiment request succeed while a conflicting request still fails. Update the Service Definition, local Provider, JSDoc, and tests together.
-4. Implement `resolveProjectEntry()`: resolve the Session Workspace, create/reuse LabProject, attach Session, and verify every explicit Project/Experiment/Run belongs to one chain.
-5. Implement `bootstrapExperiment()`: create/reuse the Project Experiment by requestId, idempotently register Runtime, and append `lab/project/experiment-created` and `lab/experiment/requested` only for first creation.
-6. Register the application service in `lab-mvp` after Project and Runtime readiness, with a load-time invariant for missing dependencies.
+1. Add tests first: resolving one Workspace twice creates one LabProject; the active Session maps to that Project; an explicit cross-Workspace Project/Session combination returns a conflict.
+2. Keep the mapping in `LabProjectService.create()` and `projectForSession()`. The generated Project ID and directory-basename name remain Host-owned; browser commands submit only Workspace identity.
+3. Keep Experiment operation replay in the Project audit/state path and make equal Runtime registration idempotent while conflicting content fails loudly.
+4. Let `LabMvpWebService.createAgentExperiment()` resolve the calling Session's Project, call the Project service, register the returned Experiment with Runtime, and append creation/request events only once.
+5. Keep Workspace auto-mapping in the active-project bridge and monitor click path: select Workspace, open matching Session, select Project/Experiment, then open `lab-project`. Agent tools never create Workspace or Project.
 
 **Verification:**
 
 ```sh
-node node_modules/vitest/vitest.mjs run packages/experimental/lab-project/tests/service.spec.ts packages/experimental/lab-runtime-local/tests/provider.spec.ts packages/experimental/lab-application/tests/service.spec.ts packages/experimental/lab-mvp/tests/composition.spec.ts --reporter=verbose
+node node_modules/vitest/vitest.mjs run packages/experimental/lab-project/tests/service.spec.ts packages/experimental/lab-runtime-local/tests/provider.spec.ts packages/experimental/lab-mvp-web/tests packages/experimental/lab-mvp/tests/composition.spec.ts --reporter=verbose
 ```
 
-**Exit:** Auto-mapping, attach, cross-scope rejection, and retry after a lost Runtime response pass; no browser-supplied business ID remains.
+**Exit:** Auto-mapping, attach, cross-scope rejection, and retry after a lost Runtime response pass; no browser-supplied business ID remains and no standalone Project creation page is registered.
 
 ### Batch 2: Global Navigation, Monitor Replace View, and Three-Pane Composition
 
@@ -179,31 +173,31 @@ node node_modules/vitest/vitest.mjs run packages/client/ui-lab-workbench/tests p
 
 **Covers:** 10.3.
 
-**Modify:** `tool-lab-project/src/index.ts`, tests, and bilingual README; `examples/lab-web/cordis.patch.yml`; add `examples/lab-web/tests/lab-agent-prompt.snapshot.ts` and its fixture.
+**Modify:** `tool-lab/src/index.ts` and tests; `examples/lab-web/cordis.patch.yml`; keep the existing keyless Agent lifecycle test and inline snapshot in `examples/lab-web/tests/agent-lifecycle.spec.ts`.
 
 **Steps:**
 
-1. Register `systemPrompt.section({ name: 'labweave:role', order: 90, ... })` in every LABWEAVE Agent scope. Do not use `complete` or register `deployment:persona`.
+1. Register `systemPrompt.section({ name: 'labweave:agent-role', ... })` in every LABWEAVE Agent scope. Do not use `complete` or register `deployment:persona`.
 2. Fix identity and order: planner, coordinator, and explainer for the current laboratory Project; first action `lab_project_context`; Experiment→Knowledge/capability→Plan/Skill proposal→wait for human approval/Run start→monitor/replan→report.
 3. Fix authority: Agent only creates Experiment, reads context/Knowledge/capability, proposes Plan/Skill, and monitors/replans/reports; human adjusts and approves Plan/Skill, starts Run, confirms human steps, and publishes verdict; Runtime executes the approved graph.
-4. On `nextActor: human|runtime|capability`, explain the reason and call `exec.concludeTurn()`; do not poll or substitute a denied tool.
+4. On `nextActor: human|runtime|capability`, explain the reason and let the Agent loop yield at the tool boundary; do not poll or substitute a denied tool.
 5. Keep dynamic context in `lab/agent/context-read` rather than static prompt text; snapshots reconstruct it from Session events.
-6. Assert laboratory profile contains `labweave:role`, default profile does not, and Harness identity/persona/tool protocol order remains unchanged.
+6. Assert laboratory profile contains `labweave:agent-role`, default profile does not, and Harness identity/persona/tool protocol order remains unchanged.
 
 **Verification:**
 
 ```sh
-node node_modules/vitest/vitest.mjs run packages/experimental/tool-lab-project/tests/tool-lab-project.spec.ts --reporter=verbose
-node node_modules/vitest/vitest.mjs run --config ./vitest.snapshot.config.ts examples/lab-web/tests/lab-agent-prompt.snapshot.ts --reporter=verbose
+node node_modules/vitest/vitest.mjs run packages/experimental/tool-lab/tests/tool-lab.spec.ts --reporter=verbose
+node node_modules/vitest/vitest.mjs run examples/lab-web/tests/agent-lifecycle.spec.ts --reporter=verbose
 ```
 
-**Exit:** Agent prompt states identity, workflow, authority, and yield rules; default profile has no LABWEAVE copy; durable events reconstruct Project context.
+**Exit:** Agent prompt states identity, workflow, authority, and yield rules; default profile has no LABWEAVE copy; durable events reconstruct Project context and the Agent lifecycle test proves the prompt is consumed by the real loop.
 
 ### Batch 4: Agent Experiment Creation and Typed Progress/No-Dead-End Behavior
 
 **Covers:** 10.10, 10.11, and 10.12.
 
-**Create:** `lab-domain/src/progress.ts` and `lab-application/tests/progress-matrix.spec.ts`.
+**Create:** A table-driven progress matrix in `packages/experimental/tool-lab/tests/tool-lab.spec.ts` and keep the shared progress types in `packages/experimental/lab-domain/src/types.ts`.
 
 **Modify:** `tool-lab/src/index.ts`, tests, and package; `lab-mvp-web/src/{index,project-protocol}.ts` and tests; `ui-lab-workbench` adapter/API/Host adapter/workbench projection; affected README and subsystem counterparts.
 
@@ -212,16 +206,16 @@ node node_modules/vitest/vitest.mjs run --config ./vitest.snapshot.config.ts exa
 1. Remove `lab_experiment_propose` registration, description, tests, and configuration references.
 2. Remove `lab_experiment_create` from `HUMAN_ACTION_TOOLS` while retaining human restrictions on approval and Run start/step/confirm. Keep read-only report separate from verdict publication instead of granting ambiguous authority.
 3. Let `lab_experiment_create` accept only `title`, `objective`, and `expected_outputs`; call `bootstrapExperiment()` with calling Session and `exec.rootCallId`.
-4. Return `LabProgressResult` from Agent tool, Facade action, and lifecycle projection; do not parse message strings.
-5. Fix the pending-request key as `projectId + experimentId + action kind + target revision/step`. One gate writes one event; an existing pending request returns its workbench action and calls `concludeTurn()`.
+4. Return the shared `LabProgressResult` from Agent bootstrap and human-gate projections; Facade errors and capability records retain typed state/error codes rather than message-string parsing.
+5. Persist one pending event per Agent call identity. An existing pending call is reconstructed from the Session event before any in-memory map is consulted, so Host/Agent reassembly returns the same workbench action.
 6. Append durable approval/start/confirmation events after human action. The next Agent turn derives `nextActor: agent` from projection, not browser-memory continuation.
-7. Cover unmapped Workspace, Project without Experiment, lost bootstrap-result retry, missing input, unavailable Knowledge/device/planning/Runtime, pending Plan/Skill approval, revision after rejection, pending human Run start, human step confirmation, Workspace/Session switch recovery, and capability recovery in a table-driven matrix.
-8. Assert state, records, one nextActor, non-empty allowedActions, and a legal current-Project workbench destination per row; assert the Agent does not call policy-denied tools.
+7. Cover unmapped Workspace, Project without Experiment, lost bootstrap-result retry, missing input, unavailable Knowledge/device/planning/Runtime, pending Plan/Skill approval, revision after rejection, pending human Run start, human step confirmation, Workspace/Session switch recovery, and capability recovery through the existing focused tests plus a table-driven Agent matrix.
+8. Assert state, scoped IDs, one nextActor, non-empty allowedActions, and a legal workbench destination per matrix row; assert the Agent does not call policy-denied tools.
 
 **Verification:**
 
 ```sh
-node node_modules/vitest/vitest.mjs run packages/experimental/tool-lab/tests/tool-lab.spec.ts packages/experimental/lab-application/tests packages/experimental/lab-mvp-web/tests/facade.spec.ts packages/experimental/lab-mvp-web/tests/project-protocol.spec.ts packages/client/ui-lab-workbench/tests/host-adapter.contract.client.spec.ts --reporter=verbose
+node node_modules/vitest/vitest.mjs run packages/experimental/tool-lab/tests/tool-lab.spec.ts packages/experimental/lab-mvp-web/tests packages/client/ui-lab-workbench/tests/host-adapter.contract.client.spec.ts --reporter=verbose
 ```
 
 **Exit:** Agent idempotently creates Experiment but cannot start Run; every non-terminal state has one next actor and at least one real action; a human gate emits one request and concludes the Agent turn.
@@ -230,11 +224,11 @@ node node_modules/vitest/vitest.mjs run packages/experimental/tool-lab/tests/too
 
 **Covers:** 10.13.
 
-**Modify:** `examples/lab-web/tests/host-lifecycle.snapshot.ts`; add `agent-lifecycle.snapshot.ts` and snapshots; extend `apps/web/tests/lab-full-lifecycle.e2e.ts` only for fixture/bootstrap support.
+**Modify:** `examples/lab-web/tests/host-lifecycle.snapshot.ts` and `examples/lab-web/tests/agent-lifecycle.spec.ts`; extend `apps/web/tests/lab-full-lifecycle.e2e.ts` only for assembled replay/bootstrap support.
 
 **Steps:**
 
-1. Assemble the real `cordis.patch.yml` and use deterministic model responses to make the Agent execute real `lab_project_context`, `lab_experiment_create`, Knowledge, and planning tools.
+1. Assemble the real `cordis.patch.yml` and use deterministic model responses to make the Agent execute real `lab_project_context`, `lab_experiment_create`, Knowledge, and planning tools. Keep the Agent scenario as a keyless test with an inline snapshot; do not replace it with direct Facade calls.
 2. Assert one Host ID chain across Workspace, Session, Project, Experiment, Plan/Skill proposal, Run, Artifact, verdict, and report.
 3. Before Plan/Skill approval and Run start, assert one pending action, a tool result with `nextActor: human`, and a concluded Agent turn.
 4. Continue through a Host/UI human action and a new Agent turn; do not call private Runtime methods.
@@ -243,10 +237,11 @@ node node_modules/vitest/vitest.mjs run packages/experimental/tool-lab/tests/too
 **Verification:**
 
 ```sh
-node node_modules/vitest/vitest.mjs run --config ./vitest.snapshot.config.ts examples/lab-web/tests/host-lifecycle.snapshot.ts examples/lab-web/tests/agent-lifecycle.snapshot.ts --reporter=verbose
+node node_modules/vitest/vitest.mjs run examples/lab-web/tests/agent-lifecycle.spec.ts --reporter=verbose
+node node_modules/vitest/vitest.mjs run --config ./vitest.snapshot.config.ts examples/lab-web/tests/host-lifecycle.snapshot.ts --reporter=verbose
 ```
 
-**Exit:** At least one keyless snapshot executes real `lab_*` tools and proves Agent yield at a human gate and continuation in a later turn.
+**Exit:** The keyless Agent lifecycle test executes real `lab_*` tools and proves Agent yield at a human gate, host-side human continuation, failure replan and report; the Host snapshot covers the persistence projection separately.
 
 ### Batch 6: Assembled Chromium, Responsive, and Accessibility Acceptance
 
@@ -288,7 +283,7 @@ node node_modules/vitest/vitest.mjs run --config ./vitest.web.config.ts apps/web
 **Full verification:**
 
 ```sh
-node node_modules/vitest/vitest.mjs run packages/client/ui-lab-workbench/tests packages/experimental/lab-application/tests packages/experimental/lab-project/tests packages/experimental/tool-lab/tests packages/experimental/tool-lab-project/tests packages/experimental/lab-mvp-web/tests packages/experimental/lab-mvp/tests --reporter=verbose
+node node_modules/vitest/vitest.mjs run packages/client/ui-lab-workbench/tests packages/experimental/lab-project/tests packages/experimental/tool-lab/tests packages/experimental/tool-lab-project/tests packages/experimental/lab-mvp-web/tests packages/experimental/lab-mvp/tests --reporter=verbose
 node node_modules/vitest/vitest.mjs run --config ./vitest.snapshot.config.ts examples/lab-web/tests --reporter=verbose
 node node_modules/vitest/vitest.mjs run --config ./vitest.web.config.ts apps/web/tests/lab-showcase.e2e.ts apps/web/tests/lab-workbench.e2e.ts apps/web/tests/lab-full-lifecycle.e2e.ts --reporter=verbose
 node node_modules/vitest/vitest.mjs run packages/sdk/client/tests packages/sdk/server/tests --reporter=verbose
@@ -302,7 +297,7 @@ rtk openspec validate lab-showcase-ready-workspace --strict
 git diff --check
 ```
 
-**Exit:** OpenSpec verify has no CRITICAL/WARNING; all 17 remaining tasks have source plus automated or manual browser evidence; only then may `openspec-archive-change` run.
+**Exit:** OpenSpec verify has no CRITICAL/WARNING; all 11 remaining tasks have source plus automated or manual browser evidence; only then may `openspec-archive-change` run.
 
 ## Dependencies and Checkpoints
 

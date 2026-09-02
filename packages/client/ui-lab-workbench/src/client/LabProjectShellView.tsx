@@ -3,7 +3,7 @@ import type { JSX } from 'react'
 import type { PropsLocale, PropsRuntime, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { LabArtifactPreview as LabArtifactPreviewRecord, LabArtifactRecord, LabPlanReview, LabProjectFilePreview, LabProjectFileRecord, LabProjectView, LabReportView, LabRun, LabRunComparisonView, LabSkillRevision, LabWorkflowRecord } from './api.ts'
 import type { LabCitationSelection, LabUiContext } from './LabUiContext.ts'
-import type { LabProjectFileAdapter, LabProjectFileEventListener, LabQueryState } from './adapter.ts'
+import type { LabProjectEventListener, LabProjectFileAdapter, LabProjectFileEventListener, LabQueryState } from './adapter.ts'
 import { LabExperimentDetailView, type LabExperimentDetailLabels } from './LabExperimentDetailView.tsx'
 import { LabRunDetailView, type LabRunDetailLabels } from './LabRunDetailView.tsx'
 import type { LabRunDisplayState, LabResultDisplayState, LabRunResultLabels } from './LabRunResultView.tsx'
@@ -41,6 +41,7 @@ export interface LabProjectShellInjected {
  readonly compareRuns: (leftRunId: string, rightRunId: string) => Promise<LabQueryState<LabRunComparisonView>>
   readonly validatePlan?: (planId: string) => Promise<unknown>
   readonly approvePlan?: (input: { readonly experimentId: string; readonly planId: string }) => Promise<unknown>
+  readonly startRun?: (input: { readonly experimentId: string; readonly planId: string }) => Promise<LabRun>
   readonly validateSkill?: (revisionId: string) => Promise<unknown>
   readonly approveSkill?: (input: { readonly revisionId: string }) => Promise<unknown>
   readonly activateSkill?: (revisionId: string) => Promise<unknown>
@@ -53,6 +54,7 @@ export interface LabProjectShellInjected {
   readonly openProjectFile?: LabProjectFileAdapter['openProjectFile']
   readonly downloadProjectFile?: LabProjectFileAdapter['downloadProjectFile']
   readonly subscribeProjectFileEvents?: (listener: LabProjectFileEventListener) => () => void
+  readonly subscribeProjectEvents?: (listener: LabProjectEventListener) => () => void
 }
 
 type Props = PropsRuntime<'app.view'> & PropsLocale<'labWorkbench'> & InjectFace<LabProjectShellInjected>
@@ -182,6 +184,11 @@ export function LabProjectShellView(props: Props): JSX.Element {
     })
   }, [props.subscribeProjectFileEvents, selection.activeProjectId])
 
+  useEffect(() => {
+    if (selection.activeProjectId === undefined || props.subscribeProjectEvents === undefined) return
+    return props.subscribeProjectEvents(() => setProjectRefresh(value => value + 1))
+  }, [props.subscribeProjectEvents, selection.activeProjectId])
+
   const projectRecord = project?.project
   const runReviewAction = async (action: () => Promise<unknown>): Promise<void> => {
     setReviewActionError(undefined)
@@ -205,6 +212,12 @@ export function LabProjectShellView(props: Props): JSX.Element {
   }
   const stopRun = props.stopRun === undefined ? undefined : async (runId: string): Promise<void> => {
     await props.stopRun?.(runId)
+    setFileRefresh(value => value + 1)
+  }
+  const startRun = props.startRun === undefined ? undefined : async (input: { readonly experimentId: string; readonly planId: string }): Promise<void> => {
+    const run = await props.startRun?.(input)
+    if (run?.runId !== undefined) props.ui.selectRun(run.runId)
+    props.ui.openProjectPage('execution')
     setFileRefresh(value => value + 1)
   }
   return (
@@ -234,8 +247,8 @@ export function LabProjectShellView(props: Props): JSX.Element {
         </nav>
         <div className={css.workspaceContent}>
           {page === 'overview' && <Overview props={props} project={project} runs={runs} artifacts={artifacts} onNavigate={destination => { props.ui.openProjectPage(destination) }} />}
-          {page === 'planning' && <Experiments props={props} project={project} runs={runs} report={report} reviews={experimentReviews} onReviewAction={runReviewAction} />}
-          {page === 'approval' && <Experiments props={props} project={project} runs={runs} report={report} reviews={experimentReviews} onReviewAction={runReviewAction} />}
+          {page === 'planning' && <Experiments props={props} project={project} runs={runs} report={report} reviews={experimentReviews} onReviewAction={runReviewAction} {...startRun === undefined ? {} : { startRun }} />}
+          {page === 'approval' && <Experiments props={props} project={project} runs={runs} report={report} reviews={experimentReviews} onReviewAction={runReviewAction} {...startRun === undefined ? {} : { startRun }} />}
           {(page === 'execution' || page === 'steps') && <><StateNoticeWhenVisible state={runsState} t={props.t} emptyMessage={props.t('stateNoExperiment')} /><Runs props={props} runs={runs} artifacts={artifacts} report={report} comparison={comparison} onRetry={retryRun} {...confirmStep === undefined ? {} : { onConfirmStep: confirmStep }} {...stopRun === undefined ? {} : { onStop: stopRun }} /></>}
           {page === 'evidence' && <><StateNoticeWhenVisible state={artifactsState} t={props.t} emptyMessage={props.t('stateNoRun')} /><Evidence props={props} artifacts={artifacts} report={report} {...selection.activeArtifactId === undefined ? {} : { selectedArtifactId: selection.activeArtifactId }} /></>}
           {page === 'files' && <ProjectFiles props={props} projectId={selection.activeProjectId} files={projectFiles} filesState={projectFilesState} artifacts={artifacts} state={artifactsState} refreshKey={projectFileRefresh} onRefresh={() => { setFileRefresh(value => value + 1); setProjectFileRefresh(value => value + 1) }} />}
@@ -273,7 +286,7 @@ function Overview({ props, project, runs, artifacts, onNavigate }: { readonly pr
   </div>
 }
 
-function Experiments({ props, project, runs, report, reviews, onReviewAction }: { readonly props: Props; readonly project: LabProjectView | undefined; readonly runs: readonly LabRun[]; readonly report: ReportState; readonly reviews: ReviewsState; readonly onReviewAction: (action: () => Promise<unknown>) => Promise<void> }): JSX.Element {
+function Experiments({ props, project, runs, report, reviews, onReviewAction, startRun }: { readonly props: Props; readonly project: LabProjectView | undefined; readonly runs: readonly LabRun[]; readonly report: ReportState; readonly reviews: ReviewsState; readonly onReviewAction: (action: () => Promise<unknown>) => Promise<void>; readonly startRun?: (input: { readonly experimentId: string; readonly planId: string }) => Promise<void> }): JSX.Element {
   const experiments = project?.experiments ?? []
   const selectedId = props.ui.snapshot().activeExperimentId ?? experiments[0]?.experimentId
   const selected = experiments.find(experiment => experiment.experimentId === selectedId)
@@ -293,7 +306,7 @@ function Experiments({ props, project, runs, report, reviews, onReviewAction }: 
   </button>
   ))}</div>{selected === undefined ? <div className={css.notice}>{props.t('stateNoExperiment')}</div> : reviews.state !== 'ready' || review === undefined ? <StateNotice state={reviews} t={props.t} emptyMessage={props.t('stateNoExperiment')} /> : <div className={css.detailStack}>
     <LabExperimentDetailView experiment={selected} sessions={(project?.experimentSessions ?? []).filter(session => session.experimentId === selected.experimentId)} review={review} runs={runs} {...report.state === 'ready' ? { report: report.value } : {}} evidence={(project?.evidence ?? []).filter(item => item.experimentId === selected.experimentId)} labels={experimentLabels(props.t)} onOpenSession={props.openSession} />
-    <ReviewActions props={props} review={review} onPlanAction={reviewPlanAction} />
+    <ReviewActions props={props} review={review} onPlanAction={reviewPlanAction} {...startRun === undefined ? {} : { onStartRun: input => { void onReviewAction(() => startRun(input)) } }} />
     {workflow !== undefined && <LabWorkflowView workflow={workflow} validation={review.validation} labels={workflowLabels(props.t)} />}
     {(review.skillRevisions ?? []).map(skill => {
       const state = skillState(skill.status)
@@ -312,15 +325,17 @@ function Experiments({ props, project, runs, report, reviews, onReviewAction }: 
   </div>}</div>
 }
 
-function ReviewActions({ props, review, onPlanAction }: { readonly props: Props; readonly review: LabPlanReview; readonly onPlanAction: (action: 'validate' | 'approve') => void }): JSX.Element | null {
+function ReviewActions({ props, review, onPlanAction, onStartRun }: { readonly props: Props; readonly review: LabPlanReview; readonly onPlanAction: (action: 'validate' | 'approve') => void; readonly onStartRun?: (input: { readonly experimentId: string; readonly planId: string }) => void }): JSX.Element | null {
   const planId = review.plan.planId
   const experimentId = review.plan.experimentId
-  if (planId === undefined || experimentId === undefined || props.validatePlan === undefined && props.approvePlan === undefined) return null
+  if (planId === undefined || experimentId === undefined || props.validatePlan === undefined && props.approvePlan === undefined && onStartRun === undefined) return null
   const canValidate = review.plan.status === 'DRAFT' || review.plan.status === 'REJECTED'
   const canApprove = review.plan.status === 'VALIDATED' && review.validation?.valid === true
+  const canStart = review.plan.status === 'LOCKED'
   return <div className={css.actions} data-lab-plan-actions>
     {props.validatePlan !== undefined && <button type='button' disabled={!canValidate} onClick={() => { onPlanAction('validate') }}>{props.t('validate')}</button>}
     {props.approvePlan !== undefined && <button type='button' disabled={!canApprove} onClick={() => { onPlanAction('approve') }}>{props.t('approve')}</button>}
+    {onStartRun !== undefined && <button type='button' disabled={!canStart} onClick={() => { onStartRun({ experimentId, planId }) }}>{props.t('startRun')}</button>}
   </div>
 }
 

@@ -12,7 +12,9 @@ Build the source and browser bundles, then start the showcase:
 pnpm run demo:lab-web
 ```
 
-Open the local URL printed by the command. The default LABWEAVE view starts at the global execution monitor and does not require an existing Session. Select a Workspace from the Project tree or create the Workspace's Project; the Host creates or reuses the Project Session, and the central native Harness Conversation plus the right Project workspace stay linked to that Project.
+If the repository Docling environment exists at `.venv`, the launcher passes its Python executable to the Host automatically. Otherwise install it with `pnpm run docling:setup`, or set a deployment-owned `DOCLING_PYTHON` executable before starting the service.
+
+Open the local URL printed by the command. The default LABWEAVE view starts at the global execution monitor and does not require an existing Session. Select a Workspace; the Host automatically creates or reuses that Workspace's single Project and Project Session, and the central native Harness Conversation plus the right Project workspace stay linked to it.
 
 The loopback Facade has two explicit command namespaces. General Knowledge, planning, Skill, device and Runtime commands use `namespace: "lab"`; Project, Experiment, Run and Artifact page commands use `namespace: "project"`. Browser code submits records and action parameters, while the Host owns business IDs and persistence.
 

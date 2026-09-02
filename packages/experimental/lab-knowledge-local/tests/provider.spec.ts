@@ -142,4 +142,13 @@ describe('LocalKnowledgeProvider', () => {
     await expect(provider.confirmFact({ citationId: beta[0]!.citationId, confirmedBy: 'reviewer' })).rejects.toThrow(/OPEN/)
     await provider.dispose()
   })
+
+  it('does not widen an explicitly empty Project source scope to global search', async () => {
+    const provider = new LocalKnowledgeProvider({ path: ':memory:' })
+    await provider.importDocument({
+      source: { kind: 'bytes', name: 'scoped.csv', bytes: new TextEncoder().encode('name,value\nscoped,1\n') },
+    })
+    await expect(provider.search({ query: 'scoped', documentIds: [], versionIds: [] })).resolves.toEqual([])
+    await provider.dispose()
+  })
 })

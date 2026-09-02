@@ -11,15 +11,17 @@ import {
   type UnitValue,
 } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { LabDeviceService } from '@deepseek-ai/dsh-experimental-lab-device'
+import type { LabProjectService } from '@deepseek-ai/dsh-experimental-lab-project'
 import type { LabPlanningService } from '@deepseek-ai/dsh-experimental-lab-planning'
 import type { LabSkillService } from '@deepseek-ai/dsh-experimental-lab-skill'
-import type { JsonValue } from '@deepseek-ai/dsh-session'
+import { HarnessError } from '@deepseek-ai/dsh-llm'
+import type { JsonValue, SessionEvent } from '@deepseek-ai/dsh-session'
 import { defineTool, type InferValue, type ValueSchemaSpec } from '@deepseek-ai/dsh-tools'
 
 /** Cordis 插件名称。 */
 export const name = 'tool-lab-planning'
 /** 复用 Harness Agent、工具注册表、规划和设备 Service。 */
-export const inject = ['agents', 'tools', 'labPlanning', 'labDevices', 'labSkills']
+export const inject = ['agents', 'tools', 'labPlanning', 'labDevices', 'labSkills', 'labProjects']
 
 const JSON_SCHEMA = { type: 'json' } as const
 const CONTEXT_OUTPUT_SCHEMA = JSON_SCHEMA
@@ -43,7 +45,7 @@ function callingAgent(agent: Agent | undefined, toolName: string): Agent {
 }
 
 /** 注册规划阶段工具到一个精确 Agent scope。 */
-function install(agent: Agent, planning: LabPlanningService, devices: LabDeviceService, skills: LabSkillService): () => void {
+function install(agent: Agent, planning: LabPlanningService, devices: LabDeviceService, skills: LabSkillService, projects: LabProjectService): () => void {
   const disposers: Array<() => unknown> = []
   const register = (disposer: () => unknown): void => { disposers.push(disposer) }
   try {
@@ -74,7 +76,7 @@ function install(agent: Agent, planning: LabPlanningService, devices: LabDeviceS
 
     register(agent.ctx.tools.register(defineTool({
       name: 'lab_plan_propose',
-      description: 'Submit a structured experiment plan and declarative Lab Skill drafts for deterministic validation. This tool never approves, locks, starts, or executes the plan.',
+      description: 'Submit a structured experiment plan and declarative Lab Skill drafts for deterministic validation. Read lab_project_plan_context for the current Project and Experiment immediately before this tool. This tool never approves, locks, starts, or executes the plan.',
       parameters: {
         request: { type: 'json', required: true, description: 'Experiment request object.' },
         plan: { type: 'json', required: true, description: 'DRAFT experiment plan with cited steps and unit-bearing parameters.' },
@@ -83,10 +85,13 @@ function install(agent: Agent, planning: LabPlanningService, devices: LabDeviceS
       output: jsonOutput(JSON_SCHEMA),
       async execute(args, exec) {
         const caller = callingAgent(exec.agent, 'lab_plan_propose')
+        const request = parseRequest(args.request)
+        const plan = parsePlan(args.plan)
         const result = await planning.propose({
-          request: parseRequest(args.request),
-          plan: parsePlan(args.plan),
+          request,
+          plan,
           skillDrafts: args.skill_drafts.map((draft, index) => parseSkillDraft(draft, `skill_drafts[${index}]`)),
+          knowledgeScope: await resolvePlanningKnowledgeScope(caller, projects, request.experimentId, request.objective),
         })
         caller.session.append('lab/plan/proposed', {
           version: 1,
@@ -170,7 +175,7 @@ export function apply(ctx: Context): void {
   const installed = new Map<Agent, () => void>()
   const maybeInstall = (agent: Agent): void => {
     if (installed.has(agent)) return
-    installed.set(agent, install(agent, ctx.labPlanning, ctx.labDevices, ctx.labSkills))
+    installed.set(agent, install(agent, ctx.labPlanning, ctx.labDevices, ctx.labSkills, ctx.labProjects))
   }
   for (const agent of ctx.agents.list()) maybeInstall(agent)
   ctx.on('agent/created', ({ agent }) => { maybeInstall(agent) })
@@ -182,6 +187,47 @@ export function apply(ctx: Context): void {
     for (const dispose of installed.values()) dispose()
     installed.clear()
   }, 'tool-lab-planning.scopedTools()')
+}
+
+async function resolvePlanningKnowledgeScope(
+  caller: Agent,
+  projects: LabProjectService,
+  experimentId: ExperimentRequest['experimentId'],
+  objective: string,
+) {
+  const project = await projects.projectForSession(caller.session.id)
+  if (project === undefined) {
+    throw new HarnessError('lab_plan_propose requires a Project associated with the current Session', 'PROJECT_CONTEXT_REQUIRED')
+  }
+  const current = await projects.context(project.projectId, caller.session.id)
+  const contextRead = [...caller.session.events].reverse().find((event): event is Extract<SessionEvent, { type: 'lab/agent/context-read' }> => {
+    if (event.type !== 'lab/agent/context-read') return false
+    return event.data.kind === 'planning'
+      && event.data.projectId === project.projectId
+      && event.data.sessionId === caller.session.id
+      && event.data.experimentId === experimentId
+      && event.data.objective === objective
+  })
+  if (contextRead === undefined) {
+    throw new HarnessError('read lab_project_plan_context for the current Project and Experiment before lab_plan_propose', 'PROJECT_PLANNING_CONTEXT_REQUIRED')
+  }
+  if (!sameSources(contextRead.data.sourceIds, current.sources)) {
+    throw new HarnessError('Project Knowledge scope changed; read lab_project_plan_context again before lab_plan_propose', 'PROJECT_PLANNING_CONTEXT_STALE')
+  }
+  return {
+    documentIds: current.sources.map(source => source.documentId),
+    versionIds: current.sources.map(source => source.versionId),
+    confirmed: true as const,
+  }
+}
+
+function sameSources(
+  left: readonly { readonly documentId: string; readonly versionId: string }[],
+  right: readonly { readonly documentId: string; readonly versionId: string }[],
+): boolean {
+  if (left.length !== right.length) return false
+  const rightKeys = new Set(right.map(source => `${source.documentId}:${source.versionId}`))
+  return left.every(source => rightKeys.has(`${source.documentId}:${source.versionId}`))
 }
 
 function jsonValue(value: unknown): JsonValue {

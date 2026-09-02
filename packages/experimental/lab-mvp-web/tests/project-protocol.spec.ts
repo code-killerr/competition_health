@@ -62,7 +62,7 @@ describe('project conversation protocol', () => {
       kind: 'configuration-capabilities',
       value: expect.arrayContaining([
         expect.objectContaining({ kind: 'workflow', status: 'available', recordCount: 0 }),
-        expect.objectContaining({ kind: 'devices', status: 'available', recordCount: 1 }),
+        expect.objectContaining({ kind: 'devices', status: 'read-only', allowedActions: ['inspect', 'select-project-scope'], recordCount: 1, detail: 'Runtime configure/connect is not provided by the mounted device Provider.' }),
         expect.objectContaining({ kind: 'agent', status: 'unavailable' }),
       ]) as unknown,
     })

@@ -22,6 +22,7 @@
     { "path": "../../runtime-diagnostics/invariants" },
     { "path": "../lab-domain" },
     { "path": "../lab-planning" },
-    { "path": "../lab-device" }
+    { "path": "../lab-device" },
+    { "path": "../lab-project" }
   ]
 }

@@ -104,6 +104,7 @@ export function LabDevicesView(props: LabDevicesProps): JSX.Element {
           <span className={css.statusValue}>{stateLabel}</span>
         </div>
       </header>
+      <div className={css.notice} role='note'>{props.t('deviceConnectionNotice')}</div>
       {result.state !== 'ready' && result.state !== 'empty' && (
         <div className={css.notice} role='status'>{result.message}</div>
       )}
@@ -122,7 +123,7 @@ export function LabDevicesView(props: LabDevicesProps): JSX.Element {
                 <span className={healthy ? css.badge : css.badgeMuted}>{healthy ? props.t('deviceHealthy') : props.t('deviceUnhealthy')}</span>
               </div>
               <div className={css.details}>
-                <div><span>{props.t('deviceSource')}</span><strong>{props.t(props.source)}</strong></div>
+                <div><span>{props.t('deviceSource')}</span><strong>{props.t(device.source ?? props.source)}</strong></div>
                 <div><span>{props.t('deviceReservation')}</span><strong>{reserved ? props.t('deviceReserved') : props.t('deviceAvailable')}</strong></div>
               </div>
               <div className={css.capabilities}>

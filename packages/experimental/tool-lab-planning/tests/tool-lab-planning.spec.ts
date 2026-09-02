@@ -5,6 +5,7 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import { CallId } from '@deepseek-ai/dsh-llm'
 import { scopeOf } from '@deepseek-ai/dsh-scope'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import { brandId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
 import LabDeviceService from '@deepseek-ai/dsh-experimental-lab-device'
 import * as MockDevice from '@deepseek-ai/dsh-experimental-lab-device-mock'
@@ -14,6 +15,7 @@ import LabPlanningService from '@deepseek-ai/dsh-experimental-lab-planning'
 import * as LocalPlanning from '@deepseek-ai/dsh-experimental-lab-planning-local'
 import LabSkillService from '@deepseek-ai/dsh-experimental-lab-skill'
 import * as LocalSkill from '@deepseek-ai/dsh-experimental-lab-skill-local'
+import { InMemoryLabProjectStore, LabProjectService } from '@deepseek-ai/dsh-experimental-lab-project'
 import * as ToolLabPlanning from '../src/index.ts'
 import { MockAdapter } from '../../../core/agent-loop/tests/mock-adapter.ts'
 
@@ -36,12 +38,44 @@ async function setup() {
   await ctx.plugin(LocalSkill)
   await ctx.plugin(LabDeviceService)
   await ctx.plugin(MockDevice, { devices: [{ id: 'device-1', name: 'mock dispenser', capabilities: ['dispense'] }] })
+  const workspace = { id: brandId<'WorkspaceId'>('workspace-lab-planning'), path: '/workspace/lab-planning', sessionIds: [SessionId('lab-planning-tools')] }
+  ctx.provide('workspaceRegistry', { get: (id: typeof workspace.id) => id === workspace.id ? workspace : undefined, list: () => [workspace] })
+  const projects = new LabProjectService(ctx, { clock: () => 100 })
+  await projects.attach(new InMemoryLabProjectStore())
   await ctx.plugin(LabPlanningService)
   await ctx.plugin(LocalPlanning)
   await ctx.plugin(ToolLabPlanning)
   ctx.llm.registerAdapter(['mock'], new MockAdapter(['hang']))
   const agent = ctx.agentLoop.create(SessionId('lab-planning-tools'), { provider: 'mock', model: 'mock' })
-  return { ctx, agent }
+  const project = (await projects.create({ workspaceId: workspace.id, createdBy: agent.session.id })).project.projectId
+  await projects.attachSession({ projectId: project, sessionId: agent.session.id, attachedBy: agent.session.id })
+  return { ctx, agent, projects, project }
+}
+
+async function recordPlanningContext(
+  agent: ReturnType<Context['agents']['get']>,
+  projects: LabProjectService,
+  projectId: ReturnType<typeof brandId<'LabProjectId'>>,
+  experimentId: string,
+  objective: string,
+  citationIds: readonly string[] = [],
+): Promise<void> {
+  if (agent === undefined) throw new Error('test agent is missing')
+  const project = await projects.context(projectId, agent.session.id)
+  agent.session.append('lab/agent/context-read', {
+    version: 1,
+    sessionId: agent.session.id,
+    kind: 'planning',
+    projectId,
+    sourceIds: project.sources.map(source => ({ documentId: source.documentId, versionId: source.versionId })),
+    deviceIds: project.devices.map(device => device.deviceId),
+    sharedFactIds: project.sharedFacts.map(fact => String(fact.factId)),
+    citationIds: citationIds.map(citationId => brandId<'CitationId'>(citationId)),
+    knowledgeState: 'available',
+    experimentId: brandId<'ExperimentId'>(experimentId),
+    objective,
+    unresolved: [],
+  })
 }
 
 function execute(ctx: Context, agent: ReturnType<Context['agents']['get']>, name: string, arguments_: unknown) {
@@ -65,7 +99,7 @@ function parseJson(value: string): unknown {
 
 describe('tool-lab-planning', () => {
   it('registers planning tools in Agent scope and records a non-executable proposal', async () => {
-    const { ctx, agent } = await setup()
+    const { ctx, agent, projects, project } = await setup()
     const scope = scopeOf(agent.ctx)
     if (scope === undefined) throw new Error('expected Agent scope')
     const assembly = await ctx.systemPrompt.assemble({ scope })
@@ -75,7 +109,7 @@ describe('tool-lab-planning', () => {
       'lab_plan_propose',
     ]))
 
-    await ctx.labKnowledge.importDocument({
+    const imported = await ctx.labKnowledge.importDocument({
       source: { kind: 'bytes', name: 'facts.csv', bytes: new TextEncoder().encode('alpha,42\n') },
     })
     const request = {
@@ -91,6 +125,13 @@ describe('tool-lab-planning', () => {
     const context = JSON.parse(text(contextResult)) as { objective: string; citations: Array<{ citationId: string; excerpt: string }> }
     expect(context).toMatchObject({ objective: 'alpha', citations: [{ excerpt: 'column1: alpha | column2: 42', kind: 'table', tableHeaders: ['column1', 'column2'], tableRow: 1 }] })
     const citationId = context.citations[0]!.citationId
+    await ctx.labKnowledge.confirmFact({ citationId: brandId<'CitationId'>(citationId), confirmedBy: 'reviewer' })
+    await projects.updateScope(project, {
+      sources: [{ documentId: imported.documentId, versionId: imported.versionId }],
+      deviceIds: [],
+      selectedBy: agent.session.id,
+    })
+    await recordPlanningContext(agent, projects, project, 'experiment-1', 'alpha', [citationId])
 
     const proposalResult = await execute(ctx, agent, 'lab_plan_propose', {
       request,
@@ -160,7 +201,8 @@ describe('tool-lab-planning', () => {
   })
 
   it('rejects a plan citation that is outside the current retrieval context', async () => {
-    const { ctx, agent } = await setup()
+    const { ctx, agent, projects, project } = await setup()
+    await recordPlanningContext(agent, projects, project, 'experiment-invalid-citation', 'unmatched objective')
     const result = await execute(ctx, agent, 'lab_plan_propose', {
       request: {
         experimentId: 'experiment-invalid-citation',
@@ -200,7 +242,8 @@ describe('tool-lab-planning', () => {
     ]))
   })
   it('returns a stable citation-required issue for an uncited plan', async () => {
-    const { ctx, agent } = await setup()
+    const { ctx, agent, projects, project } = await setup()
+    await recordPlanningContext(agent, projects, project, 'experiment-uncited', 'uncited objective')
     const result = await execute(ctx, agent, 'lab_plan_propose', {
       request: {
         experimentId: 'experiment-uncited',
@@ -236,5 +279,35 @@ describe('tool-lab-planning', () => {
         data: expect.objectContaining({ planId: 'plan-uncited', citationIds: [] }) as unknown,
       }),
     ]))
+  })
+
+  it('requires a current Project planning context before proposing a plan', async () => {
+    const { ctx, agent } = await setup()
+    const result = await execute(ctx, agent, 'lab_plan_propose', {
+      request: {
+        experimentId: 'experiment-without-context',
+        objective: 'prepare sample',
+        samples: [],
+        constraints: [],
+        expectedOutputs: ['sample'],
+        unresolved: [],
+      },
+      plan: {
+        planId: 'plan-without-context',
+        experimentId: 'experiment-without-context',
+        revision: 1,
+        status: 'DRAFT',
+        objective: 'prepare sample',
+        citations: [],
+        assumptions: [],
+        unresolved: [],
+        steps: [],
+      },
+      skill_drafts: [],
+    })
+
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result)).toContain('PROJECT_PLANNING_CONTEXT_REQUIRED')
+    expect(agent.session.events.some(event => event.type === 'lab/plan/proposed')).toBe(false)
   })
 })

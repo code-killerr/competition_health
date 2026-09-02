@@ -34,8 +34,44 @@ export type KnowledgeConflictId = Branded<'KnowledgeConflictId'>
 export type RunId = Branded<'RunId'>
 /** 操作幂等标识。 */
 export type OperationId = Branded<'OperationId'>
+/** Agent 工具调用关联标识。 */
+export type LabAgentCallId = Branded<'LabAgentCallId'>
 /** 运行产物标识。 */
 export type ArtifactId = Branded<'ArtifactId'>
+
+/** 实验进度结果的状态。 */
+export type LabProgressState = 'registered' | 'already-registered' | 'blocked' | 'waiting' | 'unavailable' | 'failed' | 'completed'
+/** 实验进度结果的下一执行者。 */
+export type LabProgressActor = 'agent' | 'human' | 'runtime' | 'capability'
+/** 实验进度中可被 Host 授权的记录标识。 */
+export interface LabScopedRecordIds {
+  readonly workspaceId?: WorkspaceId
+  readonly sessionId?: SessionId
+  readonly projectId?: LabProjectId
+  readonly experimentId?: ExperimentId
+  readonly planId?: PlanId
+  readonly skillRevisionId?: SkillRevisionId
+  readonly runId?: RunId
+  readonly stepId?: PlanStepId
+  readonly operationId?: OperationId
+}
+/** Agent 或 Host 可用于定位工作的已注册工作台目的地。 */
+export interface LabWorkbenchDestination {
+  readonly view: 'lab-project' | 'lab-monitor'
+  readonly page?: 'approval' | 'execution' | 'evidence' | 'overview'
+  readonly projectId?: LabProjectId
+  readonly experimentId?: ExperimentId
+}
+/** 可由 Session event 重建的实验进度结果。 */
+export interface LabProgressResult {
+  readonly state: LabProgressState
+  readonly sessionId: SessionId
+  readonly scopedIds: LabScopedRecordIds
+  readonly reason: string
+  readonly nextActor: LabProgressActor
+  readonly allowedActions: readonly string[]
+  readonly workbenchDestination?: LabWorkbenchDestination
+}
 
 /** Registered destinations that an Agent may ask the Host to present. */
 export type LabPresentationView = 'projects' | 'knowledge' | 'devices' | 'project' | 'experiment' | 'run' | 'evidence' | 'citation'
@@ -314,6 +350,25 @@ declare module '@deepseek-ai/dsh-session/types' {
       experimentId?: ExperimentId
       objective?: string
       unresolved: readonly string[]
+    }
+    /** Agent 被人工门禁暂停时的可恢复进度。 */
+    'lab/agent/pending': {
+      version: 1
+      callId: LabAgentCallId
+      sessionId: SessionId
+      state: 'waiting'
+      nextActor: 'human'
+      reason: string
+      allowedActions: readonly string[]
+      scopedIds: LabScopedRecordIds
+      projectId?: LabProjectId
+      experimentId?: ExperimentId
+      planId?: PlanId
+      skillRevisionId?: SkillRevisionId
+      runId?: RunId
+      stepId?: PlanStepId
+      operationId?: OperationId
+      workbenchDestination?: LabWorkbenchDestination
     }
     /** Host-validated Agent presentation intent. */
     'lab/presentation/accepted': {

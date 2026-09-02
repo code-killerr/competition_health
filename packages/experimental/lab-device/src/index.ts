@@ -52,6 +52,11 @@ export class LabDeviceService extends Service {
     return this.requireProvider().listDevices()
   }
 
+  /** 返回当前 Provider 名称，供 Host 展示真实接入来源。 */
+  providerName(): string {
+    return this.requireProvider().name
+  }
+
   /** 检查设备健康状态。
  * @param deviceId - device to check.
  * @returns - whether the device is healthy.

@@ -22,7 +22,7 @@ describe('Devices application view', () => {
   it('renders Host device records with provider mode and capabilities', async () => {
     const loadDevices = vi.fn(async (): Promise<LabQueryState<readonly LabDevice[]>> => ({
       state: 'ready',
-      value: [{ id: 'device-fixture', name: 'Fixture reader', status: 'reserved', capabilities: [{ name: 'measure' }] }],
+      value: [{ id: 'device-fixture', name: 'Fixture reader', status: 'reserved', source: 'real', capabilities: [{ name: 'measure' }] }],
     }))
     const selection = { activeExperimentId: 'experiment-fixture' as const }
     const ui = {
@@ -32,7 +32,7 @@ describe('Devices application view', () => {
     render(<LabDevicesView {...propsFor({ loadDevices, ui, source: 'deterministic' })} />)
 
     await waitFor(() => { expect(screen.getByText('Fixture reader')).toBeTruthy() })
-    expect(screen.getByText(zh.deterministic)).toBeTruthy()
+    expect(screen.getByText(zh.real)).toBeTruthy()
     expect(screen.getByText('measure')).toBeTruthy()
     expect(screen.getByText(zh.deviceReserved)).toBeTruthy()
     expect(loadDevices).toHaveBeenCalledWith('experiment-fixture')

@@ -6,6 +6,8 @@ import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import type { ReplayOverrideDoc } from '@deepseek-ai/dsh-llm-replay'
+import { availablePdfKnowledgeFixtures, PDF_KNOWLEDGE_ROOT } from '@deepseek-ai/dsh-lab-knowledge-fixtures'
+import { toolCallResponse } from '../../../packages/core/agent-loop/tests/mock-adapter.ts'
 import { launchWebScaffold, type WebScaffold } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, REPO_ROOT, saveFailureShot } from './support.ts'
 
@@ -18,6 +20,11 @@ const LAB_INSTALL_ANCHORS = [
   join(REPO_ROOT, 'packages/client/ui-lab-knowledge-workspace/package.json'),
 ]
 const QUESTION = 'Which control input is still required before the bench can run?'
+const PDF_QUERY = availablePdfKnowledgeFixtures()[0]?.searchQuery ?? 'SeekOne'
+const EXPERIMENT_ID = '{{fromRequest:experimentId[^A-Za-z0-9_-]+([A-Za-z0-9_-]+)}}'
+const DOCUMENT_ID = '{{fromRequest:documentId[^A-Za-z0-9_-]+([A-Za-z0-9_-]+)}}'
+const VERSION_ID = '{{fromRequest:versionId[^A-Za-z0-9_-]+([A-Za-z0-9_-]+)}}'
+const CITATION_ID = '{{fromRequest:citationId[^A-Za-z0-9_-]+([A-Za-z0-9_-]+)}}'
 const REPLAY: ReplayOverrideDoc = [
   {
     kind: 'chunks',
@@ -30,12 +37,107 @@ const REPLAY: ReplayOverrideDoc = [
   },
   {
     kind: 'chunks',
-    chunks: [
-      { type: 'block-start', index: 0, blockType: 'text' },
-      { type: 'text-delta', index: 0, text: 'Clarification recorded.' },
-      { type: 'block-end', index: 0, block: { type: 'text', text: 'Clarification recorded.' } },
-      { type: 'finish', reason: { kind: 'stop' } },
-    ],
+    chunks: toolCallResponse('agent-project-context', 'lab_project_context', {}),
+  },
+  {
+    kind: 'chunks',
+    chunks: toolCallResponse('agent-knowledge-catalog', 'lab_knowledge_catalog', {}),
+  },
+  {
+    kind: 'chunks',
+    chunks: toolCallResponse('agent-device-catalog', 'lab_device_catalog', {}),
+  },
+  {
+    kind: 'chunks',
+    chunks: toolCallResponse('agent-knowledge-search', 'lab_knowledge_search', {
+      query: PDF_QUERY,
+      document_ids: [DOCUMENT_ID],
+      version_ids: [VERSION_ID],
+    }),
+  },
+  {
+    kind: 'chunks',
+    chunks: toolCallResponse('agent-experiment-create', 'lab_experiment_create', {
+      title: 'Agent browser lifecycle experiment',
+      objective: 'Use the confirmed procedure to record a controlled bench output.',
+      expected_outputs: ['observed output recorded'],
+    }),
+  },
+  {
+    kind: 'chunks',
+    chunks: toolCallResponse('agent-plan-context', 'lab_project_plan_context', {
+      experiment_id: EXPERIMENT_ID,
+      objective: PDF_QUERY,
+      unresolved: [],
+    }),
+  },
+  {
+    kind: 'chunks',
+    chunks: toolCallResponse('agent-plan-propose', 'lab_plan_propose', {
+      request: {
+        experimentId: EXPERIMENT_ID,
+        objective: PDF_QUERY,
+        samples: [],
+        constraints: [],
+        expectedOutputs: ['observed output recorded'],
+        unresolved: [],
+      },
+      plan: {
+        planId: 'plan-agent-browser-1',
+        experimentId: EXPERIMENT_ID,
+        revision: 1,
+        status: 'DRAFT',
+        objective: 'Use the confirmed procedure to record a controlled bench output.',
+        citations: [CITATION_ID],
+        assumptions: [],
+        unresolved: [],
+        steps: [{
+          stepId: 'step-agent-browser',
+          title: 'Record the observed bench output',
+          dependencies: [],
+          skillRevisionId: 'skill-agent-browser-r1',
+          operationKind: 'human',
+          operationResource: 'manual-record',
+          requiresApproval: true,
+          requiredInputs: [],
+          parameters: {},
+          citations: [CITATION_ID],
+          expectedOutputs: ['observed output recorded'],
+        }],
+      },
+      skill_drafts: [{
+        skillId: 'skill-agent-browser',
+        revisionId: 'skill-agent-browser-r1',
+        status: 'DRAFT',
+        name: 'manual-record',
+        purpose: 'Record the observed bench output.',
+        applicability: ['controlled bench output'],
+        inputs: [],
+        outputs: ['observed output recorded'],
+        parameterConstraints: {},
+        completionConditions: ['the observer records the output'],
+        failurePolicy: 'REPLAN',
+        citations: [CITATION_ID],
+        operations: [{ kind: 'human', resourceRef: 'manual-record', installed: true }],
+      }],
+    }),
+  },
+  {
+    kind: 'chunks',
+    chunks: toolCallResponse('agent-skill-validate', 'lab_skill_validate', { skill_revision_id: 'skill-agent-browser-r1' }),
+  },
+  {
+    kind: 'chunks',
+    chunks: toolCallResponse('agent-plan-approve', 'lab_plan_approve', {
+      experiment_id: EXPERIMENT_ID,
+      plan_id: 'plan-agent-browser-1',
+      approved_by: 'browser-reviewer',
+      skill_revision_ids: ['skill-agent-browser-r1'],
+    }),
+  },
+  {
+    kind: 'chunks',
+    chunks: [{ type: 'block-start', index: 0, blockType: 'text' }, { type: 'text-delta', index: 0, text: 'LABWEAVE Agent prepared the scoped Experiment and is waiting for human approval.' }, { type: 'block-end', index: 0, block: { type: 'text', text: 'LABWEAVE Agent prepared the scoped Experiment and is waiting for human approval.' } }, { type: 'finish', reason: { kind: 'stop' } }],
   },
 ]
 
@@ -70,9 +172,6 @@ describe('web e2e: LABWEAVE Host lifecycle entry', () => {
   it('connects a Workspace and completes the Host-backed Agent lifecycle', async () => {
     onTestFailed(() => saveFailureShot(page, 'lab-full-lifecycle-failure'))
     await connectFreshWorkspace(page, scaffold.workspaceCwd)
-    await page.getByRole('button', { name: 'Projects', exact: true }).click()
-    await page.locator('[data-lab-projects]').waitFor({ state: 'visible', timeout: 20_000 })
-    await page.getByRole('button', { name: 'Create and select', exact: true }).click()
     await page.locator('[data-lab-project-shell]').waitFor({ state: 'visible', timeout: 20_000 })
 
     const selectedProjectId = stringValue(await page.locator('[data-lab-project-shell] header strong').first().textContent(), 'selectedProjectId')
@@ -86,9 +185,51 @@ describe('web e2e: LABWEAVE Host lifecycle entry', () => {
     expect(workspaceId.length).toBeGreaterThan(0)
     const sessionId = stringValue(array(projectView.sessions)[0] === undefined ? undefined : object(array(projectView.sessions)[0]).sessionId, 'sessionId')
 
+    const pdfFixture = availablePdfKnowledgeFixtures()[0]
+    if (pdfFixture === undefined) throw new Error('No PDF fixture is available for the browser Knowledge flow')
+    await page.getByRole('button', { name: 'Configuration center', exact: true }).click()
+    await page.getByRole('main', { name: 'Configuration center', exact: true }).getByRole('button', { name: 'Device state', exact: true }).click()
+    const devices = page.locator('[data-lab-devices]')
+    await devices.waitFor({ state: 'visible', timeout: 20_000 })
+    await devices.getByRole('button', { name: 'Add to current Project', exact: true }).first().click()
+    await devices.getByRole('button', { name: 'Remove from current Project', exact: true }).first().waitFor({ state: 'visible', timeout: 20_000 })
+    const deviceScopedProject = await request(page, 'project', { command: 'project-open', projectId, sessionId })
+    expect(array(object(deviceScopedProject.value).devices).map(item => object(item).deviceId)).toContain('dev-dispenser')
+    await page.getByRole('button', { name: 'Knowledge', exact: true }).click()
+    const knowledge = page.locator('[data-lab-knowledge-workspace]')
+    await knowledge.waitFor({ state: 'visible', timeout: 20_000 })
+    await knowledge.getByLabel('Choose PDF', { exact: true }).setInputFiles(join(PDF_KNOWLEDGE_ROOT, pdfFixture.fileName))
+    await knowledge.getByRole('button', { name: 'Import and parse', exact: true }).click()
+    await knowledge.getByText('READY', { exact: true }).waitFor({ state: 'visible', timeout: 90_000 })
+    await knowledge.getByRole('button', { name: 'Add to project', exact: true }).click()
+    await knowledge.getByRole('button', { name: 'Remove from project', exact: true }).waitFor({ state: 'visible', timeout: 20_000 })
+    await knowledge.getByLabel('Query', { exact: true }).fill(pdfFixture.searchQuery)
+    await knowledge.getByRole('button', { name: 'Search', exact: true }).click()
+    const citationPanel = knowledge.locator('section').nth(1)
+    await citationPanel.locator('li').first().waitFor({ state: 'visible', timeout: 30_000 })
+    expect(await citationPanel.locator('li').count()).toBeGreaterThan(0)
+    expect(await citationPanel.getByText(pdfFixture.searchQuery, { exact: false }).count()).toBeGreaterThan(0)
+    const knowledgeSnapshot = await request(page, 'lab', { command: 'knowledge-snapshot', sessionId })
+    const pdfStatus = array(object(knowledgeSnapshot.value).knowledge)
+      .map(object)
+      .find(item => item.metadata !== undefined && object(item.metadata).sourceName === pdfFixture.fileName)
+    if (pdfStatus === undefined) throw new Error('Host did not return the imported PDF status')
+    const documentId = stringValue(pdfStatus.documentId, 'documentId')
+    const versionId = stringValue(pdfStatus.versionId, 'versionId')
+    const pdfSearch = await request(page, 'lab', { command: 'knowledge-search', sessionId, request: { query: pdfFixture.searchQuery, documentIds: [documentId], versionIds: [versionId] } })
+    const pdfCitationId = stringValue(object(array(object(pdfSearch.value).results)[0]).citationId, 'pdfCitationId')
+    await request(page, 'lab', { command: 'knowledge-fact-confirm', sessionId, citationId: pdfCitationId, confirmedBy: sessionId })
+    const confirmedPdfSearch = await request(page, 'lab', { command: 'knowledge-search', sessionId, request: { query: pdfFixture.searchQuery, documentIds: [documentId], versionIds: [versionId], confirmed: true } })
+    expect(array(object(confirmedPdfSearch.value).results).map(item => object(item).citationId)).toContain(pdfCitationId)
+    await page.getByRole('button', { name: 'Execution monitor', exact: true }).click()
+    const monitor = page.getByRole('main', { name: 'Execution monitor', exact: true })
+    await monitor.waitFor({ state: 'visible', timeout: 20_000 })
+    await monitor.getByRole('button', { name: 'workspace', exact: false }).click()
+    await page.locator('[data-lab-project-shell]').waitFor({ state: 'visible', timeout: 20_000 })
+
     const input = page.locator('textarea:enabled[placeholder="Describe what you want to build"]')
     expect(await page.locator('textarea:enabled').count()).toBe(1)
-    const settled = scaffold.whenTurnSettled(60_000)
+    const agentTurnSettled = scaffold.whenTurnSettled(60_000)
     await input.fill('Design a controlled bench experiment and produce a report.')
     await input.press('Enter')
     const question = page.locator('[data-question-key]')
@@ -96,108 +237,34 @@ describe('web e2e: LABWEAVE Host lifecycle entry', () => {
     await question.getByText(QUESTION, { exact: true }).waitFor({ state: 'visible' })
     await question.getByRole('textbox').fill('Use the calibrated dispenser and record the observed output.')
     await question.getByRole('textbox').press('Enter')
-    await settled
-    await page.getByText('Clarification recorded.', { exact: true }).waitFor({ state: 'visible', timeout: 15_000 })
+    await agentTurnSettled
+    await page.getByText('LABWEAVE Agent prepared the scoped Experiment and is waiting for human approval.', { exact: true }).waitFor({ state: 'visible', timeout: 15_000 })
 
-    const imported = await request(page, 'lab', {
-      command: 'knowledge-import',
-      sessionId,
-      name: 'bench-procedure.txt',
-      bytesBase64: Buffer.from('Controlled bench procedure\nRecord the observed bench output.\n').toString('base64'),
-    })
-    expect(object(imported.value).status).toBe('READY')
-    const documentId = stringValue(object(imported.value).documentId, 'documentId')
-    const versionId = stringValue(object(imported.value).versionId, 'versionId')
-    await request(page, 'project', {
-      command: 'project-scope-update',
-      projectId,
-      sessionId,
-      sources: [{ documentId, versionId }],
-      deviceIds: ['dev-dispenser'],
-    })
-    const search = await request(page, 'lab', { command: 'knowledge-search', sessionId, request: { query: 'bench', documentIds: [documentId], versionIds: [versionId] } })
-    const citationId = stringValue(object(array(object(search.value).results)[0]).citationId, 'citationId')
-    await request(page, 'lab', { command: 'knowledge-fact-confirm', sessionId, citationId, confirmedBy: sessionId })
+    const afterAgent = await request(page, 'project', { command: 'project-open', projectId, sessionId })
+    const agentExperiments = array(object(afterAgent.value).experiments)
+    expect(agentExperiments).toHaveLength(1)
+    const agentExperimentId = stringValue(object(agentExperiments[0]).experimentId, 'agentExperimentId')
+    expect(agentExperimentId).toMatch(/^experiment-/)
 
-    const created = await request(page, 'project', { command: 'experiment-create', projectId, sessionId, title: 'Browser lifecycle experiment', objective: 'Controlled bench procedure' })
-    const experiment = object(array(object(created.value).experiments)[0])
-    const experimentId = stringValue(experiment.experimentId, 'experimentId')
-    const experimentRequest = {
-      experimentId,
-      objective: 'Controlled bench procedure',
-      samples: [],
-      constraints: [],
-      expectedOutputs: ['observed output recorded'],
-      unresolved: [],
-    }
-    const planning = await request(page, 'lab', { command: 'planning-context', sessionId, request: experimentRequest })
-    const planningCitationId = stringValue(object(array(object(planning.value).citations)[0]).citationId, 'planningCitationId')
-    const planId = 'plan-browser-lifecycle-1'
-    const revisionId = 'skill-browser-lifecycle-r1'
-    await request(page, 'lab', {
-      command: 'plan-propose',
-      sessionId,
-      input: {
-        request: experimentRequest,
-        plan: {
-          planId,
-          experimentId,
-          revision: 1,
-          status: 'DRAFT',
-          objective: experimentRequest.objective,
-          citations: [planningCitationId],
-          assumptions: [],
-          unresolved: [],
-          steps: [{
-            stepId: 'step-browser-lifecycle',
-            title: 'Record the observed bench output',
-            dependencies: [],
-            skillRevisionId: revisionId,
-            operationKind: 'human',
-            operationResource: 'manual-record',
-            requiresApproval: true,
-            requiredInputs: [],
-            parameters: {},
-            citations: [planningCitationId],
-            expectedOutputs: ['observed output recorded'],
-          }],
-        },
-        skillDrafts: [{
-          skillId: 'skill-browser-lifecycle',
-          revisionId,
-          status: 'DRAFT',
-          name: 'manual-record',
-          purpose: 'Record a human-observed output.',
-          applicability: ['controlled bench output'],
-          inputs: [],
-          outputs: ['observed output recorded'],
-          parameterConstraints: {},
-          completionConditions: ['the observer records the output'],
-          failurePolicy: 'REPLAN',
-          citations: [planningCitationId],
-          operations: [{ kind: 'human', resourceRef: 'manual-record', installed: true }],
-        }],
-      },
-    })
-    await request(page, 'lab', { command: 'skill-validate', sessionId, revisionId })
-    await request(page, 'lab', { command: 'skill-approve', sessionId, revisionId, approvedBy: sessionId })
-    await request(page, 'lab', { command: 'skill-activate', sessionId, revisionId })
-    const validated = await request(page, 'lab', { command: 'plan-validate', sessionId, planId })
-    expect(object(validated.value).validation).toMatchObject({ valid: true })
-    await request(page, 'lab', { command: 'plan-approve', sessionId, experimentId, planId, approvedBy: sessionId })
+    const experimentId = agentExperimentId
+    await page.locator('[data-lab-project-navigation-item="planning"]').click()
+    const planActions = page.locator('[data-lab-plan-actions]')
+    await planActions.waitFor({ state: 'visible', timeout: 20_000 })
+    await planActions.getByRole('button', { name: 'Validate', exact: true }).click()
+    const skill = page.locator('[data-lab-skill]').first()
+    await skill.getByRole('button', { name: 'Approve Skill', exact: true }).click()
+    await skill.getByRole('button', { name: 'Activate Skill', exact: true }).click()
+    await planActions.getByRole('button', { name: 'Approve plan', exact: true }).click()
+    await planActions.getByRole('button', { name: 'Start controlled run', exact: true }).click()
 
-    const started = await request(page, 'project', { command: 'run-start', projectId, sessionId, experimentId, planId })
-    const runId = stringValue(object(started.value).runId, 'runId')
+    const runDetail = page.locator('[data-lab-run-detail]')
+    await runDetail.waitFor({ state: 'visible', timeout: 20_000 })
+    const runId = stringValue(await runDetail.locator('h2').textContent(), 'runId')
     await request(page, 'lab', { command: 'run-step', sessionId, runId })
-    const blocked = await request(page, 'lab', {
-      command: 'run-confirm',
-      sessionId,
-      runId,
-      evidence: ['the observed output did not match the expected output'],
-      confirmedBy: sessionId,
-      stepId: 'step-browser-lifecycle',
-    })
-    expect(object(blocked.value)).toMatchObject({ runId, runStatus: 'BLOCKED', replanRequest: { runId } })
+    await runDetail.getByText('WAITING_CONFIRMATION', { exact: true }).waitFor({ state: 'visible', timeout: 20_000 })
+    await runDetail.locator('input').fill('the observed output did not match the expected output')
+    await runDetail.getByRole('button', { name: 'Confirm step', exact: true }).click()
+    await runDetail.getByText('BLOCKED', { exact: true }).waitFor({ state: 'visible', timeout: 20_000 })
     const report = await request(page, 'project', { command: 'run-report', projectId, sessionId, runId })
     expect(object(report.value)).toMatchObject({ runId, status: 'BLOCKED', assessment: { verdict: 'FAIL' } })
     const files = await request(page, 'project', { command: 'project-file-list', projectId, sessionId })
@@ -206,8 +273,10 @@ describe('web e2e: LABWEAVE Host lifecycle entry', () => {
     const opened = await request(page, 'project', { command: 'project-open', projectId, sessionId })
     expect(array(object(opened.value).experiments)).toEqual(expect.arrayContaining([expect.objectContaining({ experimentId })]))
     await page.reload({ waitUntil: 'load' })
-    await page.getByRole('main', { name: 'Execution monitor', exact: true }).waitFor({ timeout: 30_000 })
-    await page.locator(`[data-project-id="${projectId}"]`).getByRole('button', { name: 'workspace', exact: true }).click()
+    await page.getByRole('button', { name: 'Execution monitor', exact: true }).click()
+    const reloadedMonitor = page.getByRole('main', { name: 'Execution monitor', exact: true })
+    await reloadedMonitor.waitFor({ timeout: 30_000 })
+    await reloadedMonitor.locator('section').nth(1).getByRole('button', { name: 'workspace', exact: false }).click()
     await page.locator('[data-lab-project-shell]').waitFor({ state: 'visible', timeout: 20_000 })
     await page.locator('[data-lab-project-navigation-item="execution"]').click()
     await page.locator('[data-lab-run-detail]').getByRole('heading', { name: runId, exact: true }).waitFor({ state: 'visible', timeout: 20_000 })

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/change_plan/superpowers/2026-08-28-lab-showcase-ready-workspace-implementation-plan.md
-2026-08-28-lab-showcase-ready-workspace-implementation-plan.md: 4386722a8b56367a0f8fa6ad615e22c660d91f4c
-2026-08-28-lab-showcase-ready-workspace-implementation-plan.zh.md: 15eeef80a762b0e2d50386b26ab44aada42803ea
+2026-08-28-lab-showcase-ready-workspace-implementation-plan.md: 2ca13fa2d5bad04779d094ec07909f52c374dadc
+2026-08-28-lab-showcase-ready-workspace-implementation-plan.zh.md: d5eb50a2b3ab9c9460373c78fe05b4bbbaa6e97a
