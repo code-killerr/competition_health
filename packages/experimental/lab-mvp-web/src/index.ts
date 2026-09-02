@@ -1,7 +1,7 @@
 /** 实验自动化平台 Web Facade；浏览器只能通过本服务访问实验能力。 */
 
 import { Context, Service } from '@deepseek-ai/cordis'
-import { brandId, type ArtifactManifest, type DeviceId, type ExperimentId, type ExperimentPlan, type ExperimentRequest, type KnowledgeConflict, type KnowledgeSearchRequest, type KnowledgeSearchResult, type LabExperimentRecord, type LabProjectEvidenceProjection, type LabProjectId, type PlanParameter } from '@deepseek-ai/dsh-experimental-lab-domain'
+import { brandId, type ArtifactManifest, type DeviceId, type ExperimentId, type ExperimentPlan, type ExperimentRequest, type LabOperationId, type KnowledgeConflict, type KnowledgeSearchRequest, type KnowledgeSearchResult, type LabExperimentRecord, type LabProjectEvidenceProjection, type LabProjectId, type PlanParameter } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type { DeviceView } from '@deepseek-ai/dsh-experimental-lab-device'
 import type { LabExperimentCacheService } from '@deepseek-ai/dsh-experimental-lab-cache'
 import type { ImportStatusResult } from '@deepseek-ai/dsh-experimental-lab-knowledge'
@@ -34,6 +34,27 @@ export interface LabMvpWebSnapshot {
   readonly report?: LabRunReport
 }
 
+/** Agent 请求 Host 创建实验所需的最小输入。 */
+export interface LabAgentExperimentCreateRequest {
+  readonly operationId: LabOperationId
+  readonly sessionId: SessionId
+  readonly title: string
+  readonly objective: string
+  readonly expectedOutputs: readonly string[]
+}
+
+/** Agent 实验创建后的可重放进度结果。 */
+export interface LabAgentExperimentProgress {
+  readonly state: 'registered' | 'already-registered' | 'blocked'
+  readonly sessionId: SessionId
+  readonly projectId?: LabProjectId
+  readonly reason: string
+  readonly nextActor: 'agent' | 'human' | 'runtime' | 'capability'
+  readonly allowedActions: readonly string[]
+  readonly registeredDestination?: { readonly projectId: LabProjectId; readonly experimentId: ExperimentId }
+  readonly workbenchDestination?: { readonly view: 'lab-monitor' | 'lab-project'; readonly projectId?: LabProjectId; readonly experimentId?: ExperimentId }
+}
+
 /** Web Consumer Facade 服务。 */
 export class LabMvpWebService extends Service {
   private readonly projectFileCatalog: LabProjectFileCatalog
@@ -51,6 +72,70 @@ export class LabMvpWebService extends Service {
       () => this.projectFileListeners.size > 0,
     )
     ctx.effect(() => () => { this.projectFileCatalog.dispose() }, 'lab-mvp-web: project file catalog')
+  }
+
+  /** Host 统一创建 Agent 实验，并将 Project 与 Runtime 绑定到同一 Experiment 身份。
+   * @param request - Agent operation identity, current Session, and experiment metadata.
+   * @returns - typed progress that tells the Agent what can happen next.
+   */
+  async createAgentExperiment(request: LabAgentExperimentCreateRequest): Promise<LabAgentExperimentProgress> {
+    const project = await this.ctx.labProjects.projectForSession(request.sessionId)
+    if (project === undefined) {
+      return {
+        state: 'blocked',
+        sessionId: request.sessionId,
+        reason: 'The current Session is not associated with a laboratory Project. Select or open a Workspace before creating an Experiment.',
+        nextActor: 'human',
+        allowedActions: ['select_workspace'],
+        workbenchDestination: { view: 'lab-monitor' },
+      }
+    }
+    const result = await this.ctx.labProjects.createExperiment({
+      projectId: project.projectId,
+      title: request.title,
+      objective: request.objective,
+      operationId: request.operationId,
+      createdInSessionId: request.sessionId,
+      createdBy: request.sessionId,
+    })
+    await this.ctx.labRuntime.createExperiment({
+      experimentId: result.experiment.experimentId,
+      objective: result.experiment.objective,
+      expectedOutputs: [...request.expectedOutputs],
+    })
+    const session = this.sessionFor({ sessionId: request.sessionId })
+    if (session !== undefined) {
+      const experimentId = result.experiment.experimentId
+      if (!session.events.some(event => event.type === 'lab/project/experiment-created' && event.data.experimentId === experimentId)) {
+        session.append('lab/project/experiment-created', {
+          version: 1,
+          projectId: result.experiment.projectId,
+          experimentId,
+          title: result.experiment.title,
+          objective: result.experiment.objective,
+          createdInSessionId: request.sessionId,
+        })
+      }
+      if (!session.events.some(event => event.type === 'lab/experiment/requested' && event.data.experimentId === experimentId)) {
+        session.append('lab/experiment/requested', {
+          version: 1,
+          experimentId,
+          objective: result.experiment.objective,
+          sessionId: request.sessionId,
+          operationId: request.operationId,
+        })
+      }
+    }
+    return {
+      state: result.created ? 'registered' : 'already-registered',
+      sessionId: request.sessionId,
+      projectId: result.experiment.projectId,
+      reason: result.created ? 'The Host registered the Project Experiment and Runtime record with one Experiment ID.' : 'The Host replayed the same operation and returned the existing Project Experiment and Runtime identity.',
+      nextActor: 'agent',
+      allowedActions: ['lab_project_context', 'lab_plan_propose'],
+      registeredDestination: { projectId: result.experiment.projectId, experimentId: result.experiment.experimentId },
+      workbenchDestination: { view: 'lab-project', projectId: result.experiment.projectId, experimentId: result.experiment.experimentId },
+    }
   }
 
   /** 订阅 Host 授权的 Project 文件 revision 通知。
@@ -119,9 +204,8 @@ export class LabMvpWebService extends Service {
  * @returns - serializable device, planning, and runtime state.
  */
   async snapshot(experimentId: ExperimentId, planningContext?: PlanningContext): Promise<LabMvpWebSnapshot> {
-    const knowledgeConsumer = this.knowledgeConsumer()
-    const knowledgeCapability = await knowledgeConsumer.capability()
-    const knowledge = knowledgeCapability.state === 'available' ? await knowledgeConsumer.listImportStatuses() : []
+    const knowledgeSnapshot = await this.knowledgeSnapshot()
+    const { knowledge, knowledgeCapability } = knowledgeSnapshot
     const devices = this.ctx.labDevices.listDevices().map(device => ({
       ...device,
       capabilities: device.capabilities.map(capability => ({ ...capability, parameters: { ...capability.parameters } })),
@@ -140,6 +224,14 @@ export class LabMvpWebService extends Service {
     }
   }
 
+  /** Return global Knowledge records without requiring an Experiment selection. */
+  async knowledgeSnapshot(): Promise<import('./protocol.ts').LabWebKnowledgeSnapshotView> {
+    const knowledgeConsumer = this.knowledgeConsumer()
+    const knowledgeCapability = await knowledgeConsumer.capability()
+    const knowledge = knowledgeCapability.state === 'available' ? await knowledgeConsumer.listImportStatuses() : []
+    return { knowledge, knowledgeCapability }
+  }
+
   /** Execute a parsed Web command.
    * @param command - parsed Web command.
    * @returns - serializable command result.
@@ -148,6 +240,8 @@ export class LabMvpWebService extends Service {
     switch (command.command) {
       case 'snapshot':
         return { kind: 'snapshot', value: await this.snapshot(command.experimentId) }
+      case 'knowledge-snapshot':
+        return { kind: 'knowledge-snapshot', value: await this.knowledgeSnapshot() }
       case 'device-list':
         return { kind: 'device-list', value: this.ctx.labDevices.listDevices().map(device => ({ ...device, capabilities: device.capabilities.map(capability => ({ ...capability, parameters: { ...capability.parameters } })) })) }
       case 'knowledge-import':

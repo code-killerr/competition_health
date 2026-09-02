@@ -772,7 +772,7 @@ export interface LabProjectServiceConfig {
 
 Depends on: [`ExperimentId`](../packages/experimental/lab-domain/src/index.ts) · [`LabProjectId`](subsystems/lab-automation.md)
 
-Source: [`packages/experimental/lab-project/src/index.ts:250`](../packages/experimental/lab-project/src/index.ts)
+Source: [`packages/experimental/lab-project/src/index.ts:251`](../packages/experimental/lab-project/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-lab-runtime-local"></a>
 
@@ -3467,7 +3467,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-experimental-lab-planning` ([`packages/experimental/lab-planning/src/index.ts`](../packages/experimental/lab-planning/src/index.ts))
 - `@deepseek-ai/dsh-experimental-lab-runtime` ([`packages/experimental/lab-runtime/src/index.ts`](../packages/experimental/lab-runtime/src/index.ts))
 - `@deepseek-ai/dsh-experimental-lab-skill` ([`packages/experimental/lab-skill/src/index.ts`](../packages/experimental/lab-skill/src/index.ts))
-- `@deepseek-ai/dsh-experimental-tool-lab` — requires `agents` · `tools` · `labRuntime` · `labPlanning` · `labSkills` ([`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts))
+- `@deepseek-ai/dsh-experimental-tool-lab` — requires `agents` · `tools` · `labRuntime` · `labPlanning` · `labSkills` · `labMvpWeb` ([`packages/experimental/tool-lab/src/index.ts`](../packages/experimental/tool-lab/src/index.ts))
 - `@deepseek-ai/dsh-experimental-tool-lab-knowledge` — requires `agents` · `tools` · `labKnowledge` ([`packages/experimental/tool-lab-knowledge/src/index.ts`](../packages/experimental/tool-lab-knowledge/src/index.ts))
 - `@deepseek-ai/dsh-experimental-tool-lab-planning` — requires `agents` · `tools` · `labPlanning` · `labDevices` · `labSkills` ([`packages/experimental/tool-lab-planning/src/index.ts`](../packages/experimental/tool-lab-planning/src/index.ts))
 - `@deepseek-ai/dsh-experimental-tool-lab-project` — requires `agents` · `tools` · `labProjects` · `labKnowledge` · `labDevices` ([`packages/experimental/tool-lab-project/src/index.ts`](../packages/experimental/tool-lab-project/src/index.ts))

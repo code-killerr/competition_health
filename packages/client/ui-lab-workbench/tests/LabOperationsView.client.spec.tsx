@@ -41,6 +41,24 @@ describe('LabOperationsView', () => {
     expect(setup.ui.snapshot()).toMatchObject({ activeProjectId: 'project-1', activeExperimentId: 'experiment-1', activeRunId: 'run-1', projectPage: 'execution' })
   })
 
+  it('keeps an unavailable Host monitor distinct from an empty Project list', async () => {
+    const setup = props('monitor')
+    const value = { ...setup.value, listProjectsState: vi.fn().mockResolvedValue({ state: 'unavailable', code: 'CAPABILITY_UNAVAILABLE', message: 'Host down', retryable: true }) }
+    const view = render(<LabOperationsView {...value} />)
+
+    await waitFor(() => { expect(view.getByRole('status').textContent).toContain('Host down') })
+    expect(view.queryByText('monitorNoProjects')).toBeNull()
+  })
+
+  it('renders a typed empty Host result as an empty state', async () => {
+    const setup = props('monitor')
+    const value = { ...setup.value, listProjectsState: vi.fn().mockResolvedValue({ state: 'empty', code: 'NO_RECORDS', message: '' }) }
+    const view = render(<LabOperationsView {...value} />)
+
+    await waitFor(() => { expect(view.getByRole('status').textContent).toContain('monitorNoProjects') })
+    expect(view.queryByText('monitorHostUnavailable')).toBeNull()
+  })
+
   it('keeps unregistered configuration capabilities explicitly unavailable', () => {
     const setup = props('configuration')
     const view = render(<LabOperationsView {...setup.value} />)

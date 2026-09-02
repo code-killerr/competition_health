@@ -6,7 +6,7 @@ import { defineDomain } from '@deepseek-ai/dsh-storage-domain'
 import type { Domain } from '@deepseek-ai/dsh-storage-domain'
 import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
-import { brandId, type CitationId, type DeviceId, type ExperimentId, type KnowledgeDocumentId, type KnowledgeDocumentVersionId, type WorkspaceId } from '@deepseek-ai/dsh-experimental-lab-domain'
+import { brandId, type CitationId, type DeviceId, type ExperimentId, type KnowledgeDocumentId, type KnowledgeDocumentVersionId, type LabOperationId, type WorkspaceId } from '@deepseek-ai/dsh-experimental-lab-domain'
 import type {
   LabProject,
   LabProjectAudit,
@@ -212,6 +212,7 @@ export interface CreateLabExperimentRequest {
   readonly objective: string
   readonly createdInSessionId: SessionId
   readonly createdBy: SessionId
+  readonly operationId?: LabOperationId
   readonly derivedFromExperimentId?: ExperimentId
 }
 
@@ -327,13 +328,24 @@ export class LabProjectService extends Service {
    */
   async createExperiment(
     request: CreateLabExperimentRequest,
-  ): Promise<{ readonly experiment: LabExperimentRecord; readonly project: LabProjectView }> {
+  ): Promise<{ readonly experiment: LabExperimentRecord; readonly project: LabProjectView; readonly created: boolean }> {
     await this.ready
     const project = this.requireProject(request.projectId)
     if (project.status === 'ARCHIVED') throw new Error(`project "${request.projectId}" is archived`)
     this.requireSession(request.projectId, request.createdInSessionId)
     const title = nonBlank(request.title, 'experiment title')
     const objective = nonBlank(request.objective, 'experiment objective')
+    if (request.operationId !== undefined) {
+      const audit = this.state.audits.find(item => item.projectId === request.projectId && item.kind === 'experiment-created' && item.details.operationId === String(request.operationId))
+      if (audit !== undefined) {
+        const existing = this.state.experiments.find(item => item.experimentId === audit.details.experimentId)
+        if (existing === undefined) throw new Error(`operation "${request.operationId}" references a missing Experiment`)
+        if (audit.details.title !== title || audit.details.objective !== objective) {
+          throw new Error(`operation "${request.operationId}" was already used with different Experiment metadata`)
+        }
+        return { experiment: clone(existing), project: this.view(request.projectId), created: false }
+      }
+    }
     if (request.derivedFromExperimentId !== undefined) {
       const source = this.state.experiments.find(item => item.experimentId === request.derivedFromExperimentId)
       if (source === undefined) throw new Error(`unknown experiment "${request.derivedFromExperimentId}"`)
@@ -369,12 +381,12 @@ export class LabProjectService extends Service {
       experimentSessions: [...this.state.experimentSessions, link],
       audits: [
         ...this.state.audits,
-        this.audit(request.projectId, 'experiment-created', request.createdBy, now, { experimentId, title }),
+        this.audit(request.projectId, 'experiment-created', request.createdBy, now, { experimentId, title, objective, ...request.operationId === undefined ? {} : { operationId: String(request.operationId) } }),
         this.audit(request.projectId, 'experiment-session-linked', request.createdBy, now, { experimentId, sessionId: request.createdInSessionId, role: 'created' }),
       ],
     }
     await this.commit(state)
-    return { experiment: clone(experiment), project: this.view(request.projectId) }
+    return { experiment: clone(experiment), project: this.view(request.projectId), created: true }
   }
 
   /** Link a Project Session to an Experiment without crossing Project ownership.

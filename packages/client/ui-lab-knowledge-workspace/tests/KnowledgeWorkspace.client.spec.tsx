@@ -85,18 +85,29 @@ describe('Knowledge workspace browser flow', () => {
     ])
   })
 
-  it('keeps Knowledge usable without a Project and offers the Projects action', () => {
+  it('loads and imports global Knowledge without an Experiment', async () => {
+    const commands: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = init?.body
+      if (typeof body !== 'string') throw new Error('test request body is not a string')
+      const payload = JSON.parse(body) as { readonly command: string }
+      commands.push(payload.command)
+      const value = payload.command === 'knowledge-snapshot'
+        ? { knowledgeCapability: { state: 'available' }, knowledge: [] }
+        : { documentId: 'global-document', versionId: 'global-version', status: 'READY', metadata: { sourceName: 'global.pdf' } }
+      return { ok: true, json: async () => ({ ok: true, result: { kind: payload.command, value } }) }
+    }))
     const openProjects = vi.fn()
-    const props = {
-      t: (key: keyof typeof zh): string => zh[key],
-      openProjects,
-    } as unknown as KnowledgeWorkspaceProps
+    const props = { t: (key: keyof typeof zh): string => zh[key], openProjects } as unknown as KnowledgeWorkspaceProps
     render(<KnowledgeWorkspace {...props} />)
-
-    const addButton = screen.queryByRole('button', { name: zh.addToProject })
-    expect(addButton).toBeNull()
+    await waitFor(() => { expect(commands).toContain('knowledge-snapshot') })
+    const file = new File(['%PDF-1.7 fixture'], 'global.pdf', { type: 'application/pdf' })
+    fireEvent.change(screen.getByLabelText(zh.fileInput), { target: { files: [file] } })
+    fireEvent.click(screen.getByRole('button', { name: zh.importFile }))
+    await waitFor(() => { expect(screen.getByText('READY')).toBeTruthy() })
     fireEvent.click(screen.getByRole('button', { name: zh.openProjects }))
     expect(openProjects).toHaveBeenCalledOnce()
+    expect(commands).toEqual(['knowledge-snapshot', 'knowledge-import'])
   })
 
   it('follows the active Project from the observable selection', async () => {

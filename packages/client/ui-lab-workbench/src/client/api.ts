@@ -496,6 +496,7 @@ export type LabProjectCommand = { readonly sessionId?: string } & (
 /** A command sent to the general laboratory Web Facade. */
 export type LabCommand = { readonly sessionId?: string } & (
   | { readonly command: 'snapshot'; readonly experimentId: string }
+  | { readonly command: 'knowledge-snapshot' }
   | { readonly command: 'device-list' }
   | { readonly command: 'knowledge-import'; readonly name: string; readonly bytesBase64: string; readonly metadata?: Readonly<Record<string, string>> }
   | { readonly command: 'knowledge-search'; readonly request: { readonly query: string; readonly experimentId?: string } }
@@ -521,6 +522,7 @@ export type LabCommand = { readonly sessionId?: string } & (
 
 /** Typed result values returned by the Knowledge and Agent planning commands. */
 export type LabAgentCommandResult =
+  | { readonly kind: 'knowledge-snapshot'; readonly value: Pick<LabSnapshot, 'knowledge' | 'knowledgeCapability'> }
   | { readonly kind: 'device-list'; readonly value: readonly LabDevice[] }
   | { readonly kind: 'knowledge-import'; readonly value: LabKnowledgeItem }
   | { readonly kind: 'knowledge-search'; readonly value: { readonly capability: LabKnowledgeCapability; readonly results: readonly LabSearchResult[]; readonly conflicts: readonly LabConflict[] } }
@@ -706,6 +708,14 @@ function parseKnowledgeCapability(value: unknown): LabKnowledgeCapability {
   return { state: 'unavailable', reason: 'Knowledge capability status is unavailable' }
 }
 
+function parseKnowledgeSnapshot(value: unknown): Pick<LabSnapshot, 'knowledge' | 'knowledgeCapability'> {
+  const object = record(value)
+  return {
+    knowledge: array(object.knowledge).map(item => decodeObject<LabKnowledgeItem>(item, 'snapshot.knowledge')),
+    knowledgeCapability: parseKnowledgeCapability(object.knowledgeCapability),
+  }
+}
+
 function array(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
@@ -742,6 +752,7 @@ export function parseLabCommandResult(value: unknown): LabCommandResult {
   const object = record(value)
   switch (object.kind) {
     case 'snapshot': return { kind: 'snapshot', value: parseLabSnapshot(object.value) }
+    case 'knowledge-snapshot': return { kind: 'knowledge-snapshot', value: parseKnowledgeSnapshot(object.value) }
     case 'device-list': return { kind: 'device-list', value: array(object.value).map(item => decodeObject<LabDevice>(item, 'result.value')) }
     case 'knowledge-import': return { kind: 'knowledge-import', value: decodeObject<LabKnowledgeItem>(object.value, 'result.value') }
     case 'knowledge-search': return { kind: 'knowledge-search', value: decodeObject<Extract<LabAgentCommandResult, { readonly kind: 'knowledge-search' }>['value']>(object.value, 'result.value') }

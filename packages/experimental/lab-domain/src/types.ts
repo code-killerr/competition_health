@@ -2,7 +2,7 @@
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
-import type { LabProjectId } from './project.ts'
+import type { LabOperationId, LabProjectId } from './project.ts'
 
 /** 实验实例标识。 */
 export type ExperimentId = Branded<'ExperimentId'>
@@ -297,6 +297,7 @@ declare module '@deepseek-ai/dsh-session/types' {
       experimentId: ExperimentId
       objective: string
       sessionId: SessionId
+      operationId?: LabOperationId
     }
     /** Project scope and capability facts exposed to an Agent request. */
     'lab/agent/context-read': {

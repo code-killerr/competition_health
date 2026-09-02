@@ -11,6 +11,8 @@ import css from './LabProjectsView.module.css'
 export interface LabProjectSummary {
   readonly projectId: string
   readonly workspaceId: string
+  /** A Project Session that can be opened directly from the monitor when the Host exposes one. */
+  readonly sessionId?: string
   readonly name: string
   readonly description: string
   readonly status: 'ACTIVE' | 'ARCHIVED'

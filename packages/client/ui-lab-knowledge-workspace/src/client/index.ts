@@ -41,7 +41,7 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
   }, createKnowledgeWorkspaceView({
     ui,
-    openProjects: () => { ctx.get('layout')?.openAppView('lab-projects') },
+    openProjects: () => { ctx.get('layout')?.openAppView('lab-monitor') },
     onSourceToggle: (source: { readonly documentId: string; readonly versionId: string }) => {
       const projectId = ui.snapshot().activeProjectId
       const projectActions = ctx.get('labProjectActions') as KnowledgeProjectActions | undefined

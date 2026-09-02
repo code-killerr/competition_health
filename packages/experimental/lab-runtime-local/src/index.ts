@@ -94,7 +94,11 @@ export class LocalLabRuntimeProvider implements LabRuntimeProvider {
   async createExperiment(request: ExperimentRequest): Promise<void> {
     await this.ready
     if (request.objective.trim().length === 0) throw new Error('experiment objective must be non-blank')
-    if (this.experiments.has(request.experimentId)) throw new Error('experiment "' + request.experimentId + '" already exists')
+    const existing = this.experiments.get(request.experimentId)
+    if (existing !== undefined) {
+      if (sameExperimentRequest(existing.request, request)) return
+      throw new Error('experiment "' + request.experimentId + '" already exists with different metadata')
+    }
     const experiment: StoredExperiment = { version: 2, request, runs: [] }
     this.experiments.set(request.experimentId, experiment)
     await this.persist(experiment)
@@ -889,6 +893,10 @@ function errorMessage(error: unknown): string {
 }
 
 /** 将本地 Runtime Provider 挂载到 Runtime Service。 */
+function sameExperimentRequest(left: ExperimentRequest, right: ExperimentRequest): boolean {
+  return left.experimentId === right.experimentId && left.objective === right.objective && JSON.stringify(left.expectedOutputs) === JSON.stringify(right.expectedOutputs)
+}
+
 export async function apply(ctx: Context, config: Config = {}): Promise<void> {
   const stateStore = new SqliteRuntimeStateStore(config.statePath ?? '.lab-data/runtime.sqlite')
   const provider = new LocalLabRuntimeProvider(ctx.labDevices, stateStore)

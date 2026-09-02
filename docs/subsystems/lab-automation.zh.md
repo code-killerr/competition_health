@@ -195,6 +195,12 @@ Source: [`packages/experimental/lab-knowledge/src/index.ts`](../../packages/expe
 Web Consumer Facade 服务。
 
 ```ts cordis-catalog
+/** Host 统一创建 Agent 实验，并将 Project 与 Runtime 绑定到同一 Experiment 身份。
+ * @param request - Agent operation identity, current Session, and experiment metadata.
+ * @returns - typed progress that tells the Agent what can happen next.
+ */
+async createAgentExperiment(request: LabAgentExperimentCreateRequest): Promise<LabAgentExperimentProgress>
+
 /** 订阅 Host 授权的 Project 文件 revision 通知。
  * @param listener - 收到文件 revision 时调用的监听器。
  * @returns - 取消订阅的函数。
@@ -314,7 +320,7 @@ async create(request: CreateLabProjectRequest): Promise<LabProjectView>
  * @param request - Experiment metadata and the creating Session.
  * @returns the created Experiment and its updated Project view.
  */
-async createExperiment( request: CreateLabExperimentRequest, ): Promise<{ readonly experiment: LabExperimentRecord; readonly project: LabProjectView }>
+async createExperiment( request: CreateLabExperimentRequest, ): Promise<{ readonly experiment: LabExperimentRecord; readonly project: LabProjectView; readonly created: boolean }>
 
 /** Link a Project Session to an Experiment without crossing Project ownership.
  * @param request - Experiment Session provenance link.

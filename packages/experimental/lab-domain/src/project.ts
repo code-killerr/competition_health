@@ -17,6 +17,8 @@ export type LabProjectId = Branded<'LabProjectId'>
 export type LabProjectFactId = Branded<'LabProjectFactId'>
 /** Durable identifier for one project audit record. */
 export type LabProjectAuditId = Branded<'LabProjectAuditId'>
+/** Stable Host operation identity used to make Agent requests retry-safe. */
+export type LabOperationId = Branded<'LabOperationId'>
 
 /** Project lifecycle status. */
 export type LabProjectStatus = 'ACTIVE' | 'ARCHIVED'

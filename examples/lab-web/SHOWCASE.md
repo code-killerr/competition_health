@@ -1,35 +1,28 @@
-# Lab showcase verification guide
+# LABWEAVE showcase verification guide
 
-This guide verifies the assembled Harness-native LABWEAVE composition and its Host-backed lifecycle lane. The visual walkthrough uses real Workspace and Project Facade records, the shared Conversation presentation contract, and the LABWEAVE lifecycle shell. The lifecycle lane uses deterministic model replay only for clarification and real Host commands for Knowledge, Experiment, Plan, Run, report, and Project files.
+This guide verifies the assembled Harness-native LABWEAVE journey: the Agent remains the orchestration surface, while the workbench exposes the current Project, lifecycle state, evidence, and authorized files. It is a five-to-ten minute acceptance path for the real Host composition; it does not treat a static screenshot or a direct API call as user-facing proof.
 
 ## Prepare
 
-Run these commands from the repository root:
+Run from the repository root:
 
-```sh
-pnpm run demo:lab-web
-```
+    pnpm run demo:lab-web
 
-Open the local URL printed by the command. The command starts the opt-in composition and leaves the default Web roster unchanged.
+Open the local URL printed by the command. The command starts the opt-in LABWEAVE composition and leaves the ordinary Web profile unchanged.
 
-## Verified path
+## Acceptance path
 
-1. Open the LABWEAVE application from the root application view. Before a Session exists, the sidebar shows global execution monitoring, a dynamic Projects tree, and the configuration center.
-2. Select a registered Workspace. If it already has a Project, the page opens that Host record; otherwise create one using the Workspace directory name and confirm that the selected Project indicator uses the Host-returned record. Repeating creation for the same Workspace must reuse the existing Project.
-3. Open Project Overview and confirm that lifecycle state and pending actions are primary content, while summary statistics remain secondary.
-4. Expand the Project tree and visit Planning and Workflow, Plan approval, Execution monitoring, Step orchestration, Evidence and reports, and Archive. The selected Project, Agent context, and single input remain synchronized across destinations.
-5. Expand the Agent timeline from the compact bottom dock. Confirm that the LABWEAVE page has one input DOM, retains the draft while destinations change, and does not render the default Conversation hero or an adjacent permanent Agent column.
-6. Open Configuration. Knowledge and Devices show registered Host capabilities; Agent, Workflow/Lab Skill, and People/permissions show explicit unavailable states when no corresponding capability is registered.
-7. Resize the assembled page to desktop, tablet, and narrow desktop widths. Confirm that the workbench remains scrollable, the dock stays reachable, and sidebar rail mode remains operable.
+1. Confirm the initial page is the global Execution monitor. It is a full-page view: no Conversation composer and no Project workspace are mounted. The left sidebar contains the global monitor/configuration entries above the native Workspace/Session tree.
+2. In the monitor, select a Project status row. The Host-authorized transition resolves Project -> Workspace -> Session, selects the same records in the client context, and opens Project mode. If no Project is available, verify that the monitor shows an explicit empty or unavailable state instead of a fabricated project.
+3. In Project mode, verify the three-column composition: native Harness navigation and Workspace/Session tree on the left, the complete shared Harness Conversation with its one composer in the center, and the active Project workspace on the right. The right workspace contains the lifecycle destinations Overview, Planning/Workflow, Plan approval, Execution monitoring, Step orchestration, Results/Evidence, Files, and Archive.
+4. Submit a goal through the single native Agent composer. The Agent reads the current Project context, asks for missing inputs when needed, creates an Experiment through the Host operation without caller-supplied Project or Experiment IDs, and continues toward Knowledge, capability, Workflow/Plan/Skill proposal, approval, execution monitoring, and report.
+5. At an approval or human-confirmation gate, verify that the Agent requests the action once and yields. Complete the pending action from the structured Project workspace control; the durable event should let the next Agent turn continue. The Agent must not start a Run, confirm a device step, or compute the final verdict by itself.
+6. Use Agent cards or lifecycle nodes to open a permitted Project destination. Then use the right workspace to inspect the same Experiment, Run, step, Evidence, Result, and report records. Project files are grouped as Project configuration, conversation output, and run artifacts; opening or downloading uses Host-authorized actions only.
+7. Open the global configuration destination. Knowledge and Devices show their registered capability state. Agent, Workflow/Lab Skill, and People/permissions show read-only or unavailable states when no real provider is registered. Returning to Project mode must preserve the selected Session, Project, and Conversation draft.
+8. Repeat the path at desktop, narrow desktop, and tablet widths. Verify the main scroll container remains usable, sidebar and right workspace can collapse and recover, Conversation remains scrollable, keyboard focus has a visible route, and Project selection survives navigation.
 
-The repeatable visual browser lane is `apps/web/tests/lab-showcase.e2e.ts`. It records desktop, tablet, and narrow screenshots under `.artifacts/lab-showcase/` when Playwright Chromium is available. The Host lifecycle lane is `apps/web/tests/lab-full-lifecycle.e2e.ts`; the assembled fixture-state lane is `apps/web/tests/lab-workbench.e2e.ts`.
+The assembled browser lanes are apps/web/tests/lab-showcase.e2e.ts, apps/web/tests/lab-full-lifecycle.e2e.ts, and apps/web/tests/lab-workbench.e2e.ts. They are the acceptance evidence when Chromium is available; the unit and Host checks below only establish code and composition behavior.
 
-## Expected states
+## Expected boundaries
 
-An empty Project list means that the current Host has no Project records. An unavailable Workspace means that the create action cannot proceed until a registered Workspace is available. A failed list or create action remains visible as an error state with a retry or correction path. The Project ID shown by the page is returned by the Host and is not entered in the browser.
-
-## Showcase boundary
-
-The configuration cards are destination and capability-status checks. The complete Experiment→Plan→approval→Run→Artifact→report path is verified by the Host lifecycle browser lane through the current Host Facade; the visual walkthrough does not claim that it performs those mutations. Do not use the old JSON fixture or a screenshot as evidence for the Host lifecycle.
-
-The lifecycle browser lane does not require `DEEPSEEK_API_KEY`; its model clarification is deterministic replay. A live model-backed planning check is optional and requires `DEEPSEEK_API_KEY`. If a provider is unavailable, report that capability as unavailable or skipped instead of presenting deterministic development data as a production result.
+Project and Experiment identities come from the Host. The browser does not create IDs, accept arbitrary absolute paths, persist record copies, or provide an independent Project-create page. A missing Workspace, unavailable capability, failed Run, or pending human action must expose a typed state and an allowed next action. Deterministic providers may be used for keyless development checks, but their records must not be presented as production data.

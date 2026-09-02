@@ -77,6 +77,22 @@ function install(agent: Agent, knowledge: KnowledgeService): () => void {
   const register = (disposer: () => unknown): void => { disposers.push(disposer) }
   try {
     register(agent.ctx.tools.register(defineTool({
+      name: 'lab_knowledge_catalog',
+      description: 'List imported laboratory knowledge sources and their parse/index status so the Agent can discover usable material before searching.',
+      parameters: {},
+      output: jsonOutput({ type: 'array', items: STATUS_OUTPUT_SCHEMA } as const),
+      async execute(_args, exec) {
+        callingAgent(exec.agent, 'lab_knowledge_catalog')
+        return (await knowledge.listImportStatuses()).map(result => ({
+          found: true,
+          documentId: result.documentId,
+          versionId: result.versionId,
+          status: result.status,
+          ...result.error === undefined ? {} : { error: result.error },
+        }))
+      },
+    })))
+    register(agent.ctx.tools.register(defineTool({
       name: 'lab_knowledge_status',
       description: 'Read the parse and index status of one laboratory knowledge document version.',
       parameters: {

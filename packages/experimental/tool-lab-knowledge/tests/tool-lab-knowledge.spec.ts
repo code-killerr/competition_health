@@ -56,6 +56,7 @@ describe('tool-lab-knowledge', () => {
     if (scope === undefined) throw new Error('expected Agent scope')
     const assembly = await ctx.systemPrompt.assemble({ scope })
     expect(assembly.tools.map(tool => tool.name)).toEqual(expect.arrayContaining([
+      'lab_knowledge_catalog',
       'lab_knowledge_status',
       'lab_knowledge_search',
       'lab_knowledge_conflicts',
@@ -64,6 +65,9 @@ describe('tool-lab-knowledge', () => {
     await ctx.labKnowledge.importDocument({
       source: { kind: 'bytes', name: 'facts.csv', bytes: new TextEncoder().encode('alpha,42\n') },
     })
+    const catalog = await execute(ctx, agent, 'lab_knowledge_catalog', {})
+    expect(catalog.isError).toBe(false)
+    expect(parseJson(text(catalog))).toEqual(expect.arrayContaining([expect.objectContaining({ status: 'READY' })]) as unknown)
     const search = await execute(ctx, agent, 'lab_knowledge_search', { query: 'alpha' })
     expect(search.isError).toBe(false)
     const results = parseJson(text(search))

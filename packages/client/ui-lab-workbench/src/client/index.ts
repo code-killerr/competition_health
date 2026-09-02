@@ -8,8 +8,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { LabGlobalNavigation } from './LabGlobalNavigation.tsx'
 import type { LabGlobalNavigationInjected } from './LabGlobalNavigation.tsx'
-import { LabProjectsView } from './LabProjectsView.tsx'
-import type { LabProjectRunSummary, LabProjectSummary, LabProjectsInjected } from './LabProjectsView.tsx'
+import type { LabProjectRunSummary, LabProjectSummary } from './LabProjectsView.tsx'
 import { LabProjectShellView } from './LabProjectShellView.tsx'
 import type { LabProjectShellInjected } from './LabProjectShellView.tsx'
 import { LabDevicesView } from './LabDevicesView.tsx'
@@ -22,8 +21,6 @@ import { en, zh, type LabWorkbenchKey } from './locales.ts'
 import type { LabQueryState, LabWorkbenchAdapter } from './adapter.ts'
 import { LabConversationHeaderAction } from './LabConversationHeaderAction.tsx'
 import type { LabConversationHeaderInjected } from './LabConversationHeaderAction.tsx'
-import { LabConversationContextDock } from './LabConversationContextDock.tsx'
-import type { LabConversationContextInjected } from './LabConversationContextDock.tsx'
 import { LabCommandCard, LAB_COMMAND_NAMES } from './LabCommandCard.tsx'
 import type { LabCommandCardInjected } from './LabCommandCard.tsx'
 import { LabLifecycleNodeView } from './LabLifecycleNodeView.tsx'
@@ -68,13 +65,11 @@ export { LabRunResultView, getResultDisplayState, getRunDisplayState } from './L
 export type { LabResultDisplayState, LabRunDisplayState, LabRunResultLabels, LabRunResultViewProps } from './LabRunResultView.tsx'
 export { LabConversationHeaderAction } from './LabConversationHeaderAction.tsx'
 export type { LabConversationHeaderInjected } from './LabConversationHeaderAction.tsx'
-export { LabConversationContextDock } from './LabConversationContextDock.tsx'
-export type { LabConversationContextInjected, LabConversationContextSource } from './LabConversationContextDock.tsx'
 export { LabCommandCard, LAB_COMMAND_NAMES } from './LabCommandCard.tsx'
 export type { LabCommandCardInjected } from './LabCommandCard.tsx'
 export { LabLifecycleNodeView } from './LabLifecycleNodeView.tsx'
 export type { LabLifecycleNodeInjected } from './LabLifecycleNodeView.tsx'
-export type { LabProjectSummary, LabProjectsInjected } from './LabProjectsView.tsx'
+export type { LabProjectSummary } from './LabProjectsView.tsx'
 export { LabExperimentDetailView } from './LabExperimentDetailView.tsx'
 export type { LabExperimentDetailLabels, LabExperimentDetailViewProps } from './LabExperimentDetailView.tsx'
 export { LabRunDetailView } from './LabRunDetailView.tsx'
@@ -94,6 +89,8 @@ const NS = 'labWorkbench'
 
 /** Host-owned Project scope actions consumed by the independent Knowledge view. */
 export interface LabProjectActions {
+  /** Toggle one configured device in a Project device scope. */
+  readonly toggleDevice: (projectId: string, deviceId: string) => Promise<void>
   /** Toggle one Knowledge source in a Project's Host-owned source scope. */
   readonly toggleSource: (projectId: string, source: { readonly documentId: string; readonly versionId: string }) => Promise<void>
 }
@@ -126,7 +123,10 @@ export function apply(ctx: ClientContext): void {
   })
   ctx.effect(() => ctx.reflect.provide('labUi', ui), 'ui-lab-workbench: presentation selection')
   ctx.effect(() => ctx.reflect.provide('labAdapter', adapter), 'ui-lab-workbench: Host adapter')
-  const projectActions: LabProjectActions = { toggleSource: (projectId, source) => toggleProjectSource(adapter, projectId, source, currentSessionId(ctx)) }
+  const projectActions: LabProjectActions = {
+    toggleSource: (projectId, source) => toggleProjectSource(adapter, projectId, source, currentSessionId(ctx)),
+    toggleDevice: (projectId, deviceId) => toggleProjectDevice(adapter, projectId, deviceId, currentSessionId(ctx)),
+  }
   ctx.effect(() => ctx.reflect.provide('labProjectActions', projectActions), 'ui-lab-workbench: project scope actions')
   const presentation: LabPresentationController = {
     openCitation: citation => {
@@ -147,26 +147,8 @@ export function apply(ctx: ClientContext): void {
     },
   }
   ctx.effect(() => ctx.reflect.provide('labPresentation', presentation), 'ui-lab-workbench: presentation controller')
+  ctx.effect(() => registerActiveProjectBridge(ctx, ui, adapter), 'ui-lab-workbench: Workspace/Session to Project bridge')
 
-  const registerProjects = (): (() => void) => ctx.slots.register({
-    name: 'app.view',
-    id: 'lab-projects',
-    conversationMode: 'lab-workspace',
-    order: 10,
-    locale: NS,
-    inject: (): LabProjectsInjected => ({
-      ui,
-      listProjects: () => listProjectSummaries(adapter),
-      createProject: async workspaceId => {
-        const sessionId = await ctx.workspaces.connectWorkspace(workspaceId as WorkspaceId)
-        ctx.sessions.open(sessionId)
-        const session = String(sessionId)
-        return projectSummary(await adapter.createProject({ workspaceId, sessionId: session }))
-      },
-      openProjectView: () => { ctx.layout.openAppView('lab-project') },
-    }),
-  }, LabProjectsView)
-  ctx.slots.inject('app.view', registerProjects)
 
   const registerProjectShell = (): (() => void) => ctx.slots.register({
     name: 'app.view',
@@ -203,8 +185,8 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('app.view', registerProjectShell)
 
   const registerMonitor = (): (() => void) => ctx.slots.register({
-    name: 'app.view', id: 'lab-monitor', order: 8, default: true, conversationMode: 'lab-workspace', locale: NS,
-    inject: (): LabOperationsInjected => ({ kind: 'monitor', ui, listProjects: () => listProjectSummaries(adapter), openAppView: viewId => { ctx.layout.openAppView(viewId) } }),
+    name: 'app.view', id: 'lab-monitor', order: 8, default: true, conversationMode: 'replace', locale: NS,
+    inject: (): LabOperationsInjected => ({ kind: 'monitor', ui, listProjects: () => listProjectSummaries(adapter), listProjectsState: () => queryProjectSummaries(adapter), openProject: project => openProjectFromMonitor(ctx, ui, adapter, project), openAppView: viewId => { ctx.layout.openAppView(viewId) } }),
   }, LabOperationsView)
   ctx.slots.inject('app.view', registerMonitor)
 
@@ -222,7 +204,9 @@ export function apply(ctx: ClientContext): void {
     inject: (): LabDevicesInjected => ({
       ui,
       source: 'real',
-      loadDevices: experimentId => listDevices(adapter, experimentId),
+      loadDevices: () => listDevices(adapter),
+      loadProject: adapter.openProject,
+      onDeviceToggle: (projectId, deviceId) => toggleProjectDevice(adapter, projectId, deviceId, currentSessionId(ctx)),
     }),
   }, LabDevicesView)
   ctx.slots.inject('app.view', registerDevices)
@@ -234,8 +218,6 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     inject: (): LabGlobalNavigationInjected => ({
       openAppView: (viewId) => { ctx.layout.openAppView(viewId) },
-      ui,
-      listProjects: () => listProjectSummaries(adapter),
     }),
   }, LabGlobalNavigation)
   ctx.slots.inject('sidebar.navigation', registerGlobalNavigation)
@@ -247,13 +229,6 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     inject: (): LabConversationHeaderInjected => ({ ui, openWorkbench: () => { ctx.layout.openAppView('lab-project') } }),
   }, LabConversationHeaderAction))
-  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
-    name: 'conversation.input.dock',
-    id: 'lab-context-dock',
-    order: 10,
-    locale: NS,
-    inject: (): LabConversationContextInjected => ({ ui, loadRunContext: (experimentId, runId) => loadRunContext(adapter, experimentId, runId), loadProjectContext: adapter.getProjectContext }),
-  }, LabConversationContextDock))
   for (const commandName of LAB_COMMAND_NAMES) {
     ctx.slots.inject('conversation.chat.commandview', () => ctx.slots.register({
       name: 'conversation.chat.commandview',
@@ -274,6 +249,52 @@ export function apply(ctx: ClientContext): void {
 
 }
 
+/** Keep the current native Workspace/Session and laboratory Project selection aligned. */
+function registerActiveProjectBridge(ctx: ClientContext, ui: LabUiContext, adapter: LabWorkbenchAdapter): () => void {
+  let lastKey: string | undefined
+  let pendingKey: string | undefined
+  let disposed = false
+
+  const sync = (openProject: boolean): void => {
+    const currentSessionId = ctx.sessions.list.getSnapshot().current
+    if (currentSessionId === undefined) return
+    const workspace = ctx.workspaces.list.getSnapshot().items.find(item => item.sessionIds.includes(currentSessionId))
+    if (workspace === undefined) return
+    const workspaceId = String(workspace.workspaceId)
+    const sessionId = String(currentSessionId)
+    const key = `${workspaceId}:${sessionId}`
+    if (key === lastKey || key === pendingKey) return
+    pendingKey = key
+    void adapter.createProject({ workspaceId, sessionId }).then(view => {
+      if (disposed || pendingKey !== key) return
+      const projectId = view.project?.projectId
+      if (projectId === undefined) {
+        pendingKey = undefined
+        return
+      }
+      pendingKey = undefined
+      lastKey = key
+      ui.selectWorkspace(workspaceId)
+      ui.selectProject(projectId)
+      if (openProject) ctx.layout.openAppView('lab-project')
+    }).catch(error => {
+      if (pendingKey === key) pendingKey = undefined
+      console.warn('ui-lab-workbench: failed to resolve the current Project', error)
+    })
+  }
+
+  let bootstrapped = false
+  const onChange = (): void => { sync(bootstrapped) }
+  const disposeSessions = ctx.sessions.list.subscribe(onChange)
+  const disposeWorkspaces = ctx.workspaces.list.subscribe(onChange)
+  sync(false)
+  bootstrapped = true
+  return () => {
+    disposed = true
+    disposeSessions()
+    disposeWorkspaces()
+  }
+}
 type LabHostEventSubscription = (listener: (envelope: { readonly payload: unknown }) => void) => () => void
 
 function openLifecycleDetail(event: import('./lifecycle.ts').LabAgentLifecycleProjection, ui: LabUiContext, ctx: ClientContext): void {
@@ -293,7 +314,21 @@ function openLifecycleDetail(event: import('./lifecycle.ts').LabAgentLifecyclePr
   ctx.layout.openAppView('lab-project')
 }
 
-async function listDevices(adapter: LabWorkbenchAdapter, experimentId: string): Promise<LabQueryState<readonly LabDevice[]>> {
+async function openProjectFromMonitor(ctx: ClientContext, ui: LabUiContext, adapter: LabWorkbenchAdapter, project: LabProjectSummary): Promise<void> {
+  const workspace = ctx.workspaces.list.getSnapshot().items.find(item => String(item.workspaceId) === project.workspaceId)
+  const sessionId = project.sessionId !== undefined && workspace?.sessionIds.includes(project.sessionId as SessionId)
+    ? project.sessionId as SessionId
+    : await ctx.workspaces.connectWorkspace(project.workspaceId as WorkspaceId)
+  ctx.sessions.open(sessionId)
+  const resolved = await adapter.createProject({ workspaceId: project.workspaceId, sessionId })
+  const projectId = resolved.project?.projectId
+  if (projectId === undefined) throw new Error('Host returned no Project identity for the selected Workspace')
+  ui.selectWorkspace(project.workspaceId)
+  ui.selectProject(projectId)
+  ctx.layout.openAppView('lab-project')
+}
+
+async function listDevices(adapter: LabWorkbenchAdapter, experimentId?: string): Promise<LabQueryState<readonly LabDevice[]>> {
   void experimentId
   return adapter.listDevices()
 }
@@ -349,6 +384,15 @@ async function listProjectSummaries(adapter: LabWorkbenchAdapter): Promise<reado
   }))
 }
 
+/** Resolve monitor records without collapsing Host failures into an empty list. */
+async function queryProjectSummaries(adapter: LabWorkbenchAdapter): Promise<LabQueryState<readonly LabProjectSummary[]>> {
+  try {
+    return { state: 'ready', value: await listProjectSummaries(adapter) }
+  } catch (error) {
+    return { state: 'unavailable', code: 'CAPABILITY_UNAVAILABLE', message: error instanceof Error ? error.message : String(error), retryable: true }
+  }
+}
+
 async function toggleProjectSource(adapter: LabWorkbenchAdapter, projectId: string, source: { readonly documentId: string; readonly versionId: string }, sessionId?: string): Promise<void> {
   const current = await requireReady(await adapter.openProject(projectId))
   const existing = current.sources.some(item => item.documentId === source.documentId && item.versionId === source.versionId)
@@ -365,24 +409,30 @@ async function toggleProjectSource(adapter: LabWorkbenchAdapter, projectId: stri
   await adapter.updateProjectScope({ projectId, sources: nextSources, deviceIds, ...sessionId === undefined ? {} : { sessionId } })
 }
 
+async function toggleProjectDevice(adapter: LabWorkbenchAdapter, projectId: string, deviceId: string, sessionId?: string): Promise<void> {
+  const current = await requireReady(await adapter.openProject(projectId))
+  const existing = current.devices.some(item => (item.deviceId ?? item.id) === deviceId)
+  const deviceIds = current.devices.flatMap(item => {
+    const currentId = item.deviceId ?? item.id
+    return currentId === undefined ? [] : [currentId]
+  })
+  const nextDeviceIds = existing ? deviceIds.filter(id => id !== deviceId) : [...deviceIds, deviceId]
+  const sources = current.sources.flatMap(item => item.documentId !== undefined && item.versionId !== undefined
+    ? [{ documentId: item.documentId, versionId: item.versionId }]
+    : [])
+  await adapter.updateProjectScope({ projectId, sources, deviceIds: nextDeviceIds, ...sessionId === undefined ? {} : { sessionId } })
+}
+
 async function listExperimentRuns(adapter: LabWorkbenchAdapter, experimentId: string): Promise<LabQueryState<readonly LabRun[]>> {
   return adapter.listRuns(experimentId)
 }
 
-async function loadRunContext(adapter: LabWorkbenchAdapter, experimentId: string, runId: string): Promise<{ readonly runStatus?: string; readonly currentStepId?: string }> {
-  const result = await listExperimentRuns(adapter, experimentId)
-  if (result.state !== 'ready') return {}
-  const run = result.value.find(item => item.runId === runId)
-  return run === undefined ? {} : {
-    ...run.runStatus === undefined ? {} : { runStatus: run.runStatus },
-    ...run.currentStepId === undefined ? {} : { currentStepId: run.currentStepId },
-  }
-}
 
 function projectSummary(value: unknown): LabProjectSummary {
   const object = asRecord(value)
   const project = asRecord(object.project)
   const sessions = array(object.sessions)
+  const sessionId = sessions.map(item => asRecord(item).sessionId).find((value): value is string => typeof value === 'string' && value.trim() !== '')
   const experiments = array(object.experiments)
   const projectId = stringField(project.projectId, 'project.projectId')
   const workspaceId = stringField(project.workspaceId, 'project.workspaceId')
@@ -391,6 +441,7 @@ function projectSummary(value: unknown): LabProjectSummary {
   return {
     projectId,
     workspaceId,
+    ...sessionId === undefined ? {} : { sessionId },
     name: stringField(project.name, 'project.name'),
     description: typeof project.description === 'string' ? project.description : '',
     status,

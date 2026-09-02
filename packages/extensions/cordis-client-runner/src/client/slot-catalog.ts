@@ -117,7 +117,6 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     declaredBy: 'an entry in \'root\' (client-ui-layout), so it exists while that entry is mounted',
     occupants: [
       'client-ui-lab-knowledge-workspace createKnowledgeWorkspaceView({ ui, openProjects: () => { … id \'lab-knowledge\'',
-      'client-ui-lab-workbench LabProjectsView id \'lab-projects\'',
       'client-ui-lab-workbench LabProjectShellView id \'lab-project\'',
       'client-ui-lab-workbench LabOperationsView id \'lab-monitor\'',
       'client-ui-lab-workbench LabOperationsView id \'lab-config\'',
@@ -699,7 +698,6 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-conversation QueueDock id \'queue\'',
       'client-ui-conversation TodoDock id \'todo\'',
       'client-ui-goal GoalDock id \'goal\'',
-      'client-ui-lab-workbench LabConversationContextDock id \'lab-context-dock\'',
     ],
     replaceRisk: 'none',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.input.dock\', () => ctx.slots.register(\n      { name: \'conversation.input.dock\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',

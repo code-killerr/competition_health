@@ -17,11 +17,10 @@ import type { LabExperimentCacheService } from '@deepseek-ai/dsh-experimental-la
 /** Cordis 插件名称。 */
 export const name = 'tool-lab'
 /** 复用 Harness Agent、工具注册表与 Runtime Service。 */
-export const inject = ['agents', 'tools', 'labRuntime', 'labPlanning', 'labSkills']
+export const inject = ['agents', 'tools', 'labRuntime', 'labPlanning', 'labSkills', 'labMvpWeb']
 
 const JSON_SCHEMA = { type: 'json' } as const
 const HUMAN_ACTION_TOOLS = new Set([
-  'lab_experiment_create',
   'lab_plan_approve',
   'lab_plan_reject',
   'lab_skill_approve',
@@ -33,6 +32,30 @@ const HUMAN_ACTION_TOOLS = new Set([
   'lab_run_stop',
   'lab_run_report',
 ])
+
+interface LabAgentExperimentProgress {
+  readonly state: 'registered' | 'already-registered' | 'blocked'
+  readonly sessionId: string
+  readonly projectId?: string
+  readonly reason: string
+  readonly nextActor: 'agent' | 'human' | 'runtime' | 'capability'
+  readonly allowedActions: readonly string[]
+  readonly registeredDestination?: { readonly projectId: string; readonly experimentId: string }
+  readonly workbenchDestination?: { readonly view: 'lab-monitor' | 'lab-project'; readonly projectId?: string; readonly experimentId?: string }
+}
+
+interface LabAgentExperimentHost {
+  createAgentExperiment(request: { readonly operationId: string; readonly sessionId: string; readonly title: string; readonly objective: string; readonly expectedOutputs: readonly string[] }): Promise<LabAgentExperimentProgress>
+}
+
+const LABWEAVE_SYSTEM_PROMPT = [
+  'You are the LABWEAVE laboratory Agent inside DeepSeek Harness.',
+  'Own the end-to-end experiment lifecycle: clarify the goal, inspect Knowledge and available capabilities, generate the workflow and executable plan, request human approval at required gates, monitor execution, assess evidence, and state the final result.',
+  'Use lab_project_context, lab_knowledge_catalog, and lab_device_catalog before planning so imported Knowledge status and configured/selected device capabilities are visible to you; then use lab_project_plan_context for confirmed, Project-scoped evidence.',
+  'Use lab_experiment_create to register a new Experiment from the current Session; never invent Project or Experiment IDs and never create a Workspace or Project from an Agent tool.',
+  'Keep every action scoped to the current Project and Session. Treat device operations, approvals, plan changes, and final assessment as Host-controlled or human-gated operations.',
+  'When a Host result returns blocked or requires a human, stop at that gate and explain the exact next action. When work is complete, summarize evidence, failures, unresolved items, and the result judgment.',
+].join('\n');
 
 function jsonOutput<const S extends ValueSchemaSpec>(schema: S): {
   schema: S
@@ -61,60 +84,38 @@ function install(
   planning: LabPlanningService,
   skills: LabSkillService,
   cache: LabExperimentCacheService,
+  web: LabAgentExperimentHost,
 ): () => void {
   const disposers: Array<() => unknown> = []
   const register = (disposer: () => unknown): void => { disposers.push(disposer) }
   try {
+    register(agent.ctx.systemPrompt.section({ name: 'labweave:agent-role', order: 60, text: LABWEAVE_SYSTEM_PROMPT }))
     register(agent.ctx.on('tools/pre-execute', (exec, next): Promise<PreToolDecision> => {
       if (!HUMAN_ACTION_TOOLS.has(exec.name)) return next()
       return Promise.resolve({ kind: 'deny', reason: 'This laboratory action requires an explicit human action in the project workspace.' })
     }))
     register(agent.ctx.tools.register(defineTool({
-      name: 'lab_experiment_propose',
-      description: 'Submit an Experiment proposal for human review. This records the Agent request but never creates a Project Experiment or Runtime record.',
-      parameters: {
-        experiment_id: { type: 'string', required: true, description: 'Opaque proposal identity supplied by the Agent.' },
-        objective: { type: 'string', required: true, description: 'User experiment objective.' },
-        expected_outputs: { type: 'array', required: true, items: { type: 'string' }, description: 'Expected result labels.' },
-      },
-      output: jsonOutput(JSON_SCHEMA),
-      async execute(args, exec) {
-        const caller = callingAgent(exec.agent, 'lab_experiment_propose')
-        const experimentId = brandId<'ExperimentId'>(string(args.experiment_id, 'experiment_id'))
-        const objective = string(args.objective, 'objective')
-        const expectedOutputs = stringArray(args.expected_outputs, 'expected_outputs')
-        caller.session.append('lab/experiment/requested', {
-          version: 1,
-          experimentId,
-          objective,
-          sessionId: caller.session.id,
-        })
-        return jsonValue({ experimentId, objective, expectedOutputs, status: 'PROPOSED' })
-      },
-    })))
-
-    register(agent.ctx.tools.register(defineTool({
       name: 'lab_experiment_create',
-      description: 'Create a Project Experiment after human confirmation. Agent calls are denied; use the project workspace action.',
+      description: 'Create a Project Experiment from the current Session. The Host resolves the Project, generates the Experiment ID, registers Runtime, and returns the next Agent actions.',
       parameters: {
-        experiment_id: { type: 'string', required: true, description: 'Opaque experiment id.' },
+        title: { type: 'string', required: true, description: 'Short experiment title.' },
         objective: { type: 'string', required: true, description: 'User experiment objective.' },
         expected_outputs: { type: 'array', required: true, items: { type: 'string' }, description: 'Expected result labels.' },
       },
       output: jsonOutput(JSON_SCHEMA),
       async execute(args, exec) {
         const caller = callingAgent(exec.agent, 'lab_experiment_create')
-        const experimentId = brandId<'ExperimentId'>(string(args.experiment_id, 'experiment_id'))
+        const title = string(args.title, 'title')
         const objective = string(args.objective, 'objective')
         const expectedOutputs = stringArray(args.expected_outputs, 'expected_outputs')
-        await runtime.createExperiment({ experimentId, objective, expectedOutputs })
-        caller.session.append('lab/experiment/requested', {
-          version: 1,
-          experimentId,
-          objective,
+        const progress = await web.createAgentExperiment({
+          operationId: brandId<'LabOperationId'>(String(exec.callId)),
           sessionId: caller.session.id,
+          title,
+          objective,
+          expectedOutputs,
         })
-        return jsonValue({ experimentId, objective, expectedOutputs })
+        return jsonValue(progress)
       },
     })))
 
@@ -523,11 +524,13 @@ export async function apply(ctx: Context): Promise<void> {
   if (ctx.get('labExperimentCache') === undefined) await ctx.plugin(LabExperimentCache)
   const cache = ctx.get('labExperimentCache')
   if (cache === undefined) throw new Error('lab experiment cache service did not install')
+  const web = ctx.get('labMvpWeb') as LabAgentExperimentHost | undefined
+  if (web === undefined) throw new Error('lab-mvp-web service did not install')
 
   const installed = new Map<Agent, () => void>()
   const maybeInstall = (agent: Agent): void => {
     if (installed.has(agent)) return
-    installed.set(agent, install(agent, ctx.labRuntime, ctx.labPlanning, ctx.labSkills, cache))
+    installed.set(agent, install(agent, ctx.labRuntime, ctx.labPlanning, ctx.labSkills, cache, web))
   }
   for (const agent of ctx.agents.list()) maybeInstall(agent)
   ctx.on('agent/created', ({ agent }) => { maybeInstall(agent) })

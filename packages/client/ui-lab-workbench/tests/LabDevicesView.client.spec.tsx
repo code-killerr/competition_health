@@ -11,12 +11,12 @@ afterEach(() => {
 })
 
 describe('Devices application view', () => {
-  it('shows an explicit unavailable state without an active Experiment', () => {
-    const loadDevices = vi.fn()
+  it('loads globally configured devices without an active Experiment', async () => {
+    const loadDevices = vi.fn(async (): Promise<LabQueryState<readonly LabDevice[]>> => ({ state: 'ready', value: [] }))
     render(<LabDevicesView {...propsFor({ loadDevices })} />)
 
-    expect(screen.getByRole('status').textContent).toContain(zh.devicesNoExperiment)
-    expect(loadDevices).not.toHaveBeenCalled()
+    await waitFor(() => { expect(screen.getByRole('status').textContent).toContain(zh.devicesEmpty) })
+    expect(loadDevices).toHaveBeenCalledWith(undefined)
   })
 
   it('renders Host device records with provider mode and capabilities', async () => {
@@ -40,8 +40,8 @@ describe('Devices application view', () => {
 })
 
 function propsFor(input: {
-  readonly loadDevices: (experimentId: string) => Promise<LabQueryState<readonly LabDevice[]>>
-  readonly ui?: { readonly snapshot: () => { readonly activeExperimentId?: string }; readonly subscribe: (listener: () => void) => () => void }
+  readonly loadDevices: (experimentId?: string) => Promise<LabQueryState<readonly LabDevice[]>>
+  readonly ui?: { readonly snapshot: () => { readonly activeProjectId?: string; readonly activeExperimentId?: string }; readonly subscribe: (listener: () => void) => () => void }
   readonly source?: 'deterministic' | 'mock' | 'real'
 }): Parameters<typeof LabDevicesView>[0] {
   return {

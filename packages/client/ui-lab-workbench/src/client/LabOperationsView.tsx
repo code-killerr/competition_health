@@ -11,8 +11,11 @@ export interface LabOperationsInjected {
   readonly kind: 'monitor' | 'configuration'
   readonly ui: LabUiContext
   readonly listProjects: () => Promise<readonly LabProjectSummary[]>
+  /** Optional typed monitor query; legacy fixtures may provide listProjects only. */
+  readonly listProjectsState?: () => Promise<LabQueryState<readonly LabProjectSummary[]>>
   readonly listConfigurationCapabilities?: () => Promise<LabQueryState<readonly LabConfigurationCapability[]>>
   readonly openAppView: (viewId: string) => void
+  readonly openProject?: (project: LabProjectSummary) => void | Promise<void>
 }
 
 type Props = PropsRuntime<'app.view'> & PropsLocale<'labWorkbench'> & InjectFace<LabOperationsInjected>
@@ -20,13 +23,30 @@ type Props = PropsRuntime<'app.view'> & PropsLocale<'labWorkbench'> & InjectFace
 /** Render global execution status or the registered configuration destinations. */
 export function LabOperationsView(props: Props): JSX.Element {
   const [projects, setProjects] = useState<readonly LabProjectSummary[]>([])
+  const [projectsState, setProjectsState] = useState<LabQueryState<readonly LabProjectSummary[]> | { readonly state: 'loading' }>({ state: 'loading' })
   useEffect(() => {
     let current = true
-    void props.listProjects().then(value => { if (current) setProjects(value) }).catch(() => { if (current) setProjects([]) })
+    setProjectsState({ state: 'loading' })
+    const load = props.listProjectsState === undefined
+      ? props.listProjects().then(value => ({ state: 'ready' as const, value }))
+      : props.listProjectsState()
+    void load.then(value => {
+      if (!current) return
+      setProjectsState(value)
+      setProjects(value.state === 'ready' ? value.value : [])
+    }).catch(() => {
+      if (current) {
+        setProjects([])
+        setProjectsState({ state: 'unavailable', code: 'CAPABILITY_UNAVAILABLE', message: props.t('monitorHostUnavailable'), retryable: true })
+      }
+    })
     return () => { current = false }
-  }, [props.listProjects])
+  }, [props.listProjects, props.listProjectsState, props.t])
 
   if (props.kind === 'configuration') return <ConfigurationView props={props} />
+  if (projectsState.state === 'loading') return <main className={css.root} aria-label={props.t('executionMonitor')}><div className={css.unavailable}>{props.t('monitorLoading')}</div></main>
+  if (projectsState.state === 'empty') return <main className={css.root} aria-label={props.t('executionMonitor')}><div className={css.unavailable} role="status">{props.t('monitorNoProjects')}</div></main>
+  if (projectsState.state !== 'ready') return <main className={css.root} aria-label={props.t('executionMonitor')}><div className={css.unavailable} role="status">{projectsState.message || props.t('monitorHostUnavailable')}</div></main>
   const active = projects.filter(project => project.status === 'ACTIVE')
   const activeRuns = aggregateCount(projects, project => project.activeRunCount)
   const failedRuns = aggregateCount(projects, project => project.failedRunCount)
@@ -34,12 +54,18 @@ export function LabOperationsView(props: Props): JSX.Element {
   const displayCount = (value: number | undefined): string => value === undefined ? props.t('notAvailable') : String(value)
   const recentRuns = projects.flatMap(project => (project.runs ?? []).map(run => ({ project, run }))).sort((left, right) => (right.run.updatedAt ?? 0) - (left.run.updatedAt ?? 0))
   const openRun = (project: LabProjectSummary, run: LabProjectRunSummary): void => {
-    props.ui.selectWorkspace(project.workspaceId)
-    props.ui.selectProject(project.projectId)
-    props.ui.selectExperiment(run.experimentId)
-    props.ui.selectRun(run.runId)
-    props.ui.openProjectPage(run.status === 'COMPLETED' ? 'evidence' : 'execution')
-    props.openAppView('lab-project')
+    const select = (): void => {
+      if (props.openProject === undefined) {
+        props.ui.selectWorkspace(project.workspaceId)
+        props.ui.selectProject(project.projectId)
+      }
+      props.ui.selectExperiment(run.experimentId)
+      props.ui.selectRun(run.runId)
+      props.ui.openProjectPage(run.status === 'COMPLETED' ? 'evidence' : 'execution')
+      if (props.openProject === undefined) props.openAppView('lab-project')
+    }
+    if (props.openProject === undefined) select()
+    else void Promise.resolve(props.openProject(project)).then(select)
   }
   return (
     <main className={css.root} aria-label={props.t('executionMonitor')}>
@@ -53,7 +79,7 @@ export function LabOperationsView(props: Props): JSX.Element {
       </div></section>
       <section className={css.section}><h2>{props.t('monitorProjects')}</h2>{projects.length === 0
         ? <div className={css.unavailable}>{props.t('monitorNoProjects')}</div>
-        : projects.map(project => <button key={project.projectId} type="button" className={css.row} onClick={() => { props.ui.selectWorkspace(project.workspaceId); props.ui.selectProject(project.projectId); props.openAppView('lab-project') }}><strong>{project.name}</strong><span>{displayCount(project.activeRunCount)} {props.t('activeRuns')} · {displayCount(project.failedRunCount)} {props.t('failedRuns')} · {displayCount(project.pendingApprovalCount)} {props.t('pendingApproval')}</span></button>)}</section>
+        : projects.map(project => <button key={project.projectId} type="button" className={css.row} onClick={() => { void props.openProject?.(project); if (props.openProject === undefined) { props.ui.selectWorkspace(project.workspaceId); props.ui.selectProject(project.projectId); props.openAppView('lab-project') } }}><strong>{project.name}</strong><span>{displayCount(project.activeRunCount)} {props.t('activeRuns')} · {displayCount(project.failedRunCount)} {props.t('failedRuns')} · {displayCount(project.pendingApprovalCount)} {props.t('pendingApproval')}</span></button>)}</section>
       <section className={css.section}><h2>{props.t('monitorRuns')}</h2>{recentRuns.length === 0
         ? <div className={css.unavailable}>{props.t('monitorNoRuns')}</div>
         : recentRuns.slice(0, 8).map(({ project, run }) => <button key={`${project.projectId}:${run.runId}`} type="button" className={css.runRow} onClick={() => { openRun(project, run) }}><strong>{run.runId}</strong><span>{project.name} · {run.status}{run.currentStepId === undefined ? '' : ` · ${props.t('currentStep')}: ${run.currentStepId}`}</span></button>)}</section>

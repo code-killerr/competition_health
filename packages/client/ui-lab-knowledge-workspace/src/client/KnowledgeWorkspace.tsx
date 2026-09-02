@@ -128,12 +128,11 @@ export function KnowledgeWorkspace(props: KnowledgeWorkspaceProps): JSX.Element 
   const request = (command: Record<string, unknown>): Promise<unknown> => callLab(command, props.t('requestFailed'))
 
   const refresh = useCallback(async (): Promise<void> => {
-    if (experimentId === undefined) {
-      setCapability({ state: 'unavailable' })
-      setImports([])
-      return
-    }
-    const value = await request({ command: 'snapshot', ...sessionId === undefined ? {} : { sessionId }, ...experimentScope })
+    const value = await request({
+      command: experimentId === undefined ? 'knowledge-snapshot' : 'snapshot',
+      ...sessionId === undefined ? {} : { sessionId },
+      ...experimentScope,
+    })
     const snapshot = parseSnapshot(value)
     setCapability(parseCapability(snapshot))
     setImports((snapshot.knowledge ?? []).map(item => parseImportStatus(item, props.t)))

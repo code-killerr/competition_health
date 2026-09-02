@@ -1,19 +1,13 @@
-/** Harness 一级应用导航；页面状态由 Layout 和 LabUiContext 共同维护。 */
+/** Harness 一级应用导航；项目入口由原生 Workspace/Session 树和全局监控共同承担。 */
 
-import { useEffect, useSyncExternalStore, useState } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SidebarNavigationOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { JSX } from 'react'
-import type { LabProjectSummary } from './LabProjectsView.tsx'
-import type { LabPage, LabUiContext } from './LabUiContext.ts'
 import css from './LabGlobalNavigation.module.css'
 
-/** 导航项。 */
 /** 一级导航的宿主动作。 */
 export interface LabGlobalNavigationInjected {
   readonly openAppView: (viewId: string) => void
-  readonly ui: LabUiContext
-  readonly listProjects: () => Promise<readonly LabProjectSummary[]>
 }
 
 type Props = PropsRuntime<'sidebar.navigation'>
@@ -21,46 +15,9 @@ type Props = PropsRuntime<'sidebar.navigation'>
   & PropsLocale<'labWorkbench'>
   & InjectFace<LabGlobalNavigationInjected>
 
-type ProjectListState =
-  | { readonly state: 'loading' }
-  | { readonly state: 'ready'; readonly value: readonly LabProjectSummary[] }
-  | { readonly state: 'unavailable' }
-
 /** Render the root application navigation. */
 export function LabGlobalNavigation(props: Props): JSX.Element {
-  const selection = useSyncExternalStore(props.ui.subscribe.bind(props.ui), () => props.ui.snapshot())
-  const [projectsState, setProjectsState] = useState<ProjectListState>({ state: 'loading' })
-  useEffect(() => {
-    let current = true
-    setProjectsState({ state: 'loading' })
-    void props.listProjects().then(value => {
-      if (current) setProjectsState({ state: 'ready', value })
-    }).catch(() => {
-      if (current) setProjectsState({ state: 'unavailable' })
-    })
-    return () => { current = false }
-  }, [props.listProjects, selection.activeProjectId])
-
-  useEffect(() => {
-    if (projectsState.state !== 'ready' || selection.activeProjectId === undefined) return
-    if (projectsState.value.some(project => project.projectId === selection.activeProjectId)) return
-    const firstProject = projectsState.value[0]
-    if (firstProject === undefined) return
-    props.ui.selectWorkspace(firstProject.workspaceId)
-    props.ui.selectProject(firstProject.projectId)
-  }, [projectsState, props.ui, selection.activeProjectId])
-
   const open = (viewId: string): void => { props.openAppView(viewId); props.expandSidebar() }
-  const openProject = (project: LabProjectSummary, page?: LabPage): void => {
-    props.ui.selectWorkspace(project.workspaceId)
-    props.ui.selectProject(project.projectId)
-    if (page !== undefined) props.ui.openProjectPage(page)
-    open('lab-project')
-  }
-  const projects = projectsState.state === 'ready' ? projectsState.value : []
-  const projectStatus = (project: LabProjectSummary): string => project.status === 'ACTIVE'
-    ? props.t('lifecycleStatusActive')
-    : props.t('archive')
 
   return (
     <nav className={css.root} aria-label={props.t('globalNavigation')}>
@@ -70,35 +27,6 @@ export function LabGlobalNavigation(props: Props): JSX.Element {
           <span className={css.mark} aria-hidden="true">↗</span>
           {props.wide && <span>{props.t('executionMonitor')}</span>}
         </button>
-      </section>
-      <section className={css.group} aria-label={props.t('projectsGroup')}>
-        {props.wide && <h2>{props.t('projectsGroup')}</h2>}
-        <button type="button" className={css.item} aria-label={props.t('projects')} onClick={() => { open('lab-projects') }}>
-          <span className={css.mark} aria-hidden="true">P</span>
-          {props.wide && <span>{props.t('projects')}</span>}
-        </button>
-        {props.wide && projectsState.state === 'loading' && <div className={css.navStatus} role="status">{props.t('projectsLoading')}</div>}
-        {props.wide && projectsState.state === 'unavailable' && <div className={css.navStatus} role="status">{props.t('projectsUnavailable')}</div>}
-        {props.wide && projects.map(project => (
-          <div key={project.projectId} className={css.projectTree} data-project-id={project.projectId}>
-            <button type="button" className={project.projectId === selection.activeProjectId ? css.projectActive : css.project} aria-label={project.name} onClick={() => { openProject(project) }}>
-              <span className={css.projectDot} data-project-status={project.status} aria-hidden="true" />
-              <span className={css.projectName}>{project.name}</span>
-              <span className={css.projectMeta} aria-label={`${project.experimentCount} ${props.t('experiments')}`}>
-                {project.activeRunCount !== undefined && project.activeRunCount > 0 ? project.activeRunCount : project.experimentCount}
-              </span>
-              {(project.failedRunCount ?? 0) > 0 && <span className={css.projectAlert} aria-label={props.t('failedRuns')}>!</span>}
-              {(project.pendingApprovalCount ?? 0) > 0 && <span className={css.projectPending} aria-label={props.t('pendingApproval')}>•</span>}
-            </button>
-            <span className={css.projectStatus}>{projectStatus(project)}</span>
-            {project.currentStepId !== undefined && <span className={css.projectStep}>{props.t('runCurrentStep')}: {project.currentStepId}</span>}
-          </div>
-        ))}
-        {!props.wide && projects.map(project => (
-          <button key={project.projectId} type="button" className={css.railProject} aria-label={project.name} title={`${project.name} · ${projectStatus(project)}`} onClick={() => { openProject(project) }}>
-            <span className={css.railProjectMark} data-project-status={project.status} aria-hidden="true">{project.name.slice(0, 1).toUpperCase()}</span>
-          </button>
-        ))}
       </section>
       <section className={css.group} aria-label={props.t('configurationGroup')}>
         {props.wide && <h2>{props.t('configurationGroup')}</h2>}

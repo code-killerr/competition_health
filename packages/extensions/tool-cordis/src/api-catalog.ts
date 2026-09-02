@@ -1127,6 +1127,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Web Consumer Facade 服务。',
     methods: [
       {
+        signature: 'async createAgentExperiment(request: LabAgentExperimentCreateRequest): Promise<LabAgentExperimentProgress>',
+        description: 'Host 统一创建 Agent 实验，并将 Project 与 Runtime 绑定到同一 Experiment 身份。',
+        parameters: [{ name: 'request', description: 'Agent operation identity, current Session, and experiment metadata.' }],
+        returns: 'typed progress that tells the Agent what can happen next.',
+      },
+      {
         signature: 'subscribeProjectFileEvents(listener: (event: LabProjectFileRevisionEvent) => void): () => void',
         description: '订阅 Host 授权的 Project 文件 revision 通知。',
         parameters: [{ name: 'listener', description: '收到文件 revision 时调用的监听器。' }],
@@ -1230,7 +1236,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the existing or newly created project view.',
       },
       {
-        signature: 'async createExperiment( request: CreateLabExperimentRequest, ): Promise<{ readonly experiment: LabExperimentRecord; readonly project: LabProjectView }>',
+        signature: 'async createExperiment( request: CreateLabExperimentRequest, ): Promise<{ readonly experiment: LabExperimentRecord; readonly project: LabProjectView; readonly created: boolean }>',
         description: 'Create a Project-owned Experiment with a Host-generated identity.',
         parameters: [{ name: 'request', description: 'Experiment metadata and the creating Session.' }],
         returns: 'the created Experiment and its updated Project view.',
@@ -3741,7 +3747,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CreateLabExperimentRequest',
-    declaration: 'export interface CreateLabExperimentRequest {\n    readonly projectId: LabProjectId;\n    readonly title: string;\n    readonly objective: string;\n    readonly createdInSessionId: SessionId;\n    readonly createdBy: SessionId;\n    readonly derivedFromExperimentId?: ExperimentId;\n}',
+    declaration: 'export interface CreateLabExperimentRequest {\n    readonly projectId: LabProjectId;\n    readonly title: string;\n    readonly objective: string;\n    readonly createdInSessionId: SessionId;\n    readonly createdBy: SessionId;\n    readonly operationId?: LabOperationId;\n    readonly derivedFromExperimentId?: ExperimentId;\n}',
   },
   {
     name: 'CreateLabProjectRequest',
@@ -4276,6 +4282,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface KvUnitDescriptor {\n    readonly name: string;\n    readonly version: number;\n    readonly tables: readonly string[];\n    readonly hasGlobal: boolean;\n}',
   },
   {
+    name: 'LabAgentExperimentCreateRequest',
+    declaration: 'export interface LabAgentExperimentCreateRequest {\n    readonly operationId: LabOperationId;\n    readonly sessionId: SessionId;\n    readonly title: string;\n    readonly objective: string;\n    readonly expectedOutputs: readonly string[];\n}',
+  },
+  {
+    name: 'LabAgentExperimentProgress',
+    declaration: 'export interface LabAgentExperimentProgress {\n    readonly state: \'registered\' | \'already-registered\' | \'blocked\';\n    readonly sessionId: SessionId;\n    readonly projectId?: LabProjectId;\n    readonly reason: string;\n    readonly nextActor: \'agent\' | \'human\';\n    readonly allowedActions: readonly string[];\n    readonly registeredDestination?: {\n        readonly projectId: LabProjectId;\n        readonly experimentId: ExperimentId;\n    };\n}',
+  },
+  {
     name: 'LabDeviceProvider',
     declaration: 'export interface LabDeviceProvider {\n    readonly name: string;\n    listDevices(): readonly DeviceView[];\n    healthCheck(deviceId: DeviceId): Promise<boolean>;\n    reserve(deviceId: DeviceId, runId: RunId): Promise<void>;\n    execute(request: DeviceOperationRequest): Promise<DeviceReceipt>;\n    status(deviceId: DeviceId): DeviceView | undefined;\n    stop(request: Pick<DeviceOperationRequest, \'deviceId\' | \'runId\' | \'operationId\'>): Promise<DeviceReceipt>;\n    release(deviceId: DeviceId, runId: RunId): Promise<void>;\n    dispose?(): Promise<void> | void;\n}',
   },
@@ -4298,6 +4312,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'LabMvpWebSnapshot',
     declaration: 'export interface LabMvpWebSnapshot {\n    readonly knowledge: readonly ImportStatusResult[];\n    readonly knowledgeCapability: KnowledgeCapabilityStatus;\n    readonly devices: readonly DeviceView[];\n    readonly planningContext?: PlanningContext;\n    readonly planReviews: readonly PlanProposalResult[];\n    readonly run?: RunView;\n    readonly report?: LabRunReport;\n}',
+  },
+  {
+    name: 'LabOperationId',
+    declaration: 'export type LabOperationId = Branded<\'LabOperationId\'>;',
   },
   {
     name: 'LabOperationResource',

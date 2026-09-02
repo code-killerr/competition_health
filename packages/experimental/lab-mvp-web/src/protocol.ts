@@ -45,9 +45,16 @@ export interface LabWebSnapshotView {
   readonly report?: LabRunReport
 }
 
+/** Global Knowledge projection used before a Project has an Experiment. */
+export interface LabWebKnowledgeSnapshotView {
+  readonly knowledge: readonly ImportStatusResult[]
+  readonly knowledgeCapability: KnowledgeCapabilityStatus
+}
+
 /** Facade results grouped by the capability that owns each record. */
 export type LabWebCommandResult =
   | { readonly kind: 'snapshot'; readonly value: LabWebSnapshotView }
+  | { readonly kind: 'knowledge-snapshot'; readonly value: LabWebKnowledgeSnapshotView }
   | { readonly kind: 'device-list'; readonly value: readonly DeviceView[] }
   | { readonly kind: 'knowledge-import'; readonly value: ImportDocumentResult }
   | { readonly kind: 'knowledge-search'; readonly value: { readonly capability: KnowledgeCapabilityStatus; readonly results: readonly KnowledgeSearchResult[]; readonly conflicts: readonly KnowledgeConflict[] } }
@@ -63,6 +70,7 @@ export type LabWebCommandResult =
 /** 可执行的 Web 命令；领域 ID 已在解析阶段完成 branding。 */
 export type LabWebCommand = { readonly sessionId?: SessionId } & (
   | { readonly command: 'snapshot'; readonly experimentId: ExperimentRequest['experimentId'] }
+  | { readonly command: 'knowledge-snapshot' }
   | { readonly command: 'device-list' }
   | { readonly command: 'knowledge-import'; readonly name: string; readonly bytes: Uint8Array; readonly metadata: Readonly<Record<string, string>> }
   | { readonly command: 'knowledge-search'; readonly request: KnowledgeSearchRequest }
@@ -95,7 +103,7 @@ export type LabWebCommand = { readonly sessionId?: SessionId } & (
 export function parseLabWebCommand(value: unknown): LabWebCommand {
   const object = record(value, 'command')
   const command = literal(object.command, 'command.command', [
-    'snapshot', 'device-list', 'knowledge-import', 'knowledge-search', 'knowledge-fact-confirm', 'experiment-create', 'planning-context',
+    'snapshot', 'knowledge-snapshot', 'device-list', 'knowledge-import', 'knowledge-search', 'knowledge-fact-confirm', 'experiment-create', 'planning-context',
     'knowledge-sop-create', 'knowledge-sop-get', 'knowledge-sop-list', 'knowledge-sop-update', 'knowledge-sop-publish',
     'plan-propose', 'plan-validate', 'plan-approve', 'plan-reject', 'run-start', 'run-step',
     'skill-validate', 'skill-approve', 'skill-activate', 'run-confirm', 'run-stop', 'run-report',
@@ -105,6 +113,8 @@ export function parseLabWebCommand(value: unknown): LabWebCommand {
     switch (command) {
       case 'snapshot':
         return { command, experimentId: experimentId(object.experimentId, 'command.experimentId') }
+      case 'knowledge-snapshot':
+        return { command }
       case 'device-list':
         return { command }
       case 'knowledge-import':

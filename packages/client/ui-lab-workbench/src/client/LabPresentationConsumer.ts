@@ -5,7 +5,7 @@ import type { LabPresentationScope, LabPresentationValidation } from './lifecycl
 /** The only client target that a validated Agent presentation intent may change. */
 export interface LabPresentationTarget {
   readonly ui: LabUiContext
-  readonly openAppView: (viewId: 'lab-projects' | 'lab-project' | 'lab-knowledge' | 'lab-devices') => void
+  readonly openAppView: (viewId: 'lab-monitor' | 'lab-project' | 'lab-knowledge' | 'lab-devices') => void
 }
 
 /** Validate an Agent presentation request and apply only an authorized selection.
@@ -23,7 +23,7 @@ export function consumeLabPresentationIntent(
   if (!validation.accepted) return validation
   const intent = validation.intent
   if (intent.view === 'projects') {
-    target.openAppView('lab-projects')
+    target.openAppView('lab-monitor')
     return validation
   }
   if (intent.view === 'devices') {

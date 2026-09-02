@@ -65,7 +65,7 @@ describe('tool-lab-project', () => {
     const scope = scopeOf(agent.ctx)
     if (scope === undefined) throw new Error('expected Agent scope')
     const assembly = await ctx.systemPrompt.assemble({ scope })
-    expect(assembly.tools.map(tool => tool.name)).toEqual(expect.arrayContaining(['lab_project_context', 'lab_project_plan_context']))
+    expect(assembly.tools.map(tool => tool.name)).toEqual(expect.arrayContaining(['lab_project_context', 'lab_device_catalog', 'lab_project_plan_context']))
 
     const project = (await projects.create({ name: 'Tool project', createdBy: agent.session.id })).project.projectId
     await projects.updateScope(project, {
@@ -75,6 +75,9 @@ describe('tool-lab-project', () => {
     })
     await projects.attachSession({ projectId: project, sessionId: agent.session.id, attachedBy: agent.session.id })
 
+    const deviceCatalog = await execute(ctx, agent, 'lab_device_catalog', { project_id: project })
+    expect(deviceCatalog.isError).toBe(false)
+    expect(JSON.parse(text(deviceCatalog))).toMatchObject({ projectId: project, selectedDeviceIds: ['device-1'], devices: [expect.objectContaining({ id: 'device-1', selected: true })] })
     const result = await execute(ctx, agent, 'lab_project_context', { project_id: project })
     const inferred = await execute(ctx, agent, 'lab_project_context', {})
     expect(inferred.isError).toBe(false)

@@ -52,6 +52,14 @@ describe('Agent lifecycle and presentation intent contract', () => {
     expect(ui.snapshot().activeCitation).toMatchObject({ projectId: 'project-fixture', location: 'page:1/block:1' })
   })
 
+  it('routes the legacy projects presentation intent to the global monitor', () => {
+    const fixture = createLabFixtureAdapter('success')
+    const openAppView = vi.fn()
+    const result = consumeLabPresentationIntent({ view: 'projects' }, fixture.presentationScope, { ui: new LabUiContext(), openAppView })
+    expect(result).toMatchObject({ accepted: true })
+    expect(openAppView).toHaveBeenCalledWith('lab-monitor')
+  })
+
   it('rejects an invalid Agent destination without changing the current selection, while manual navigation remains available', () => {
     const ui = new LabUiContext()
     ui.selectProject('project-1')

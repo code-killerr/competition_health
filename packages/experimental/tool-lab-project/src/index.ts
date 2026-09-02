@@ -92,6 +92,27 @@ function install(agent: Agent, projects: LabProjectService, knowledge: Knowledge
   const register = (disposer: () => unknown): void => { disposers.push(disposer) }
   try {
     register(agent.ctx.tools.register(defineTool({
+      name: 'lab_device_catalog',
+      description: 'List configured laboratory devices, capabilities, health, reservation and current Project selection. This is read-only and never reserves or commands a device.',
+      parameters: {
+        project_id: { type: 'string', description: 'Optional opaque project id; omitted values resolve from the current Session association.' },
+      },
+      output: jsonOutput(JSON_SCHEMA),
+      async execute(args, exec) {
+        const caller = callingAgent(exec.agent, 'lab_device_catalog')
+        const id = await resolveProjectId(args.project_id, caller, projects, 'lab_device_catalog')
+        const project = await readProjectContext(projects, id, caller.session.id)
+        const selectedDeviceIds = project.devices.map(device => String(device.deviceId))
+        const selected = new Set(selectedDeviceIds)
+        const availableDevices = devices.listDevices().map(device => ({
+          ...device,
+          selected: selected.has(String(device.id)),
+          capabilities: device.capabilities.map(capability => ({ ...capability, parameters: { ...capability.parameters } })),
+        }))
+        return jsonValue({ projectId: id, selectedDeviceIds, devices: availableDevices })
+      },
+    })))
+    register(agent.ctx.tools.register(defineTool({
       name: 'lab_project_context',
       description: 'Read the current Agent Session project scope, selected devices, and explicitly published shared facts. This never changes project state.',
       parameters: {
