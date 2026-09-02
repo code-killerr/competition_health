@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LABWEAVE · 实验工作台（静态交互抽取）</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- 三栏布局外壳：sidebar | center(conversation + replace 视图) | details(项目工作台) -->
+<div class="frame" id="frame"
+     style="grid-template-columns: 260px minmax(0, 1fr) 460px"
+     data-sidebar-collapsed=""
+     data-details-collapsed="">
+
+  <!-- ================= 侧边栏 ================= -->
+  <div class="sidebarCol">
+    <aside class="sidebar" data-sidebar-root>
+      <div class="brand">
+        <div class="brandMark">LW</div>
+        <div class="brandText" data-sidebar-label>
+          <strong>LABWEAVE</strong>
+          <small>AI Agent · 湿实验工作台</small>
+        </div>
+        <button class="collapseBtn" data-action="toggle-sidebar" title="收起侧边栏" aria-label="收起侧边栏">«</button>
+      </div>
+
+      <nav class="globalNav" data-sidebar-content>
+        <div class="group">
+          <h2>工作区</h2>
+          <div class="projectTree" id="projectTree"></div>
+        </div>
+
+        <div class="group">
+          <h2>全局</h2>
+          <button class="item" data-nav="lab-monitor" title="项目总览">
+            <span class="mark">◎</span><span data-sidebar-label>项目总览</span>
+          </button>
+          <button class="item" data-nav="lab-knowledge" title="知识库">
+            <span class="mark">▤</span><span data-sidebar-label>知识库</span>
+          </button>
+          <button class="item" data-nav="lab-config" title="实验配置">
+            <span class="mark">⚙</span><span data-sidebar-label>实验配置</span>
+          </button>
+          <button class="item" data-nav="lab-devices" title="设备接入">
+            <span class="mark">◱</span><span data-sidebar-label>设备接入</span>
+          </button>
+        </div>
+      </nav>
+
+      <div class="sidebarFooter" data-sidebar-content>
+        <button class="item" data-action="toggle-theme" title="切换明暗主题">
+          <span class="mark">◐</span><span data-sidebar-label>切换主题</span>
+        </button>
+        <div class="hostStatus" data-sidebar-label>
+          <span class="statusDot"></span> DeepSeek Harness · 已连接
+        </div>
+      </div>
+
+      <button class="expandBtn" data-action="toggle-sidebar" title="展开侧边栏" aria-label="展开侧边栏">»</button>
+    </aside>
+  </div>
+
+  <!-- ================= 中间栏 ================= -->
+  <div class="centerCol">
+
+    <!-- 会话面（lab-workspace 模式下占满中间栏，对齐 ConversationRoot / InputBar 结构） -->
+    <section class="conversationSurface" data-conversation-surface data-presentation="lab-workspace">
+      <header class="conversationHeader">
+        <div class="sessionTitle">
+          <strong>Fixture Agent session</strong>
+          <span class="sessionMeta">session-fixture · ACTIVE</span>
+        </div>
+        <div class="headerAction">
+          <button class="workbenchBtn" data-action="open-workbench" title="打开项目工作台">打开工作台</button>
+          <div class="contextDock" data-lab-agent-context>
+            <div class="contextGroup">
+              <span>当前项目</span>
+              <strong id="agentContextProject">Fixture Project</strong>
+            </div>
+            <div class="contextGroup">
+              <span>计划状态</span>
+              <strong>已锁定</strong>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="scrollBody" data-conversation-scroll id="conversationScroll">
+        <div class="chatColumn" id="conversationList"></div>
+
+        <div class="composerSeat">
+          <div class="composerRoot">
+            <div class="composerCard">
+              <textarea id="composerInput" rows="1" spellcheck="false"
+                placeholder="向 Agent 描述实验目标，例如：基于 protocol-v3 设计一组排液梯度实验……"></textarea>
+              <div class="composerRow">
+                <span class="composerChip" id="composerProjectChip" title="当前项目">Fixture Project</span>
+                <div class="composerTrailing">
+                  <button class="composerSend" data-action="send-message" title="发送" aria-label="发送" disabled>↑</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- replace 模式视图面：实验监控 / 实验配置 / 设备接入 / 知识库 -->
+    <section class="appViewSurface" data-app-view-surface hidden>
+
+      <!-- 项目总览 -->
+      <div class="operationsRoot" data-center-view="lab-monitor" hidden>
+        <header class="operationsHeader">
+          <div>
+            <p class="kicker">LAB · 项目总览</p>
+            <h1>项目总览</h1>
+            <p>工作区内全部实验的状态、Agent 盯守与紧急待办。</p>
+          </div>
+          <div class="selection">
+            工作区
+            <strong>workspace-fixture</strong>
+          </div>
+        </header>
+        <div class="section">
+          <h2>实验</h2>
+          <div class="grid" id="monitorExperimentGrid"></div>
+        </div>
+        <div class="section">
+          <h2>重要待办</h2>
+          <div class="sectionBody" id="monitorTodoList"></div>
+        </div>
+      </div>
+
+      <!-- 实验详情：nav / main / main / aside / footer 五段式语义结构 -->
+      <div class="expRoot" data-center-view="lab-experiment" hidden>
+
+        <!-- 顶栏：实验名 / Run / SOP / 进度 / 风险 -->
+        <header class="expHeader">
+          <div class="expHeaderLeft">
+            <button class="backBtn" data-action="back-overview" title="返回项目总览">‹ 返回总览</button>
+            <span class="expBreadcrumbs"><strong id="expBreadcrumbName">—</strong> / Run <code id="expRunId">#EXP-0000</code></span>
+          </div>
+          <div class="expHeaderRight">
+            <span class="expSopBadge">SOP <strong id="expSopVersion">v1.0</strong></span>
+            <span class="expStatusText" id="expStatusText">运行中</span>
+            <span class="expProgress"><strong id="expProgressPct">0%</strong></span>
+            <span class="expRisk" id="expRiskBadge" hidden><span class="riskIcon">⚠</span><strong id="expRiskCount">0</strong> 个风险</span>
+          </div>
+        </header>
+
+        <!-- 主体：nav（左锚点导航）| main（Step Focus + 步骤导航 + 分区切换槽位 · 同一内容区）| aside（Agent 面板） -->
+        <div class="expBody">
+
+          <!-- nav：左栏 6 锚点 tab -->
+          <nav class="expNav" aria-label="实验导航">
+            <ul id="expNavList">
+              <li><a href="#exp-section-goal" class="active" data-nav-anchor="goal">① 实验目标</a></li>
+              <li><a href="#exp-section-sample" data-nav-anchor="sample">② 样本</a></li>
+              <li><a href="#exp-section-procedure" data-nav-anchor="procedure">③ 流程</a></li>
+              <li><a href="#exp-section-equipment" data-nav-anchor="equipment">④ 设备</a></li>
+              <li><a href="#exp-section-artifact" data-nav-anchor="artifact">⑤ 产物</a></li>
+              <li><a href="#exp-section-result" data-nav-anchor="result">⑥ 结果</a></li>
+            </ul>
+          </nav>
+
+          <!-- main：唯一内容主列（上下堆叠：Step Focus 与 步骤导航 → 分区切换单槽） -->
+          <main class="expMain" aria-label="实验主内容">
+
+            <!-- 上部 · Experiment Canvas：当前步骤焦点卡 + 步骤导航（始终保留） -->
+            <section class="expCanvas" aria-label="当前步骤画布">
+              <header class="expCanvasHead">
+                <h2 class="expCanvasTitle">Experiment Canvas · 当前步骤</h2>
+                <button class="jumpToChatBtn" type="button" data-jump-to-workdir title="跳回工作目录（Agent 聊天页）">🏢&nbsp;工作目录</button>
+              </header>
+
+              <section class="expStepCard" id="expCurrentStep">
+                <div class="expStepLabel">当前实验阶段 · Step Focus</div>
+                <div class="expStepContent">
+                  <h3 id="expStepTitle">—</h3>
+                  <dl class="expStepFields" id="expStepFields"></dl>
+                  <div class="expStepMedia" id="expStepMedia"></div>
+                </div>
+              </section>
+
+              <nav class="expStepNav" id="expStepNav" aria-label="步骤导航"></nav>
+            </section>
+
+            <!-- 下部 · 分区切换槽位：点 nav tab 只"刷新渲染"当前选中的 1 组（6 选 1，不堆叠） -->
+            <section class="expSectionSlot" id="expSectionSlot" aria-label="实验分区详情"></section>
+          </main>
+
+          <!-- aside：Agent / Inspector -->
+          <aside class="expInspector" aria-label="Agent 审阅与沟通">
+            <h3 class="expInspectorTitle">Agent / Inspector</h3>
+            <div class="expInspectorSection">
+              <h4>当前步骤解释</h4>
+              <p id="expInsExplanation">—</p>
+            </div>
+            <div class="expInspectorSection">
+              <h4>为什么这样做</h4>
+              <p id="expInsRationale">—</p>
+            </div>
+            <div class="expInspectorSection">
+              <h4>SOP 依据</h4>
+              <p id="expInsSopRef">—</p>
+            </div>
+            <div class="expInspectorSection">
+              <h4>风险</h4>
+              <div id="expInsRisks"></div>
+            </div>
+          </aside>
+        </div>
+
+        <!-- footer：Timeline 时间轴 -->
+        <footer class="expTimeline" aria-label="实验时间轴">
+          <strong>Timeline · 关键节点</strong>
+          <div class="expTimelineTrack" id="expTimelineTrack"></div>
+        </footer>
+      </div>
+
+      <!-- 实验配置 -->
+      <div class="operationsRoot" data-center-view="lab-config" hidden>
+        <header class="operationsHeader">
+          <div>
+            <p class="kicker">LAB · 配置中心</p>
+            <h1>实验配置</h1>
+            <p>工作流注册表、能力声明与 Skill 修订版管理。</p>
+          </div>
+        </header>
+        <div class="section">
+          <h2>工作流注册表</h2>
+          <div class="grid" id="configWorkflowGrid"></div>
+        </div>
+        <div class="section">
+          <h2>能力声明</h2>
+          <div class="capabilityGrid" id="configCapabilityGrid"></div>
+        </div>
+      </div>
+
+      <!-- 设备接入 -->
+      <div class="devicesRoot" data-center-view="lab-devices" hidden>
+        <header class="devicesHeader">
+          <div>
+            <p class="eyebrow">LAB · DEVICE MESH</p>
+            <h1 class="title">设备接入</h1>
+            <p class="summary">Agent 通过能力寻址访问设备；接入即注册能力，撤销即下线。</p>
+          </div>
+          <div class="devicesStatus">
+            <span class="statusLabel">接入状态</span>
+            <span class="statusValue" id="devicesStatusValue">2 台在线</span>
+          </div>
+        </header>
+        <p class="devicesNotice">演示环境使用 Mock 设备；真实环境由 dsh-lab 插件在 Host 侧提供设备会话。</p>
+        <div class="devicesGrid" id="devicesGrid"></div>
+      </div>
+
+      <!-- 知识库 -->
+      <div class="knowledgeRoot" data-center-view="lab-knowledge" hidden>
+        <div class="knowledgeCard">
+          <header class="knowledgeHeader">
+            <div>
+              <p class="eyebrow">LAB · KNOWLEDGE BASE</p>
+              <h3>知识库</h3>
+            </div>
+            <div class="status"><span class="badge" id="knowledgeStatusBadge">1 个来源</span></div>
+          </header>
+
+          <div class="knowledgeGrid">
+            <div class="panel">
+              <h4>导入项目文件</h4>
+              <div class="field">
+                <label for="knowledgeFileInput">文件名</label>
+                <input id="knowledgeFileInput" type="text" placeholder="protocol-v3.pdf">
+              </div>
+              <button class="button" data-action="knowledge-import">导入并创建版本</button>
+            </div>
+
+            <div class="panel">
+              <h4>检索引用</h4>
+              <div class="field">
+                <label for="knowledgeSearchInput">关键词</label>
+                <input id="knowledgeSearchInput" type="text" placeholder="例如：dispense">
+              </div>
+              <button class="button" data-action="knowledge-search">检索</button>
+            </div>
+
+            <div class="panel">
+              <h4>创建 SOP（Skill 修订版）</h4>
+              <div class="field">
+                <label for="knowledgeSopInput">名称</label>
+                <input id="knowledgeSopInput" type="text" placeholder="排液梯度 SOP">
+              </div>
+              <div class="field">
+                <label for="knowledgeSopPurpose">用途</label>
+                <textarea id="knowledgeSopPurpose" rows="2" placeholder="收集一组确定性排液观测"></textarea>
+              </div>
+              <button class="button" data-action="knowledge-create-sop">创建草稿</button>
+            </div>
+          </div>
+
+          <ul class="list" id="knowledgeList"></ul>
+          <p class="notice" id="knowledgeNotice" hidden></p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= 右栏：项目工作台 ================= -->
+  <div class="detailsCol">
+    <section class="projectShell" data-lab-project-shell>
+      <header class="shellHeader">
+        <div>
+          <p class="kicker">PROJECT WORKBENCH</p>
+          <h1 id="shellProjectName">Fixture Project</h1>
+          <p id="shellProjectDescription">Deterministic Agent-led workbench fixture</p>
+        </div>
+        <div class="selection">
+          当前项目
+          <strong id="shellProjectId">project-fixture</strong>
+        </div>
+      </header>
+
+      <div class="shellWorkspace">
+        <nav class="projectNavigation" data-lab-project-navigation id="projectNavigation"></nav>
+        <div class="shellPage" id="shellPage"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 拖拽手柄（跨在列边界上） -->
+  <div class="handle" data-side="sidebar" data-action="resize-sidebar" title="拖动调整侧边栏宽度"></div>
+  <div class="handle" data-side="details" data-action="resize-details" title="拖动调整工作台宽度"></div>
+
+  <!-- 右上角工作台开关（仅 lab-workspace 模式渲染，对齐 AppFrame） -->
+  <button class="workspaceToggle" data-action="toggle-workspace" title="关闭项目工作区" aria-label="关闭项目工作区" aria-expanded="true">›</button>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
