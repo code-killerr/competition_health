@@ -44,3 +44,19 @@ apps/web/dist/
 worktrees/
 .agents/worktrees/
 .typert-*/
+
+# ---- 仓库卫生：编译产物不应入库（tsc 误把 emit 写进 src/ 旁）----
+# 仅针对确认为纯 TS 源的包目录，避免误伤手写 .js/.d.ts
+packages/storage/**/src/*.js
+packages/storage/**/src/*.js.map
+packages/storage/**/src/*.d.ts
+packages/storage/**/src/*.d.ts.map
+packages/experimental/lab-project/src/*.js
+packages/experimental/lab-project/src/*.js.map
+packages/experimental/lab-project/src/*.d.ts
+packages/experimental/lab-project/src/*.d.ts.map
+# 本地运行/测试产生的知识库数据库（二进制，易锁文件、易冲突）
+.lab-data/*.sqlite
+.lab-data/*.sqlite-journal
+.lab-data/*.sqlite-wal
+.lab-data/*.sqlite-shm
